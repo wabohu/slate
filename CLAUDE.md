@@ -45,7 +45,14 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 3. [x] Werkzeugwechsel: Linie, Pfeil, Rechteck, Ellipse
 4. [x] Farbauswahl mit Farben aus meiner Alacritty-Config
 5. [x] Text-Werkzeug
-6. [ ] Strichstärke, Redo
+6. [ ] Strichstärke (Redo ist erledigt)
 7. [ ] Ausgabe: Zwischenablage und PNG speichern
 8. [ ] Globaler Hotkey / Autostart
 9. [ ] Extras: nummerierte Marker, Unschärfe, Bereichsauswahl, Tray-Icon
+10. [ ] Verlauf wie bei Tekapoint: jeden Screenshot automatisch speichern und per Tastenkombination wieder aufrufen. Offene Fragen, vor dem Start klären:
+    - Inhalt: bearbeitbar (Screenshot + Annotationen als Objekte, z. B. JSON, plus PNG-Vorschau), nur fertiges Bild (flaches PNG) oder nur Roh-Screenshot?
+    - Aufruf: im laufenden Tool vor/zurück blättern, Übersicht mit Vorschaubildern, globaler Hotkey von außen (hängt an Punkt 8)? Kombination möglich
+    - Aufbewahrung: letzte N, nach Alter (Tage) oder unbegrenzt? Wert in der Config
+    - Zeitpunkt: Start + Beenden, nach jeder Änderung (absturzsicher) oder nur beim Beenden? Leere Sessions ohne Annotationen speichern?
+    - Speicherort: z. B. `~/.local/share/annotate/` (XDG), in der Config änderbar?
+    - Beziehung zu Punkt 7: Ist das automatische Speichern zugleich „PNG speichern“ oder bleibt das ein eigener Export?
