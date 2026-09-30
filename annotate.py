@@ -48,6 +48,9 @@ TOOL_KEYS = (Qt.Key_A, Qt.Key_S, Qt.Key_D, Qt.Key_F, Qt.Key_G)
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
 
+# Eckenradius des Rechtecks in Pixeln
+RECT_RADIUS = 8
+
 
 def parse_tool(name):
     """Config-Name ('freehand', 'Rect', …) -> Tool; unbekannt -> None."""
@@ -96,7 +99,8 @@ def shape_path(tool, start, end, pen_width):
             path.moveTo(end)
             path.lineTo(tip)
     elif tool == Tool.RECT:
-        path.addRect(QRectF(start, end).normalized())
+        # Qt verkleinert den Radius selbst, wenn das Rechteck dafür zu klein ist
+        path.addRoundedRect(QRectF(start, end).normalized(), RECT_RADIUS, RECT_RADIUS)
     elif tool == Tool.ELLIPSE:
         path.addEllipse(QRectF(start, end).normalized())
     return path
