@@ -23,14 +23,11 @@ from PySide6.QtGui import (
     QGuiApplication,
     QKeySequence,
     QPainter,
-    QPainterPath,
-    QPen,
     QUndoStack,
 )
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
-    QGraphicsPathItem,
     QGraphicsScene,
     QGraphicsTextItem,
     QGraphicsView,
@@ -39,7 +36,8 @@ from PySide6.QtWidgets import (
 from colors import load_palette
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, RemoveItemCommand
 from config import get_int, get_list, get_str, load_config
-from tools import Tool, parse_tool, shape_path, tool_icon, tool_order
+from elements import ShapeElement
+from tools import Tool, parse_tool, tool_icon, tool_order
 from ui import PaletteBar, ToolBar
 
 
@@ -160,8 +158,7 @@ class Canvas(QGraphicsView):
 
         # Zustand
         self.undo_stack = QUndoStack(self)  # alle Änderungen, für Undo/Redo (siehe commands.py)
-        self.current_item = None
-        self.current_path = None  # nur für Freihand
+        self.current_item = None  # ShapeElement, das gerade aufgezogen wird
         self.start_pos = None
         self.editing_text = None  # QGraphicsTextItem, solange getippt wird
         self.editing_old = None   # (Text, Farbe) vor dem Bearbeiten; None = neuer Text
@@ -216,12 +213,6 @@ class Canvas(QGraphicsView):
         super().resizeEvent(event)
         if hasattr(self, "tool_bar"):  # kann schon im Konstruktor kommen
             self.place_bars()
-
-    def make_pen(self):
-        pen = QPen(self.pen_color, self.pen_width)
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
-        return pen
 
     # --- Text ---
     def start_text(self, pos):
@@ -303,16 +294,7 @@ class Canvas(QGraphicsView):
             return
 
         self.start_pos = pos
-        if self.tool == Tool.FREEHAND:
-            self.current_path = QPainterPath(pos)
-            # Kleiner Startpunkt, damit auch ein einzelner Klick einen Punkt zeichnet
-            self.current_path.lineTo(pos.x() + 0.01, pos.y())
-            path = self.current_path
-        else:
-            path = shape_path(self.tool, pos, pos, self.pen_width)
-
-        self.current_item = QGraphicsPathItem(path)
-        self.current_item.setPen(self.make_pen())
+        self.current_item = ShapeElement(self.tool, pos, self.pen_color, self.pen_width)
         self.scene_.addItem(self.current_item)
 
     def mouseDoubleClickEvent(self, event):
@@ -342,13 +324,11 @@ class Canvas(QGraphicsView):
             return
         if self.current_item is None:
             return
-        if self.tool == Tool.FREEHAND:
-            self.current_path.lineTo(pos)
-            self.current_item.setPath(self.current_path)
+        # Werkzeug des Elements, nicht self.tool: ein Tastendruck mitten im Ziehen ändert nichts mehr
+        if self.current_item.tool == Tool.FREEHAND:
+            self.current_item.add_point(pos)
         else:
-            self.current_item.setPath(
-                shape_path(self.tool, self.start_pos, pos, self.pen_width)
-            )
+            self.current_item.set_end(pos)
 
     def mouseReleaseEvent(self, event):
         if event.button() != Qt.LeftButton:
@@ -368,12 +348,11 @@ class Canvas(QGraphicsView):
         pos = self.mapToScene(event.position().toPoint())
         # Versehentlicher Klick ohne Ziehen: leere Form wieder wegwerfen
         too_small = (pos - self.start_pos).manhattanLength() < 3
-        if self.tool != Tool.FREEHAND and too_small:
+        if self.current_item.tool != Tool.FREEHAND and too_small:
             self.scene_.removeItem(self.current_item)
         else:
             self.undo_stack.push(AddItemCommand(self.scene_, self.current_item))
         self.current_item = None
-        self.current_path = None
         self.start_pos = None
 
     # --- Tastatur ---

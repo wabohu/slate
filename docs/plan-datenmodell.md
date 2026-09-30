@@ -1,6 +1,6 @@
 # Plan: Datenmodell umbauen (D1, Schritt 1)
 
-Status: **in Arbeit** (1a erledigt, 1b in Arbeit)
+Status: **in Arbeit** (1a, 1b erledigt, 1c offen)
 
 **Ziel:** Jedes gezeichnete Element kennt seine eigenen Werte: ID, Art, Geometrie,
 Farbe, Strichstärke, Position und Drehung. **An der Bedienung ändert sich nichts.**
@@ -61,7 +61,7 @@ nach Bestätigung.
 
 - [x] **1a** Reine Verschiebung: Werkzeug-Kram nach `tools.py`, keine Logikänderung.
   Test: Startet? Alle Werkzeuge, Leisten, Undo wie bisher
-- [ ] **1b** `ShapeElement` einführen, Canvas zeichnet damit, lokale Koordinaten.
+- [x] **1b** `ShapeElement` einführen, Canvas zeichnet damit, lokale Koordinaten.
   Test: Alle 5 Formen zeichnen, Undo/Redo, sieht alles aus wie vorher?
 - [ ] **1c** `TextElement` einführen, Text-Werkzeug nutzt es.
   Test: Text neu, verschieben, Doppelklick bearbeiten, Undo
