@@ -12,17 +12,19 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Der Screenshot wird per `QScreen.grabWindow(0)` aufgenommen, bevor das Fenster erscheint
 - Anzeige in einem rahmenlosen Vollbildfenster (`QGraphicsView`) mit `QGraphicsScene`
 - Jedes Zeichenobjekt ist ein `QGraphicsPathItem`. Das macht Verschieben, Ändern und Löschen später einfach
-- Werkzeuge: `Tool`-Enum, Tastenbelegung in `TOOL_KEYS`, Geometrie in `shape_path()`. Ein neues Werkzeug braucht genau diese drei Stellen
+- Werkzeuge: `Tool`-Enum und Geometrie in `shape_path()`. `TOOL_KEYS` ist nur die Tastenliste, welche Taste welches Werkzeug wählt, bestimmt `[tools] order` in der Config (Fallback: Enum-Reihenfolge). Neue Werkzeuge erscheinen nur dann automatisch, wenn die Config keine eigene Reihenfolge hat. Mehr Werkzeuge als Tasten in `TOOL_KEYS` sind per Tastatur nicht erreichbar
+- Eigene Config: `~/.config/annotate/config.toml`, gelesen in `config.py`, Vorlage in `config.example.toml`. Farbwerte kommen aus Alacritty (`colors.py`), Auswahl, Reihenfolge und Startwert von Farben und Werkzeugen aus der eigenen Config
 - Undo läuft aktuell über eine Liste `items_drawn`. Bei komplexeren Aktionen (Bearbeiten, Verschieben) auf `QUndoStack` umstellen
 
 ## Bedienung (aktueller Stand)
-- Tasten 1-5: Freihand, Linie, Pfeil, Rechteck, Ellipse
-- Strg+Z: Undo, Esc: beenden
+- Tasten A S D F G: Werkzeuge in der Reihenfolge der Config
+- Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
+- U: Undo, Esc: beenden
 
 ## Konventionen
 - Kleine, lauffähige Schritte. Nach jedem Schritt muss das Programm starten
 - Code bleibt lesbar und in getrennten Bereichen bzw. Dateien: Capture, Zeichenlogik/Canvas, UI, Export
-- Tastenkürzel müssen auf einem deutschen Tastaturlayout funktionieren
+- Tastenkürzel müssen auf dem US-Tastaturlayout funktionieren (`us`, Variante `altgr-intl`)
 - Fehlende Konfigurationsdateien oder Werte dürfen nie zum Absturz führen, immer sinnvolle Fallbacks
 - Kein großer Umbau ohne Rückfrage. Bestehendes Verhalten nicht ändern, wenn es nicht Teil der Aufgabe ist
 - Erkläre neue Qt-Konzepte kurz, ich will den Code verstehen, den ich erweitere
@@ -40,7 +42,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 1. [x] Screenshot als Vollbild-Hintergrund
 2. [x] Freihandzeichnen
 3. [x] Werkzeugwechsel: Linie, Pfeil, Rechteck, Ellipse
-4. [ ] Farbauswahl mit Farben aus meiner Alacritty-Config
+4. [x] Farbauswahl mit Farben aus meiner Alacritty-Config
 5. [ ] Text-Werkzeug
 6. [ ] Strichstärke, Redo
 7. [ ] Ausgabe: Zwischenablage und PNG speichern

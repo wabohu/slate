@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Mini-Annotationstool (Meilenstein 1-3)
+"""Mini-Annotationstool (Meilenstein 1-4)
 
 - Macht einen Screenshot des Monitors, auf dem der Mauszeiger steht
 - Zeigt ihn eingefroren im Vollbild
 - Linke Maustaste gedrückt halten und ziehen zum Zeichnen
-- 1 Freihand | 2 Linie | 3 Pfeil | 4 Rechteck | 5 Kreis/Ellipse
-- Strg+Z: letztes Objekt zurücknehmen
+- A S D F G: Werkzeug, in der Reihenfolge aus der Config
+  (Standard: Freihand, Linie, Pfeil, Rechteck, Kreis/Ellipse)
+- Shift+A S D F G Z X C V B: Farbe, in der Reihenfolge der Farbleiste
+- Tab / Shift+Tab: durch die Farbpalette blättern, Klick auf die Leiste unten wählt
+- U: letztes Objekt zurücknehmen
 - Esc: beenden
 """
 import math
 import sys
 from enum import Enum
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QApplication,
@@ -22,6 +25,10 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QLabel,
 )
+
+from colors import load_palette
+from config import get_list, get_str, load_config
+from ui import PaletteBar
 
 
 # --- Werkzeuge ---------------------------------------------------------------
@@ -33,13 +40,40 @@ class Tool(Enum):
     ELLIPSE = "Kreis / Ellipse"
 
 
-TOOL_KEYS = {
-    Qt.Key_1: Tool.FREEHAND,
-    Qt.Key_2: Tool.LINE,
-    Qt.Key_3: Tool.ARROW,
-    Qt.Key_4: Tool.RECT,
-    Qt.Key_5: Tool.ELLIPSE,
-}
+# Taste -> Werkzeug an dieser Position der Werkzeug-Reihenfolge ([tools] order in der Config).
+# Qt meldet den Buchstaben, nicht die Tastenposition.
+TOOL_KEYS = (Qt.Key_A, Qt.Key_S, Qt.Key_D, Qt.Key_F, Qt.Key_G)
+
+# Fallbacks, wenn die eigene Config fehlt oder unbrauchbare Werte enthält
+DEFAULT_TOOL = Tool.FREEHAND
+DEFAULT_COLOR = "red"
+
+
+def parse_tool(name):
+    """Config-Name ('freehand', 'Rect', …) -> Tool; unbekannt -> None."""
+    return Tool.__members__.get(name.strip().upper())
+
+
+def tool_order(names):
+    """Werkzeuge in der Reihenfolge der Config, ohne Unbekannte und Duplikate.
+
+    Ohne brauchbare Liste: alle Werkzeuge in Reihenfolge des Enums.
+    """
+    result = []
+    for name in names or []:
+        tool = parse_tool(name)
+        if tool is None:
+            print(f"[tools] Unbekanntes Werkzeug: {name!r}", file=sys.stderr)
+        elif tool not in result:
+            result.append(tool)
+    return result or list(Tool)
+
+# Shift+Taste -> Feld der Farbleiste (Position in dieser Liste = Index in der Leiste).
+# Hat die Palette weniger Felder, sind die hinteren Kürzel einfach ohne Wirkung.
+COLOR_KEYS = (
+    Qt.Key_A, Qt.Key_S, Qt.Key_D, Qt.Key_F, Qt.Key_G,
+    Qt.Key_Z, Qt.Key_X, Qt.Key_C, Qt.Key_V, Qt.Key_B,
+)
 
 
 def shape_path(tool, start, end, pen_width):
@@ -94,10 +128,21 @@ class Canvas(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing)
         self.setCursor(Qt.CrossCursor)
 
-        # Aktuelle Einstellungen (später per Toolbar änderbar)
-        self.tool = Tool.FREEHAND
-        self.pen_color = QColor("#ff2d2d")
+        config = load_config()
+
+        # Werkzeuge: Reihenfolge (= Tastenbelegung) und Startwerkzeug aus der Config
+        self.tools = tool_order(get_list(config, "tools", "order"))
+        self.tool = parse_tool(get_str(config, "tools", "default") or "") or DEFAULT_TOOL
         self.pen_width = 4
+
+        # Farbwerte aus der Alacritty-Config (Fallback: Standardpalette),
+        # Auswahl, Reihenfolge und Startfarbe aus der eigenen Config
+        self.palette_ = load_palette()
+        self.swatches = self.palette_.swatches(get_list(config, "colors", "order"))
+        self.colors = [QColor(c) for c in self.swatches]
+        default_color = get_str(config, "colors", "default") or DEFAULT_COLOR
+        self.color_index = self.index_of(self.palette_.lookup(default_color))
+        self.pen_color = self.colors[self.color_index]
 
         # Zustand
         self.items_drawn = []  # für Undo
@@ -113,12 +158,45 @@ class Canvas(QGraphicsView):
             "padding: 6px 12px; border-radius: 6px; font-size: 14px;"
         )
         self.tool_label.move(20, 20)
+
+        # Farbleiste unten; Klick darauf ruft set_color() auf
+        self.palette_bar = PaletteBar(self.swatches, self)
+        self.palette_bar.colorSelected.connect(self.set_color)
+        self.place_palette_bar()
+
         self.set_tool(self.tool)
+        self.set_color(self.color_index)
+
+    def index_of(self, hex_color):
+        """Position einer Farbe in der Leiste; fehlt sie, das erste Feld."""
+        return self.swatches.index(hex_color) if hex_color in self.swatches else 0
 
     def set_tool(self, tool):
         self.tool = tool
-        self.tool_label.setText(f"{tool.value}    [1-5]")
+        self.update_tool_label()
+
+    def set_color(self, index):
+        """Farbe für neue Objekte; bereits gezeichnete behalten ihre Farbe."""
+        self.color_index = index % len(self.colors)
+        self.pen_color = self.colors[self.color_index]
+        self.palette_bar.set_active(self.color_index)
+        self.update_tool_label()
+
+    def update_tool_label(self):
+        # QLabel versteht einfaches HTML ("Rich Text"): so bekommt der Punkt eine eigene Farbe
+        dot = f'<span style="color:{self.pen_color.name()}">●</span>'
+        self.tool_label.setText(f"{dot}&nbsp;&nbsp;{self.tool.value}&nbsp;&nbsp;&nbsp;&nbsp;[A S D F G]")
         self.tool_label.adjustSize()
+
+    def place_palette_bar(self):
+        bar = self.palette_bar
+        bar.move((self.width() - bar.width()) // 2, self.height() - bar.height() - 20)
+
+    def resizeEvent(self, event):
+        # showFullScreen() ändert die Größe erst nach __init__, darum hier neu platzieren
+        super().resizeEvent(event)
+        if hasattr(self, "palette_bar"):  # kann schon im Konstruktor kommen
+            self.place_palette_bar()
 
     def make_pen(self):
         pen = QPen(self.pen_color, self.pen_width)
@@ -172,15 +250,35 @@ class Canvas(QGraphicsView):
         self.start_pos = None
 
     # --- Tastatur ---
+    def event(self, event):
+        # Tab/Shift+Tab würde Qt sonst für den Fokuswechsel zwischen Widgets schlucken
+        if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Tab, Qt.Key_Backtab):
+            self.keyPressEvent(event)
+            return True
+        return super().event(event)
+
     def keyPressEvent(self, event):
         key = event.key()
+        mods = event.modifiers()
         if key == Qt.Key_Escape:
             self.close()
-        elif key in TOOL_KEYS:
-            self.set_tool(TOOL_KEYS[key])
-        elif key == Qt.Key_Z and event.modifiers() & Qt.ControlModifier:
+        elif mods & Qt.ShiftModifier and key in COLOR_KEYS:
+            # Muss vor TOOL_KEYS stehen, sonst würde Shift+A auch das Werkzeug wechseln
+            index = COLOR_KEYS.index(key)
+            if index < len(self.colors):
+                self.set_color(index)
+        elif key == Qt.Key_Backtab or (key == Qt.Key_Tab and mods & Qt.ShiftModifier):
+            self.set_color(self.color_index - 1)
+        elif key == Qt.Key_Tab:
+            self.set_color(self.color_index + 1)
+        elif key == Qt.Key_U:
             if self.items_drawn:
                 self.scene_.removeItem(self.items_drawn.pop())
+        elif key in TOOL_KEYS and not mods & Qt.ControlModifier:
+            # Ohne Strg, damit z. B. ein späteres Strg+S nicht das Werkzeug wechselt
+            index = TOOL_KEYS.index(key)
+            if index < len(self.tools):
+                self.set_tool(self.tools[index])
 
 
 # --- Start -------------------------------------------------------------------

@@ -1,0 +1,19 @@
+# Beispiel-Config für annotate.py
+# Kopieren nach ~/.config/annotate/config.toml
+# Fehlt die Datei oder ein Wert, nimmt das Tool sinnvolle Standardwerte.
+
+[tools]
+# Reihenfolge = Tastenbelegung A S D F G.
+# Namen: freehand line arrow rect ellipse
+order = ["freehand", "line", "arrow", "rect", "ellipse"]
+# Werkzeug beim Start
+default = "freehand"
+
+[colors]
+# Reihenfolge der Farbleiste = Reihenfolge der Kürzel Shift+A S D F G Z X C V B.
+# Namen: black red green yellow blue magenta cyan white,
+#        dieselben mit "bright_" davor (z. B. "bright_red"), und "foreground".
+# Die Farbwerte selbst kommen aus der Alacritty-Config.
+order = ["yellow", "magenta", "cyan", "green", "red", "blue", "white", "bright_black", "foreground"]
+# Farbe beim Start (gleiche Namen wie oben)
+default = "yellow"
