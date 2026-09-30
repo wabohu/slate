@@ -24,6 +24,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 
 ## Konventionen
 - Kleine, lauffähige Schritte. Nach jedem Schritt muss das Programm starten
+- Vor jedem Commit `python tests/regress.py` (zeichnet ohne Bildschirm eine feste Szene und vergleicht mit `tests/regress_reference.png`). Ändert sich die Optik absichtlich, Referenz mit `--update` neu schreiben und das im Commit erwähnen
 - Code bleibt lesbar und in getrennten Bereichen bzw. Dateien: Capture, Zeichenlogik/Canvas, UI, Export
 - Tastenkürzel müssen auf dem US-Tastaturlayout funktionieren (`us`, Variante `altgr-intl`)
 - Fehlende Konfigurationsdateien oder Werte dürfen nie zum Absturz führen, immer sinnvolle Fallbacks
