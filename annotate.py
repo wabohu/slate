@@ -36,13 +36,12 @@ from PySide6.QtWidgets import (
     QGraphicsScene,
     QGraphicsTextItem,
     QGraphicsView,
-    QLabel,
 )
 
 from colors import load_palette
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, RemoveItemCommand
 from config import get_int, get_list, get_str, load_config
-from ui import PaletteBar
+from ui import PaletteBar, ToolBar
 
 
 # --- Werkzeuge ---------------------------------------------------------------
@@ -160,6 +159,33 @@ def shape_path(tool, start, end, pen_width):
     return path
 
 
+def tool_icon(tool):
+    """Symbol für die Werkzeugleiste, in Feld-Koordinaten 0-30 (unten rechts bleibt Platz für die Taste)."""
+    path = QPainterPath()
+    if tool == Tool.FREEHAND:
+        path.moveTo(6, 18)
+        path.cubicTo(10, 4, 14, 26, 23, 9)
+    elif tool == Tool.LINE:
+        path.moveTo(7, 22)
+        path.lineTo(22, 7)
+    elif tool == Tool.ARROW:
+        path.moveTo(7, 22)
+        path.lineTo(22, 7)
+        path.moveTo(14, 7)
+        path.lineTo(22, 7)
+        path.lineTo(22, 15)
+    elif tool == Tool.RECT:
+        path.addRoundedRect(QRectF(5, 8, 17, 12), 3, 3)
+    elif tool == Tool.ELLIPSE:
+        path.addEllipse(QRectF(5, 7, 17, 14))
+    elif tool == Tool.TEXT:
+        path.moveTo(8, 8)
+        path.lineTo(22, 8)
+        path.moveTo(15, 8)
+        path.lineTo(15, 22)
+    return path
+
+
 # --- Capture -----------------------------------------------------------------
 def grab_screen():
     """Screenshot des Monitors unter dem Mauszeiger (X11)."""
@@ -231,19 +257,20 @@ class Canvas(QGraphicsView):
         self.drag_start = None    # Item-Position vor dem Verschieben
         self.passthrough = False  # Maus-Events gehen an den Text-Editor (Cursor setzen, markieren)
 
-        # Kleine Anzeige des aktiven Werkzeugs
-        self.tool_label = QLabel(self)
-        self.tool_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.tool_label.setStyleSheet(
-            "background: rgba(20, 20, 20, 190); color: white;"
-            "padding: 6px 12px; border-radius: 6px; font-size: 14px;"
-        )
-        self.tool_label.move(20, 20)
-
         # Farbleiste unten; Klick darauf ruft set_color() auf
         self.palette_bar = PaletteBar(self.swatches, self)
-        self.palette_bar.colorSelected.connect(self.set_color)
-        self.place_palette_bar()
+        self.palette_bar.selected.connect(self.set_color)
+
+        # Werkzeugleiste darüber, in Config-Reihenfolge; Klick wählt das Werkzeug
+        labels = [
+            name.upper() if i < len(self.tool_keys) and self.tool_keys[i] is not None else ""
+            for i, name in enumerate(self.tool_key_names[:len(self.tools)])
+        ]
+        labels += [""] * (len(self.tools) - len(labels))  # Werkzeuge ohne Taste
+        self.tool_bar = ToolBar([tool_icon(t) for t in self.tools], labels, self)
+        # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
+        self.tool_bar.selected.connect(lambda i: self.set_tool(self.tools[i]))
+        self.place_bars()
 
         self.set_tool(self.tool)
         self.set_color(self.color_index)
@@ -254,7 +281,8 @@ class Canvas(QGraphicsView):
 
     def set_tool(self, tool):
         self.tool = tool
-        self.update_tool_label()
+        # Startwerkzeug kann fehlen, wenn es nicht in [tools] order steht -> nichts markieren
+        self.tool_bar.set_active(self.tools.index(tool) if tool in self.tools else -1)
 
     def set_color(self, index):
         """Farbe für neue Objekte; bereits gezeichnete behalten ihre Farbe."""
@@ -263,24 +291,18 @@ class Canvas(QGraphicsView):
         self.palette_bar.set_active(self.color_index)
         if self.editing_text:  # Farbwechsel während der Eingabe gilt für diesen Text
             self.editing_text.setDefaultTextColor(self.pen_color)
-        self.update_tool_label()
 
-    def update_tool_label(self):
-        # QLabel versteht einfaches HTML ("Rich Text"): so bekommt der Punkt eine eigene Farbe
-        dot = f'<span style="color:{self.pen_color.name()}">●</span>'
-        keys = " ".join(name.upper() for name in self.tool_key_names)
-        self.tool_label.setText(f"{dot}&nbsp;&nbsp;{self.tool.value}&nbsp;&nbsp;&nbsp;&nbsp;[{keys}]")
-        self.tool_label.adjustSize()
-
-    def place_palette_bar(self):
-        bar = self.palette_bar
-        bar.move((self.width() - bar.width()) // 2, self.height() - bar.height() - 20)
+    def place_bars(self):
+        """Farbleiste unten mittig, Werkzeugleiste mittig direkt darüber."""
+        colors, tools = self.palette_bar, self.tool_bar
+        colors.move((self.width() - colors.width()) // 2, self.height() - colors.height() - 20)
+        tools.move((self.width() - tools.width()) // 2, colors.y() - tools.height() - 8)
 
     def resizeEvent(self, event):
         # showFullScreen() ändert die Größe erst nach __init__, darum hier neu platzieren
         super().resizeEvent(event)
-        if hasattr(self, "palette_bar"):  # kann schon im Konstruktor kommen
-            self.place_palette_bar()
+        if hasattr(self, "tool_bar"):  # kann schon im Konstruktor kommen
+            self.place_bars()
 
     def make_pen(self):
         pen = QPen(self.pen_color, self.pen_width)
