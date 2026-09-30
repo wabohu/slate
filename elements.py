@@ -8,8 +8,8 @@ Drehen nur rotation, die Punkte selbst bleiben unverändert.
 import uuid
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QPainterPath, QPen
-from PySide6.QtWidgets import QGraphicsPathItem
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPen
+from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem
 
 from tools import Tool, shape_path
 
@@ -81,3 +81,43 @@ class ShapeElement(QGraphicsPathItem):
         else:
             path = shape_path(self.tool, self.points[0], self.points[1], self.width)
         self.setPath(path)
+
+
+class TextElement(QGraphicsTextItem):
+    """Textobjekt mit fester ID, Farbe und Schriftgröße (fett, in Pixeln).
+
+    Später hängt eine Formbeschriftung als Kind-Item an einem ShapeElement (D5).
+    """
+
+    def __init__(self, origin, color, font_size, text="", element_id=None):
+        super().__init__()
+        self.id = element_id or new_id()
+        self.set_font_size(font_size)
+        self.set_color(color)
+        self.setPlainText(text)
+        self.setPos(origin)
+
+    # Farbe steckt schon in QGraphicsTextItem; die Property gibt Text und Form dieselbe Schnittstelle
+    @property
+    def color(self):
+        return self.defaultTextColor()
+
+    def set_color(self, color):
+        self.setDefaultTextColor(QColor(color))
+
+    def set_font_size(self, size):
+        self.font_size = size
+        font = QFont()
+        font.setPixelSize(size)
+        font.setBold(True)
+        self.setFont(font)
+
+    # --- Bearbeiten ---
+    def start_editing(self):
+        # TextEditorInteraction macht das Item zu einem kleinen Editor (Cursor, Tippen, Auswahl)
+        self.setTextInteractionFlags(Qt.TextEditorInteraction)
+        self.setFocus()  # Tastatureingaben gehen jetzt über die Szene an dieses Item
+
+    def stop_editing(self):
+        self.setTextInteractionFlags(Qt.NoTextInteraction)
+        self.clearFocus()

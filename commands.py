@@ -71,7 +71,7 @@ class EditTextCommand(QUndoCommand):
     def apply(self, state):
         text, color = state
         self.item.setPlainText(text)
-        self.item.setDefaultTextColor(color)
+        self.item.set_color(color)
 
     def redo(self):
         self.apply(self.new)

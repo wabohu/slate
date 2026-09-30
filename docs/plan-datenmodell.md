@@ -1,6 +1,6 @@
 # Plan: Datenmodell umbauen (D1, Schritt 1)
 
-Status: **in Arbeit** (1a, 1b erledigt, 1c offen)
+Status: **abgeschlossen** (1a, 1b, 1c erledigt)
 
 **Ziel:** Jedes gezeichnete Element kennt seine eigenen Werte: ID, Art, Geometrie,
 Farbe, Strichstärke, Position und Drehung. **An der Bedienung ändert sich nichts.**
@@ -63,7 +63,7 @@ nach Bestätigung.
   Test: Startet? Alle Werkzeuge, Leisten, Undo wie bisher
 - [x] **1b** `ShapeElement` einführen, Canvas zeichnet damit, lokale Koordinaten.
   Test: Alle 5 Formen zeichnen, Undo/Redo, sieht alles aus wie vorher?
-- [ ] **1c** `TextElement` einführen, Text-Werkzeug nutzt es.
+- [x] **1c** `TextElement` einführen, Text-Werkzeug nutzt es.
   Test: Text neu, verschieben, Doppelklick bearbeiten, Undo
 
 Vor jedem Schritt laufen die Offscreen-Tests, mit Zeichnen, Undo/Redo, Text und gerendertem

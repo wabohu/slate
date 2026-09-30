@@ -19,7 +19,6 @@ from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import (
     QColor,
     QCursor,
-    QFont,
     QGuiApplication,
     QKeySequence,
     QPainter,
@@ -29,14 +28,13 @@ from PySide6.QtWidgets import (
     QApplication,
     QFrame,
     QGraphicsScene,
-    QGraphicsTextItem,
     QGraphicsView,
 )
 
 from colors import load_palette
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, RemoveItemCommand
 from config import get_int, get_list, get_str, load_config
-from elements import ShapeElement
+from elements import ShapeElement, TextElement
 from tools import Tool, parse_tool, tool_icon, tool_order
 from ui import PaletteBar, ToolBar
 
@@ -165,7 +163,7 @@ class Canvas(QGraphicsView):
         self.undo_stack = QUndoStack(self)  # alle Änderungen, für Undo/Redo (siehe commands.py)
         self.current_item = None  # ShapeElement, das gerade aufgezogen wird
         self.start_pos = None
-        self.editing_text = None  # QGraphicsTextItem, solange getippt wird
+        self.editing_text = None  # TextElement, solange getippt wird
         self.editing_old = None   # (Text, Farbe) vor dem Bearbeiten; None = neuer Text
         self.dragging = None      # Textobjekt, das gerade verschoben wird
         self.drag_offset = None   # Abstand Mauspunkt -> Item-Position beim Anfassen
@@ -205,7 +203,7 @@ class Canvas(QGraphicsView):
         self.pen_color = self.colors[self.color_index]
         self.palette_bar.set_active(self.color_index)
         if self.editing_text:  # Farbwechsel während der Eingabe gilt für diesen Text
-            self.editing_text.setDefaultTextColor(self.pen_color)
+            self.editing_text.set_color(self.pen_color)
 
     def place_bars(self):
         """Farbleiste unten mittig, Werkzeugleiste mittig direkt darüber."""
@@ -239,12 +237,7 @@ class Canvas(QGraphicsView):
     # --- Text ---
     def start_text(self, pos):
         """Neues Textobjekt an pos anlegen und direkt zum Tippen fokussieren."""
-        item = QGraphicsTextItem()
-        font = QFont()
-        font.setPixelSize(self.text_size)
-        font.setBold(True)
-        item.setFont(font)
-        item.setDefaultTextColor(self.pen_color)
+        item = TextElement(pos, self.pen_color, self.text_size)
         # Klickpunkt ungefähr auf Höhe der Zeilenmitte
         item.setPos(pos - QPointF(0, item.boundingRect().height() / 2))
         self.scene_.addItem(item)
@@ -252,9 +245,7 @@ class Canvas(QGraphicsView):
 
     def edit_text(self, item, old):
         """Item zum Tippen öffnen. old = (Text, Farbe) vorher, None bei neuem Text."""
-        # TextEditorInteraction macht das Item zu einem kleinen Editor (Cursor, Tippen, Auswahl)
-        item.setTextInteractionFlags(Qt.TextEditorInteraction)
-        item.setFocus()  # Tastatureingaben gehen jetzt über die Szene an dieses Item
+        item.start_editing()
         self.editing_text = item
         self.editing_old = old
 
@@ -262,9 +253,8 @@ class Canvas(QGraphicsView):
         """Eingabe beenden und als Undo-Schritt ablegen; leerer Text verschwindet."""
         item, old = self.editing_text, self.editing_old
         self.editing_text = self.editing_old = None
-        item.setTextInteractionFlags(Qt.NoTextInteraction)
-        item.clearFocus()
-        new = (item.toPlainText(), item.defaultTextColor())
+        item.stop_editing()
+        new = (item.toPlainText(), item.color)
         empty = not new[0].strip()
 
         if old is None:  # neuer Text
@@ -284,7 +274,7 @@ class Canvas(QGraphicsView):
     def text_at(self, pos):
         """Oberstes Textobjekt an der Szenenposition pos oder None."""
         for item in self.scene_.items(pos):  # sortiert von oben nach unten
-            if isinstance(item, QGraphicsTextItem):
+            if isinstance(item, TextElement):
                 return item
         return None
 
@@ -332,7 +322,7 @@ class Canvas(QGraphicsView):
         item = self.text_at(pos) if self.tool == Tool.TEXT else None
         if item and event.button() == Qt.LeftButton:
             self.dragging = None
-            self.edit_text(item, old=(item.toPlainText(), item.defaultTextColor()))
+            self.edit_text(item, old=(item.toPlainText(), item.color))
         else:
             self.mousePressEvent(event)  # sonst wie ein normaler Klick behandeln
 
