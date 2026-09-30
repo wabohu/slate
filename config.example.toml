@@ -3,9 +3,11 @@
 # Fehlt die Datei oder ein Wert, nimmt das Tool sinnvolle Standardwerte.
 
 [tools]
-# Reihenfolge = Tastenbelegung A S D F G.
-# Namen: freehand line arrow rect ellipse
-order = ["freehand", "line", "arrow", "rect", "ellipse"]
+# Reihenfolge der Werkzeuge; das Werkzeug an Position i bekommt die Taste an Position i von keys.
+# Namen: freehand line arrow rect ellipse text
+order = ["freehand", "line", "arrow", "rect", "ellipse", "text"]
+# Einzelne Tasten ohne Modifier (Shift ist für die Farben reserviert)
+keys = ["a", "s", "d", "f", "g", "t"]
 # Werkzeug beim Start
 default = "freehand"
 
@@ -17,3 +19,12 @@ default = "freehand"
 order = ["yellow", "magenta", "cyan", "green", "red", "blue", "white", "bright_black", "foreground"]
 # Farbe beim Start (gleiche Namen wie oben)
 default = "yellow"
+
+[text]
+# Schriftgröße in Pixeln (6-300)
+size = 28
+
+[keys]
+# Undo/Redo, auch mit Modifiern möglich (z. B. "ctrl+z")
+undo = "r"
+redo = "shift+r"

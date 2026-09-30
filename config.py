@@ -47,9 +47,17 @@ def get_str(config, section, key):
     return value if isinstance(value, str) else None
 
 
+def get_int(config, section, key):
+    """config[section][key] als int; fehlt/falsch -> None (True/False zählen nicht als Zahl)."""
+    table = config.get(section)
+    value = table.get(key) if isinstance(table, dict) else None
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 if __name__ == "__main__":
     print(f"Datei: {config_path()}")
     cfg = load_config()
     print(f"Inhalt: {cfg}")
     print(f"Farben:     order={get_list(cfg, 'colors', 'order')}  default={get_str(cfg, 'colors', 'default')}")
     print(f"Werkzeuge:  order={get_list(cfg, 'tools', 'order')}  default={get_str(cfg, 'tools', 'default')}")
+    print(f"Text:       size={get_int(cfg, 'text', 'size')}")

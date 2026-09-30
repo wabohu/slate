@@ -11,15 +11,16 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 ## Architektur
 - Der Screenshot wird per `QScreen.grabWindow(0)` aufgenommen, bevor das Fenster erscheint
 - Anzeige in einem rahmenlosen Vollbildfenster (`QGraphicsView`) mit `QGraphicsScene`
-- Jedes Zeichenobjekt ist ein `QGraphicsPathItem`. Das macht Verschieben, Ändern und Löschen später einfach
-- Werkzeuge: `Tool`-Enum und Geometrie in `shape_path()`. `TOOL_KEYS` ist nur die Tastenliste, welche Taste welches Werkzeug wählt, bestimmt `[tools] order` in der Config (Fallback: Enum-Reihenfolge). Neue Werkzeuge erscheinen nur dann automatisch, wenn die Config keine eigene Reihenfolge hat. Mehr Werkzeuge als Tasten in `TOOL_KEYS` sind per Tastatur nicht erreichbar
+- Jedes Zeichenobjekt ist ein `QGraphicsPathItem`, Text ein `QGraphicsTextItem` (bringt Cursor und Eingabe mit). Das macht Verschieben, Ändern und Löschen später einfach
+- Werkzeuge: `Tool`-Enum und Geometrie in `shape_path()`. Welche Taste welches Werkzeug wählt, bestimmen `[tools] order` und `[tools] keys` in der Config (Fallback: Enum-Reihenfolge und `DEFAULT_TOOL_KEYS`). Neue Werkzeuge erscheinen nur dann automatisch, wenn die Config keine eigene Reihenfolge hat. Mehr Werkzeuge als Tasten sind per Tastatur nicht erreichbar
 - Eigene Config: `~/.config/annotate/config.toml`, gelesen in `config.py`, Vorlage in `config.example.toml`. Farbwerte kommen aus Alacritty (`colors.py`), Auswahl, Reihenfolge und Startwert von Farben und Werkzeugen aus der eigenen Config
-- Undo läuft aktuell über eine Liste `items_drawn`. Bei komplexeren Aktionen (Bearbeiten, Verschieben) auf `QUndoStack` umstellen
+- Undo/Redo über `QUndoStack`. Jede Änderung an der Szene ist ein `QUndoCommand` in `commands.py` und wird per `undo_stack.push()` abgelegt, nie direkt ausgeführt, sonst fehlt sie im Undo
 
 ## Bedienung (aktueller Stand)
-- Tasten A S D F G: Werkzeuge in der Reihenfolge der Config
+- Tasten A S D F G T: Werkzeuge in der Reihenfolge der Config (Standard: Freihand, Linie, Pfeil, Rechteck, Ellipse, Text)
+- Text: klicken und tippen, Esc oder Klick daneben beendet die Eingabe. Vorhandenen Text ziehen = verschieben, Doppelklick = bearbeiten
 - Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
-- U: Undo, Esc: beenden
+- R: Undo, Shift+R: Redo (`[keys] undo/redo`), Esc: beenden
 
 ## Konventionen
 - Kleine, lauffähige Schritte. Nach jedem Schritt muss das Programm starten
@@ -43,7 +44,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 2. [x] Freihandzeichnen
 3. [x] Werkzeugwechsel: Linie, Pfeil, Rechteck, Ellipse
 4. [x] Farbauswahl mit Farben aus meiner Alacritty-Config
-5. [ ] Text-Werkzeug
+5. [x] Text-Werkzeug
 6. [ ] Strichstärke, Redo
 7. [ ] Ausgabe: Zwischenablage und PNG speichern
 8. [ ] Globaler Hotkey / Autostart
