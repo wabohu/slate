@@ -114,8 +114,13 @@ class Canvas(QGraphicsView):
         self.scene_.addPixmap(pixmap)
         self.setScene(self.scene_)
 
-        # Fenster: rahmenlos, im Vordergrund, exakt auf dem Monitor
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        # Fenster: rahmenlos, exakt auf dem Monitor, am Window-Manager vorbei.
+        # X11BypassWindowManagerHint = X11 "override-redirect": herbstluftwm verwaltet
+        # das Fenster nicht. Sonst flackert beim Öffnen/Schließen eines Vollbildfensters
+        # kurz der Desktop-Hintergrund. Folge: kein showFullScreen(), Tastatur per Grab (show_overlay)
+        self.setWindowFlags(
+            Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.X11BypassWindowManagerHint
+        )
         self.setGeometry(screen.geometry())
         self.setFrameShape(QFrame.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -208,8 +213,25 @@ class Canvas(QGraphicsView):
         colors.move((self.width() - colors.width()) // 2, self.height() - colors.height() - 20)
         tools.move((self.width() - tools.width()) // 2, colors.y() - tools.height() - 8)
 
+    def show_overlay(self):
+        """Fenster zeigen und alle Tasten abfangen, ohne den X-Fokus zu verschieben.
+
+        Kein activateWindow(): Das zuvor fokussierte Fenster behält den Fokus, und
+        herbstluftwm muss ihn nach dem Schließen nicht neu vergeben.
+        """
+        self.show()
+        self.grabKeyboard()  # Keyboard-Grab: alle Tastendrücke kommen hier an
+        self.setFocus()
+        # Die Szene wird normalerweise erst aktiv, wenn das Fenster aktiv ist. Ohne aktive
+        # Szene bekommt ein Textobjekt keinen Tastaturfokus, darum hier von Hand aktivieren
+        QApplication.sendEvent(self.scene_, QEvent(QEvent.WindowActivate))
+
+    def closeEvent(self, event):
+        self.releaseKeyboard()
+        super().closeEvent(event)
+
     def resizeEvent(self, event):
-        # showFullScreen() ändert die Größe erst nach __init__, darum hier neu platzieren
+        # Die endgültige Größe kann erst nach __init__ kommen, darum hier neu platzieren
         super().resizeEvent(event)
         if hasattr(self, "tool_bar"):  # kann schon im Konstruktor kommen
             self.place_bars()
@@ -401,9 +423,7 @@ def main():
     app = QApplication(sys.argv)
     screen, pixmap = grab_screen()  # erst grabben, dann Fenster zeigen!
     canvas = Canvas(screen, pixmap)
-    canvas.showFullScreen()
-    canvas.activateWindow()
-    canvas.setFocus()
+    canvas.show_overlay()
     sys.exit(app.exec())
 
 

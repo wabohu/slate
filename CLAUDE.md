@@ -10,7 +10,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 
 ## Architektur
 - Der Screenshot wird per `QScreen.grabWindow(0)` aufgenommen, bevor das Fenster erscheint
-- Anzeige in einem rahmenlosen Vollbildfenster (`QGraphicsView`) mit `QGraphicsScene`
+- Anzeige in einem rahmenlosen Fenster in Monitorgröße (`QGraphicsView`) mit `QGraphicsScene`, am Window-Manager vorbei (`Qt.X11BypassWindowManagerHint`). Tastatur per `grabKeyboard()` ohne `activateWindow()`, die Szene wird von Hand aktiviert (`Canvas.show_overlay()`)
 - Formen sind `ShapeElement` (`elements.py`, Unterklasse von `QGraphicsPathItem`): feste `id`, `tool`, `points` in lokalen Koordinaten, `color`, `width`. Lage nur über `pos()`/`rotation()`, Pfad per `rebuild()` aus den Werten. Text ist ein `QGraphicsTextItem` (bringt Cursor und Eingabe mit), wird in Schritt 1c zu `TextElement`
 - Werkzeuge in `tools.py`: `Tool`-Enum, Geometrie in `shape_path()`, Symbol für die Werkzeugleiste in `tool_icon()`. Welche Taste welches Werkzeug wählt, bestimmen `[tools] order` und `[tools] keys` in der Config (Fallback: Enum-Reihenfolge und `DEFAULT_TOOL_KEYS`). Neue Werkzeuge erscheinen nur dann automatisch, wenn die Config keine eigene Reihenfolge hat. Mehr Werkzeuge als Tasten sind per Tastatur nicht erreichbar
 - Eigene Config: `~/.config/annotate/config.toml`, gelesen in `config.py`, Vorlage in `config.example.toml`. Farbwerte kommen aus Alacritty (`colors.py`), Auswahl, Reihenfolge und Startwert von Farben und Werkzeugen aus der eigenen Config
@@ -36,7 +36,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Nicht committen, bevor ich bestätigt habe, dass es bei mir läuft
 
 ## Bekannte Stolperstellen
-- herbstluftwm ist ein Tiling-WM. Aktuell funktioniert `showFullScreen()` bei mir. Falls ein Fenster verschwindet, ist Plan B das Flag `Qt.X11BypassWindowManagerHint` plus `grabKeyboard()`
+- herbstluftwm: Mit `showFullScreen()` flackerte beim Öffnen und Schließen kurz der Desktop-Hintergrund (auch ohne picom, auch mit WM-Regel). Darum läuft das Fenster am WM vorbei. `activateWindow()` nicht aufrufen, sonst hat nach dem Schließen kein Fenster mehr den Fokus. Beim Start per globalem Hotkey (Roadmap 8) prüfen, ob `grabKeyboard()` klappt, solange der Hotkey noch gedrückt ist
 - Bei HiDPI kann der Screenshot skalierungsbedingt unscharf sein (Device-Pixel-Ratio des Pixmaps beachten)
 
 ## Roadmap
