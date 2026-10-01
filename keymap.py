@@ -58,6 +58,7 @@ DEFAULT_KEYS = {
     "export_png": "ctrl+e",    # sauberes PNG ohne Bearbeitungsdaten
     "history_prev": "left",    # Verlauf: älterer Screenshot (nur Screenshot-Modus)
     "history_next": "right",   # Verlauf: neuerer Screenshot
+    "help": "shift+?",         # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
     **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),
@@ -123,6 +124,7 @@ class KeyMap:
                 user[action] = value
 
         self.texts = {}     # action -> erster Tastentext (für Anzeigen)
+        self.all_texts = {}  # action -> alle Tastentexte (für die Tastenübersicht)
         self._lookup = {}   # Taste (als Zahl) -> action
         # Erst die Einträge des Benutzers, dann die Standardwerte: bei doppelter
         # Belegung gewinnt, was ausdrücklich in der Config steht
@@ -153,6 +155,7 @@ class KeyMap:
             return
         self._lookup[code] = action
         self.texts.setdefault(action, text)
+        self.all_texts.setdefault(action, []).append(text)
 
     def action_for(self, event):
         """Aktion für ein QKeyEvent oder None."""
@@ -162,3 +165,7 @@ class KeyMap:
         """Kurzer Anzeigetext, z. B. 'A' oder 'Shift+T'; '' wenn ohne Taste."""
         text = self.texts.get(action)
         return QKeySequence(text).toString() if text else ""
+
+    def labels(self, action):
+        """Anzeigetexte aller Tasten einer Aktion, z. B. ['Del', 'Backspace']."""
+        return [QKeySequence(text).toString() for text in self.all_texts.get(action, [])]

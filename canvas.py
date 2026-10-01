@@ -18,7 +18,8 @@ from config import load_config
 from elements import ShapeElement, TextElement
 from settings import BOARD_EXTENT, HIT_TOLERANCE, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
-from ui import MainBar, PaletteBar, SizeBar, Toast, ToolBar
+from shortcuts import overview
+from ui import HelpPanel, MainBar, PaletteBar, SizeBar, Toast, ToolBar
 from wm import restore_focus
 
 # Screenshot-Modus: so lange nach einem Fokusverlust warten, bevor das Overlay ihn
@@ -134,6 +135,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.place_bars()
 
         self.toast = Toast(self.settings.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
+        self.help_panel = HelpPanel(self.settings.theme, self)  # Tastenübersicht (?)
 
         self.set_tool(self.tool)
         self.set_color(self.color_index)
@@ -160,6 +162,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
             "export_png": self.export_image,
             "history_prev": lambda: self.history_step(-1),
             "history_next": lambda: self.history_step(+1),
+            "help": self.show_help,
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
         }
@@ -325,6 +328,12 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.scale(factor, factor)
         self.centerOn(self.export_rect.center())
 
+    def show_help(self):
+        """?: Übersicht der Tastenkürzel, so wie sie gerade belegt sind."""
+        data = overview(self.settings.keymap, self.settings.tools, len(self.settings.colors), SIZE_LEVELS, self.board)
+        self.help_panel.set_content(data, self.palette_bar.colors)  # Farben wie in der Leiste
+        self.help_panel.show_centered()
+
     def take_focus(self):
         """Screenshot-Modus: Tastaturfokus (wieder) holen, z. B. nach einem Klick, wenn ein
         Hotkey zwischendurch ein anderes Fenster fokussiert hat."""
@@ -382,6 +391,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         super().resizeEvent(event)
         if hasattr(self, "main_bar"):  # kann schon im Konstruktor kommen
             self.place_bars()
+        if hasattr(self, "help_panel") and self.help_panel.isVisible():
+            self.help_panel.center()
         if not self.board:
             self.fit_overlay()
 
@@ -399,6 +410,9 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         return super().event(event)
 
     def keyPressEvent(self, event):
+        if self.help_panel.isVisible():  # Übersicht offen: jede Taste schließt nur sie
+            self.help_panel.hide()
+            return
         key = event.key()
         if self.editing_text:
             # Während der Texteingabe gehen die Tasten an den Text. Ausnahmen: Esc beendet,

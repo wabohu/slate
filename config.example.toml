@@ -40,6 +40,8 @@ text = [16, 28, 40, 64]      # Schriftgröße, je 6-300
 # (Hintergrund aus Alacritty colors.primary) oder direkt "#rrggbb".
 bar_background = "background"
 bar_foreground = "foreground"   # Symbole, Rahmen, Beschriftung
+bar_accent = "blue"             # Hervorhebungen, z. B. Tasten in der Übersicht (?)
+bar_heading = "magenta"         # Überschriften, z. B. WERKZEUGE in der Übersicht (?)
 bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
 # Kurze Meldungen (Gespeichert, Kopiert, Fehler): "dunst" (notify-send) oder "toast"
 # (Einblendung im Fenster). Fehlt notify-send, wird automatisch "toast" genommen.
@@ -119,6 +121,7 @@ save = "ctrl+s"            # bearbeitbare Zeichnung speichern (PNG mit eingebett
 export_png = "ctrl+e"      # sauberes PNG ohne Bearbeitungsdaten
 history_prev = "left"      # Verlauf: älterer Screenshot
 history_next = "right"     # Verlauf: neuerer Screenshot
+help = "shift+?"           # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
 # Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order (tool_7-9 ohne Standard)
 tool_1 = "a"
 tool_2 = "s"

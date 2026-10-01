@@ -107,6 +107,42 @@ def main():
           and s.light_overrides == {s.palette.lookup("red"): "#112233"}
           and not s.history_enabled and s.history_keep == 5 and s.history_dir == Path.home() / "verlauf")
 
+    # Tastenübersicht (?): jede Aktion beschrieben, Inhalt je Modus
+    import shortcuts
+    from keymap import DEFAULT_KEYS, KeyMap
+    missing = [a for a in DEFAULT_KEYS if a not in shortcuts.DESCRIPTIONS and not shortcuts.GROUPED.match(a)]
+    check(f"Übersicht: jede Aktion hat eine Beschreibung {missing or ''}", not missing)
+    keymap = KeyMap({"keys": {"undo": "u"}, "tools": {"order": ["rect", "text"]}})
+    shot = dict(shortcuts.sections(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=False))
+    board = dict(shortcuts.sections(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=True))
+    flat = lambda sec: {(k, t) for entries in sec.values() for k, t in entries}  # noqa: E731
+    check("Übersicht: eigene Belegung und Werkzeug-Reihenfolge",
+          ("u", "Rückgängig") in flat(shot) and ("a", "Rechteck") in flat(shot) and ("s", "Text") in flat(shot)
+          and shot["Werkzeuge"][0] == ("w", "Auswahl"))
+    check("Übersicht: Plätze zusammengefasst", ("shift+a s d f g z x c v", "Farbe aus der Leiste") in flat(shot)
+          and ("alt+a s d f", "Größe in Stufen") in flat(shot) and ("h j k l", "verschieben") in flat(shot))
+    check("Übersicht: nur was im Modus gilt", "Verlauf" in shot and "Verlauf" not in board
+          and "Ansicht" in board and "Ansicht" not in shot)
+    check("Übersicht: alle Tasten einer Aktion, klein, deutsche Namen",
+          ("?", "diese Übersicht") in flat(shot) and ("entf, backspace", "löschen") in flat(shot)
+          and ("enter", "Bild kopieren und beenden") in flat(shot) and ("strg+s", "bearbeitbar speichern") in flat(shot)
+          and ("←", "älterer Screenshot") in flat(shot) and ("strg+shift+b", "Hintergrund zurück") in flat(board))
+    ov = shortcuts.overview(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=False)
+    check("Panel-Daten: Werkzeuge mit Auswahl vorne, Farben und Größen je Taste",
+          ov["tools"] == [(Tool.SELECT, "w"), (Tool.RECT, "a"), (Tool.TEXT, "s")]
+          and ov["colors"] == list("asdfgzxcv") and ov["sizes"] == list("asdf")
+          and ov["color_hint"] == "shift + …, tab / shift+tab blättert" and ov["size_hint"].startswith("alt + …"))
+    names = [name for name, _ in ov["lists"]]
+    check("Panel-Daten: Bildgruppen nicht doppelt in den Listen",
+          not {"Werkzeuge", "Farbe und Größe", "Maus"} & set(names) and ov["mouse"] and "Ausgabe" in names)
+    plain = st.Settings({}, False)
+    check("Theme: Akzent blau, Überschrift magenta (Standard)",
+          plain.theme.accent == QColor(plain.palette.lookup("blue"))
+          and plain.theme.heading == QColor(plain.palette.lookup("magenta")))
+    own, _ = quiet(st.Settings, {"ui": {"bar_heading": "yellow", "bar_accent": "quatsch"}}, False)
+    check("Theme: Überschrift aus [ui] bar_heading, unbekannter Akzent -> Standard",
+          own.theme.heading == QColor(own.palette.lookup("yellow")) and own.theme.accent == plain.theme.accent)
+
     print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
     return 1 if failures else 0
 

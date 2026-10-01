@@ -57,6 +57,8 @@ WHEEL_STROKE_STEP = 1
 # Farben der Leiste ([ui]): Namen wie in [colors] plus "background", oder "#rrggbb"
 DEFAULT_BAR_BACKGROUND = "background"  # Hintergrund aus Alacritty colors.primary
 DEFAULT_BAR_FOREGROUND = "foreground"
+DEFAULT_BAR_ACCENT = "blue"  # Hervorhebungen, z. B. Tasten in der Übersicht (?)
+DEFAULT_BAR_HEADING = "magenta"  # Überschriften, z. B. in der Übersicht (?)
 DEFAULT_BAR_OPACITY = 0.9
 
 # Größe in Stufen ([size]): Alt+A S D F wählt Stufe 1-4, gilt als Strichstärke
@@ -252,7 +254,8 @@ class Settings:
                 print(f"[ui] bar_opacity={opacity} außerhalb 0-1, nehme {DEFAULT_BAR_OPACITY}", file=sys.stderr)
             opacity = DEFAULT_BAR_OPACITY
         return Theme(color("bar_background", DEFAULT_BAR_BACKGROUND),
-                     color("bar_foreground", DEFAULT_BAR_FOREGROUND), opacity)
+                     color("bar_foreground", DEFAULT_BAR_FOREGROUND), opacity,
+                     color("bar_accent", DEFAULT_BAR_ACCENT), color("bar_heading", DEFAULT_BAR_HEADING))
 
     def index_of(self, hex_color):
         """Position einer Farbe in der Leiste; fehlt sie, das erste Feld."""

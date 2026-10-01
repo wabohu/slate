@@ -28,6 +28,9 @@ class InputMixin:
     def mousePressEvent(self, event):
         if not self.board and not self.isActiveWindow():
             self.take_focus()  # ein Hotkey hat den Fokus woanders hingelegt: per Klick zurück
+        if self.help_panel.isVisible():  # Klick neben die Tastenübersicht schließt nur sie
+            self.help_panel.hide()
+            return
         if event.button() == Qt.MiddleButton and self.board:
             self.panning = event.position()  # Ansicht verschieben beginnt
             self.viewport().setCursor(Qt.ClosedHandCursor)
