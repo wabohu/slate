@@ -7,12 +7,14 @@ Stufe, Whiteboard-Hintergrund), gehört der Canvas; sie startet mit den default_
 Fehlende oder unbrauchbare Werte führen nie zum Absturz: Hinweis auf stderr, Standardwert.
 """
 import sys
+from pathlib import Path
 
 from PySide6.QtGui import QColor
 
 from colors import load_palette
 from config import get_float, get_int, get_int_list, get_list, get_str
 from export import default_output_dir
+from history import default_history_dir
 from keymap import KeyMap
 from tools import RECT_RADIUS, Tool, parse_tool, tool_order
 from ui import Theme
@@ -65,6 +67,10 @@ DEFAULT_STROKE_WIDTHS = (2, 4, 8, 12)
 DEFAULT_TEXT_SIZES = (16, 28, 40, 64)
 STROKE_WIDTH_RANGE = (1, 100)
 TEXT_SIZE_RANGE = (6, 300)
+
+# Verlauf ([history]): jeden Screenshot automatisch speichern, mit ← → blättern
+DEFAULT_HISTORY_KEEP = 100   # so viele Einträge bleiben, ältere werden beim Anlegen eines neuen gelöscht
+HISTORY_KEEP_RANGE = (1, 100_000)
 
 
 def clamp(value, value_range):
@@ -143,6 +149,15 @@ class Settings:
         # Ausgabe: Zielordner für PNGs ([output] dir), ~ ist erlaubt
         self.output_dir = get_str(config, "output", "dir") or default_output_dir()
 
+        # Verlauf aus [history]: an/aus, Ordner, Anzahl
+        enabled = config.get("history", {}).get("enabled", True) if isinstance(config.get("history"), dict) else True
+        if not isinstance(enabled, bool):
+            print(f"[history] enabled={enabled!r} ist kein true/false, nehme true", file=sys.stderr)
+            enabled = True
+        self.history_enabled = enabled
+        self.history_dir = Path(get_str(config, "history", "dir") or default_history_dir()).expanduser()
+        self.history_keep = self.config_keep(config)
+
     def config_choice(self, config, key, choices):
         """[ui] key muss einer der choices sein; True = die erste (externe) Variante."""
         value = get_str(config, "ui", key) or choices[0]
@@ -161,6 +176,17 @@ class Settings:
         if not low <= value <= high:
             print(f"[rect] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
             return default
+        return value
+
+    def config_keep(self, config):
+        """[history] keep; außerhalb HISTORY_KEEP_RANGE -> Standard."""
+        value = get_int(config, "history", "keep")
+        if value is None:
+            return DEFAULT_HISTORY_KEEP
+        low, high = HISTORY_KEEP_RANGE
+        if not low <= value <= high:
+            print(f"[history] keep={value} außerhalb {low}-{high}, nehme {DEFAULT_HISTORY_KEEP}", file=sys.stderr)
+            return DEFAULT_HISTORY_KEEP
         return value
 
     def config_step(self, config, key, default):

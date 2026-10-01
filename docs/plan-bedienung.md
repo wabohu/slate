@@ -55,7 +55,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Shift+Enter | Speichern (wie Strg+S), absoluten Pfad in die Zwischenablage, beenden | 7 |
 | Strg+S | Zeichnung speichern (bearbeitbares PNG) | D1 |
 | Strg+E | Sauberes PNG exportieren | 7 |
-| Alt+← / Alt+→ | Verlauf: vorheriger / nächster Screenshot | 10 |
+| ← / → | Verlauf: älterer / neuerer Screenshot (umgesetzt ohne Alt) | 10 |
 | Mausrad, mittlere Maustaste ziehen | Whiteboard: Fläche verschieben (beide Achsen) | 11 |
 | Strg+Mausrad, Strg+0 | Whiteboard: zoomen, Zoom zurücksetzen | 11 |
 | Strg+W | Whiteboard: Übersicht, ganzes Dokument einpassen; erneut = zurück | 11 |

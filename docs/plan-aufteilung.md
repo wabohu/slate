@@ -82,6 +82,7 @@ Faustregel für später:
 | Mausbedienung, Werkzeug-Verhalten | `canvas_input.py` |
 | nur im Whiteboard | `canvas_board.py` |
 | Speichern, Kopieren, Meldungen | `canvas_output.py` |
+| Verlauf | `canvas_history.py` (Dateien: `history.py`) |
 
 ## Zwischenschritte
 

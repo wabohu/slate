@@ -10,13 +10,7 @@
 7. [x] Ausgabe: Zwischenablage (Enter, Strg+C) und PNG speichern (Strg+S)
 8. [x] Globaler Hotkey: sxhkd (`~/.config/herbstluftwm/keybindings.sxhkd`), Alt+Escape = Screenshot, Alt+Delete = Whiteboard, beide über `~/.local/bin/annotate-board`
 9. [ ] Extras: nummerierte Marker, Unschärfe, Bereichsauswahl, Tray-Icon
-10. [ ] Verlauf wie bei Tekapoint: jeden Screenshot automatisch speichern und per Tastenkombination wieder aufrufen. Offene Fragen, vor dem Start klären:
-    - Inhalt: bearbeitbar (Screenshot + Annotationen als Objekte, z. B. JSON, plus PNG-Vorschau), nur fertiges Bild (flaches PNG) oder nur Roh-Screenshot?
-    - Aufruf: im laufenden Tool vor/zurück blättern, Übersicht mit Vorschaubildern, globaler Hotkey von außen (hängt an Punkt 8)? Kombination möglich
-    - Aufbewahrung: letzte N, nach Alter (Tage) oder unbegrenzt? Wert in der Config
-    - Zeitpunkt: Start + Beenden, nach jeder Änderung (absturzsicher) oder nur beim Beenden? Leere Sessions ohne Annotationen speichern?
-    - Speicherort: z. B. `~/.local/share/annotate/` (XDG), in der Config änderbar?
-    - Teilweise geklärt: Speicherformat ist das bearbeitbare PNG aus `document.py` (Strg+S). Offen: automatisch bei jedem Screenshot speichern, Aufruf, Aufbewahrung
+10. [x] Verlauf wie bei Tekapoint: Jeder Screenshot landet automatisch als bearbeitbares PNG in `~/.local/share/annotate/history/` (1 s nach jeder Änderung und beim Beenden, absturzsicher; erst ab der ersten Änderung, Screenshots ohne Änderung nicht; keine Whiteboards). ← / → blättern im laufenden Tool, Änderungen landen im jeweiligen Eintrag. Aufbewahrung: die letzten 100 (`[history] keep`). Später denkbar: rofi-Liste mit Vorschaubildern, globaler Hotkey für „letzten Screenshot öffnen“
 11. [x] Leere Zeichenfläche für Diagramme (Ersatz für Excalidraw): `--board`, normales gekacheltes Fenster, unendliche Fläche, Mausrad/mittlere Maustaste verschieben, Strg+Mausrad Zoom, Strg+W Übersicht, Speichern/Laden als `_board.png`, Hintergrund aus Alacritty
 12. [ ] (Schritt 1 erledigt: auswählen, verschieben, löschen, umfärben, Größe; Schritt 2 erledigt: Griffe zum Größe ändern) Auswahl-Werkzeug für alle Elemente: anklicken, verschieben, löschen (Entf), Farbe nachträglich ändern (Element auswählen, Farbe wählen). Später: Mehrfachauswahl, Größe ändern, Drehen, Strichstärke nachträglich ändern, Kopieren/Einfügen, Vorder-/Hintergrund. Das Verschieben von Text im Text-Werkzeug geht dann darin auf. Drehen nur, wenn die Bedienung übersichtlich bleibt (z. B. Tasten in festen Schritten oder ein Griff an der Auswahl)
 13. [ ] Leisten-Layout: Platz für weitere Leisten (Strichstärke, Füllung, Modi …), siehe D3

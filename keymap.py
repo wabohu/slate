@@ -56,6 +56,8 @@ DEFAULT_KEYS = {
     "quit": "ctrl+q",          # beenden (im Whiteboard die einzige Taste dafür, Esc schließt dort nicht)
     "save": "ctrl+s",          # bearbeitbare Zeichnung (PNG mit eingebetteten Daten)
     "export_png": "ctrl+e",    # sauberes PNG ohne Bearbeitungsdaten
+    "history_prev": "left",    # Verlauf: älterer Screenshot (nur Screenshot-Modus)
+    "history_next": "right",   # Verlauf: neuerer Screenshot
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
     **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),

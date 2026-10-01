@@ -10,12 +10,14 @@ Muss ausführbar bleiben: ~/.local/bin/annotate-board ist ein Symlink hierauf (s
 """
 import argparse
 import sys
+from pathlib import Path
 
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from canvas import Canvas
 from document import load_document
+from history import is_entry
 
 
 # --- Capture -----------------------------------------------------------------
@@ -47,8 +49,13 @@ def main():
             canvas.show_window()
         else:
             # Eigene Zeichnung: Strg+S überschreibt sie. Fremdes Bild: Strg+S legt eine neue Datei an
+            # Verlaufseintrag: Änderungen landen automatisch dort, Strg+S legt (wie beim
+            # frischen Screenshot) eine eigene Datei im Ausgabeordner an
             canvas = Canvas(screen, QPixmap.fromImage(background), elements,
                             document_path=args.file if is_drawing else None)
+            if is_entry(args.file, canvas.settings.history_dir):
+                canvas.document_path = None
+                canvas.start_history(Path(args.file).expanduser().resolve())
             canvas.show_overlay()
         canvas.report(message)
     elif args.board:
@@ -59,6 +66,7 @@ def main():
         screen, pixmap = grab_screen()  # erst grabben, dann Fenster zeigen!
         canvas = Canvas(screen, pixmap)
         canvas.show_overlay()
+        canvas.start_history()  # neuer Eintrag im Verlauf
     sys.exit(app.exec())
 
 

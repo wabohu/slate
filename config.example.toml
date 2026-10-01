@@ -76,6 +76,16 @@ step_fine = 1      # Shift+h j k l
 # Standard: ~/Pictures/annotate
 dir = "~/Pictures/annotate"
 
+[history]
+# Verlauf: Jeder Screenshot, auf dem du etwas änderst, wird automatisch als bearbeitbares
+# PNG gespeichert (kurz nach jeder Änderung und beim Beenden) und lässt sich mit ← / →
+# wieder aufrufen. Screenshots ohne Änderung und Whiteboards landen nicht im Verlauf.
+# Ein Eintrag enthält den Screenshot zweimal (fertig + roh), bei 4K etwa 2-6 MB;
+# 100 Einträge also bis zu einige hundert MB.
+enabled = true
+dir = "~/.local/share/annotate/history"
+keep = 100          # so viele Einträge bleiben, ältere werden beim Anlegen eines neuen gelöscht (1-100000)
+
 [keys]
 # Aktion = Taste. Nur eintragen, was vom Standard abweichen soll; hier stehen alle Standardwerte.
 # Schreibweise wie in Qt-Menüs: "r", "shift+r", "ctrl+z", "alt+a", "tab", "f1".
@@ -107,6 +117,8 @@ move_right_fine = "shift+l"
 copy_image = "ctrl+c"      # Bild in die Zwischenablage, offen bleiben
 save = "ctrl+s"            # bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten)
 export_png = "ctrl+e"      # sauberes PNG ohne Bearbeitungsdaten
+history_prev = "left"      # Verlauf: älterer Screenshot
+history_next = "right"     # Verlauf: neuerer Screenshot
 # Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order (tool_7-9 ohne Standard)
 tool_1 = "a"
 tool_2 = "s"

@@ -2,14 +2,15 @@
 
 Hier stehen Aufbau, Zustand, Werkzeug/Farbe/Größe, Leisten, Auswahl-Helfer und Tasten.
 Weitere Methoden kommen aus den Mixins: canvas_input.py (Maus, Text, Griffe, Mausrad),
-canvas_board.py (Whiteboard), canvas_output.py (Kopieren, Speichern, Meldungen).
-Feste Werte aus der Config: settings.py. Siehe docs/plan-aufteilung.md.
+canvas_board.py (Whiteboard), canvas_output.py (Kopieren, Speichern, Meldungen),
+canvas_history.py (Verlauf). Feste Werte aus der Config: settings.py. Siehe docs/plan-aufteilung.md.
 """
-from PySide6.QtCore import QEvent, QRectF, Qt
+from PySide6.QtCore import QEvent, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QUndoStack
 from PySide6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView
 
 from canvas_board import BoardMixin
+from canvas_history import HistoryMixin
 from canvas_input import InputMixin
 from canvas_output import OutputMixin
 from commands import PropertyCommand
@@ -24,11 +25,11 @@ from ui import MainBar, PaletteBar, SizeBar, Toast, ToolBar
 ACTIONS_WHILE_TYPING = ("size_",)
 
 
-class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
+class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
     """Zeichenfläche für Screenshot und Whiteboard. Weitere Methoden in den Mixins:
     canvas_input.py (Maus, Text, Griffe, Mausrad), canvas_board.py (Whiteboard-Ansicht
-    und -Hintergrund), canvas_output.py (Kopieren, Speichern, Meldungen);
-    siehe docs/plan-aufteilung.md."""
+    und -Hintergrund), canvas_output.py (Kopieren, Speichern, Meldungen),
+    canvas_history.py (Verlauf); siehe docs/plan-aufteilung.md."""
 
     def __init__(self, screen, pixmap, elements=(), document_path=None, board=False, board_color=None):
         """pixmap: Hintergrund (Screenshot oder geladenes Bild), im Whiteboard None;
@@ -44,15 +45,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
             self.scene_.setSceneRect(-BOARD_EXTENT, -BOARD_EXTENT, 2 * BOARD_EXTENT, 2 * BOARD_EXTENT)
             self.background_image = None
         else:
-            # Szene mit dem Screenshot als Hintergrund
-            background = self.scene_.addPixmap(pixmap)
-            # Für den Export: Bereich des Screenshots in der Szene und seine Größe in Pixeln
-            self.export_rect = background.boundingRect()
-            self.export_size = pixmap.size()
-            self.background_image = pixmap.toImage()  # roh, wird beim Speichern eingebettet
-            # Feste Szenengröße = Bild: Die Ansicht zeigt es mittig (fit_overlay), auch wenn
-            # ein Strich über den Rand hinausragt
-            self.scene_.setSceneRect(self.export_rect)
+            self.set_background(pixmap)
         for item in elements:  # Ausgangszustand, darum nicht im Undo
             self.scene_.addItem(item)
         self.document_path = document_path
@@ -109,6 +102,10 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
         self.panning = None       # letzte Mausposition beim Verschieben mit der mittleren Taste
         self.zoom_rest = 0        # angefangene Raste beim Zoomen
         self.overview_return = None  # (Ansicht vorher, Ansicht in der Übersicht) für Strg+W zurück
+        self.history_path = None  # Verlaufseintrag dieser Sitzung (canvas_history.py), None = aus
+        self.history_timer = QTimer(self)
+        self.history_timer.setSingleShot(True)
+        self.history_timer.timeout.connect(self.save_history)
         self.viewport().setMouseTracking(True)  # Mausbewegung auch ohne Taste (Zeiger über Griffen)
 
         # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
@@ -137,6 +134,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
         self.set_size(self.size_level)
         # Nach jedem Undo/Redo/Push kann sich die Auswahl geändert haben -> Leiste anpassen
         self.undo_stack.indexChanged.connect(self.on_undo_index_changed)
+        self.undo_stack.indexChanged.connect(self.schedule_history_save)
 
         # Aktion (Name aus keymap.py) -> Funktion. Neue Taste = Eintrag dort + Handler hier
         self.actions = {
@@ -154,6 +152,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
             "background_next": lambda: self.cycle_board_color(+1),
             "background_prev": lambda: self.cycle_board_color(-1),
             "export_png": self.export_image,
+            "history_prev": lambda: self.history_step(-1),
+            "history_next": lambda: self.history_step(+1),
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
         }
@@ -276,6 +276,33 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
         # Szene bekommt ein Textobjekt keinen Tastaturfokus, darum hier von Hand aktivieren
         QApplication.sendEvent(self.scene_, QEvent(QEvent.WindowActivate))
 
+    def set_background(self, pixmap):
+        """Screenshot-Modus: pixmap als Hintergrund in die Szene legen."""
+        background = self.scene_.addPixmap(pixmap)
+        # Für den Export: Bereich des Screenshots in der Szene und seine Größe in Pixeln
+        self.export_rect = background.boundingRect()
+        self.export_size = pixmap.size()
+        self.background_image = pixmap.toImage()  # roh, wird beim Speichern eingebettet
+        # Feste Szenengröße = Bild: Die Ansicht zeigt es mittig (fit_overlay), auch wenn
+        # ein Strich über den Rand hinausragt
+        self.scene_.setSceneRect(self.export_rect)
+
+    def replace_content(self, pixmap, elements):
+        """Verlauf: anderen Screenshot samt Elementen in dieselbe Canvas laden.
+        Undo beginnt neu; Strg+S legt wieder eine neue Datei an."""
+        if self.editing_text:
+            self.finish_text()
+        self.current_item = self.dragging = self.resizing = None
+        self.undo_stack.clear()  # vor scene_.clear(): Befehle verweisen auf Elemente
+        self.scene_.clear()      # löscht alle Items, auch den alten Hintergrund
+        self.set_background(pixmap)
+        for item in elements:
+            self.scene_.addItem(item)
+        self.document_path = None
+        self.history_timer.stop()  # undo_stack.clear() hat Speichern vorgemerkt, unnötig
+        self.fit_overlay()
+        self.update_bars()
+
     def fit_overlay(self):
         """Screenshot-Modus: Bild ganz zeigen. Größer als der Bildschirm (z. B. auf einem
         größeren Monitor gespeichert) -> verkleinert, kleiner -> Originalgröße; immer mittig.
@@ -306,6 +333,9 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
         if self.board and not self.undo_stack.isClean() and not self.confirm_close():
             event.ignore()  # Fenster bleibt offen
             return
+        if self.history_path is not None:
+            self.hide()  # erst verschwinden, dann speichern: wirkt schneller
+            self.flush_history()
         self.releaseKeyboard()
         # Beim Abbau löscht Qt die Szene vor dem Undo-Stack; der meldet dabei noch
         # Änderungen. Ohne Trennen liefe update_bars() gegen eine gelöschte Szene

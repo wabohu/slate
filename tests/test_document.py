@@ -122,6 +122,56 @@ def main():
     large.close()
     little.close()
 
+    # Verlauf (Roadmap 10): jede Sitzung ein Eintrag, mit ← → blättern
+    import history
+
+    def draw_rect(c, x):
+        view = c.viewport()
+        QTest.keyClick(c, Qt.Key_F)
+        QTest.mousePress(view, Qt.LeftButton, pos=QPoint(x, 100))
+        QTest.mouseMove(view, QPoint(x + 80, 160))
+        QTest.mouseRelease(view, Qt.LeftButton, pos=QPoint(x + 80, 160))
+
+    first_bg = QPixmap(1100, 500)
+    first_bg.fill(QColor("#224466"))
+    first = make_canvas(first_bg)
+    hdir = first.settings.history_dir
+    first.start_history()
+    draw_rect(first, 100)
+    first.close()  # beim Beenden gespeichert
+    second_bg = QPixmap(900, 400)
+    second_bg.fill(QColor("#662244"))
+    second = make_canvas(second_bg)
+    second.start_history()
+    draw_rect(second, 100)
+    draw_rect(second, 300)
+    second.flush_history()
+    files = history.entries(hdir)
+    check("Verlauf: zwei Einträge", len(files) == 2 and files[-1] == second.history_path)
+    QTest.keyClick(second, Qt.Key_Left)
+    check("Verlauf ←: älterer Eintrag geladen", second.history_path == files[0]
+          and len(second.elements()) == 1 and second.export_size == first_bg.size()
+          and second.undo_stack.count() == 0)
+    draw_rect(second, 500)  # älteren Eintrag weiterbearbeiten
+    QTest.keyClick(second, Qt.Key_Right)
+    _, old_elems, _, _ = load_document(files[0])
+    check("Verlauf: Änderung am älteren Eintrag gespeichert", len(old_elems) == 2)
+    check("Verlauf →: neuerer Eintrag geladen", second.history_path == files[1]
+          and len(second.elements()) == 2 and second.export_size == second_bg.size())
+    QTest.keyClick(second, Qt.Key_Right)
+    check("Verlauf: am Ende bleibt der neueste", second.history_path == files[1])
+    second.close()
+    check("Verlauf aufräumen: nur die neuesten bleiben",
+          history.prune(hdir, 1) == 1 and history.entries(hdir) == [files[1]])
+    empty = make_canvas(first_bg)
+    empty.start_history()
+    empty.close()  # nichts gezeichnet
+    check("Verlauf: Screenshot ohne Änderung bleibt draußen", history.entries(hdir) == [files[1]])
+    board_h = Canvas(QGuiApplication.primaryScreen(), None, board=True)
+    board_h.start_history()
+    check("Verlauf: nie im Whiteboard", board_h.history_path is None)
+    board_h.close()
+
     # Whiteboard: leere Fläche, speichern, als Whiteboard wieder laden
     import export
     export.shutil.which = lambda name: None  # nie die echte Zwischenablage anfassen

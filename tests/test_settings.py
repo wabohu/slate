@@ -48,6 +48,9 @@ def main():
     check("leer: Startfarbe", s.swatches[s.default_color_index] == s.palette.lookup(st.DEFAULT_COLOR))
     check("leer: Schrittweiten", s.move_steps == {False: st.DEFAULT_MOVE_STEP, True: st.DEFAULT_MOVE_STEP_FINE})
     check("leer: dunst und rofi", s.use_dunst and s.use_rofi and s.rofi_theme is None)
+    from history import default_history_dir
+    check("leer: Verlauf an, Standardordner, 100", s.history_enabled and s.history_dir == default_history_dir()
+          and s.history_keep == st.DEFAULT_HISTORY_KEEP)
     check("Screenshot: Eckenradius, kein Whiteboard-Hintergrund",
           s.rect_radius == RECT_RADIUS and s.board_background is None and s.board_backgrounds is None)
 
@@ -67,6 +70,7 @@ def main():
         "rect": {"radius": -1, "radius_board": 999},
         "move": {"step": 0, "step_fine": "fein"},
         "keys": {"undo": 5, "gibtsnicht": "x"},
+        "history": {"enabled": "ja", "keep": 0, "dir": 42},
     }
     s, hints = quiet(st.Settings, bad, True)
     check("kaputt: Größen-Stufen", s.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS)
@@ -82,6 +86,8 @@ def main():
           and s.board_background == QColor(s.palette.lookup(st.DEFAULT_BOARD_BACKGROUND)))
     check("kaputt: Eckenradius", s.rect_radius == st.DEFAULT_RECT_RADIUS_BOARD)
     check("kaputt: Schrittweiten", s.move_steps == {False: st.DEFAULT_MOVE_STEP, True: st.DEFAULT_MOVE_STEP_FINE})
+    check("kaputt: Verlauf", s.history_enabled and s.history_keep == st.DEFAULT_HISTORY_KEEP
+          and s.history_dir == default_history_dir())
     check("kaputt: Hinweise auf stderr", "[size]" in hints and "[ui]" in hints and "[rect]" in hints)
 
     # Gültige Werte werden übernommen
@@ -92,12 +98,14 @@ def main():
         "rect": {"radius": 0},
         "move": {"step": 25, "step_fine": 2},
         "output": {"dir": "~/irgendwo"},
+        "history": {"enabled": False, "keep": 5, "dir": "~/verlauf"},
     }
     s, _ = quiet(st.Settings, good, False)
     check("gültig: übernommen", s.stroke_widths == [1, 3, 5, 7] and s.default_size_level == 3
           and s.rect_radius == 0 and s.move_steps == {False: 25, True: 2}
           and not s.use_dunst and not s.use_rofi and s.output_dir == "~/irgendwo"
-          and s.light_overrides == {s.palette.lookup("red"): "#112233"})
+          and s.light_overrides == {s.palette.lookup("red"): "#112233"}
+          and not s.history_enabled and s.history_keep == 5 and s.history_dir == Path.home() / "verlauf")
 
     print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
     return 1 if failures else 0
