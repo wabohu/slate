@@ -64,21 +64,32 @@ def default_output_dir():
     return Path(pictures or Path.home() / "Pictures") / "annotate"
 
 
+def new_file_path(directory, suffix=""):
+    """Freier Dateiname mit Zeitstempel im Ordner (wird angelegt), z. B.
+    annotate_2026-10-01_14-03-22.png; bei Kollision _2, _3 … Kann OSError auslösen."""
+    directory = Path(directory).expanduser()
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = datetime.now().strftime("annotate_%Y-%m-%d_%H-%M-%S") + suffix
+    path = directory / f"{stem}.png"
+    counter = 2
+    while path.exists():  # zweimal Speichern in derselben Sekunde
+        path = directory / f"{stem}_{counter}.png"
+        counter += 1
+    return path
+
+
+def short_path(path):
+    """Pfad zum Anzeigen, Home-Ordner als ~."""
+    return str(path).replace(str(Path.home()), "~", 1)
+
+
 def save_png(image, directory):
-    """Als PNG mit Zeitstempel speichern. Rückgabe: (Pfad oder None, Meldung)."""
+    """Sauberes PNG (ohne Bearbeitungsdaten) mit Zeitstempel. Rückgabe: (Pfad oder None, Meldung)."""
     try:
-        directory = Path(directory).expanduser()
-        directory.mkdir(parents=True, exist_ok=True)
-        stem = datetime.now().strftime("annotate_%Y-%m-%d_%H-%M-%S")
-        path = directory / f"{stem}.png"
-        counter = 2
-        while path.exists():  # zweimal Speichern in derselben Sekunde
-            path = directory / f"{stem}_{counter}.png"
-            counter += 1
+        path = new_file_path(directory, suffix="_export")
         if not image.save(str(path), "PNG"):
             raise OSError("QImage.save hat nicht geklappt")
     except OSError as e:
-        print(f"[export] Speichern fehlgeschlagen: {e}", file=sys.stderr)
-        return None, f"Speichern fehlgeschlagen: {e}"
-    shown = str(path).replace(str(Path.home()), "~", 1)
-    return path, f"Gespeichert: {shown}"
+        print(f"[export] Exportieren fehlgeschlagen: {e}", file=sys.stderr)
+        return None, f"Exportieren fehlgeschlagen: {e}"
+    return path, f"Exportiert: {short_path(path)}"

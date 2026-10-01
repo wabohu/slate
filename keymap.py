@@ -44,10 +44,16 @@ DEFAULT_KEYS = {
     "color_prev": "shift+tab",
     "copy_quit": "return",     # Bild in die Zwischenablage und beenden
     "copy_image": "ctrl+c",    # Bild in die Zwischenablage, offen bleiben
-    "save_png": "ctrl+s",
+    "save": "ctrl+s",          # bearbeitbare Zeichnung (PNG mit eingebetteten Daten)
+    "export_png": "ctrl+e",    # sauberes PNG ohne Bearbeitungsdaten
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
     **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),
+}
+
+# Umbenannte Aktionen: Hinweis statt "unbekannt", der alte Eintrag wird ignoriert
+LEGACY_ACTIONS = {
+    "save_png": "heißt jetzt export_png (Standard Strg+E); Strg+S speichert die bearbeitbare Zeichnung",
 }
 
 # Nur diese Modifier zählen; z. B. KeypadModifier (Ziffernblock) wird ignoriert
@@ -93,7 +99,9 @@ class KeyMap:
                     user[f"tool_{i}"] = text
 
         for action, value in keys_table.items():
-            if action not in DEFAULT_KEYS:
+            if action in LEGACY_ACTIONS:
+                print(f"[keys] {action} {LEGACY_ACTIONS[action]}", file=sys.stderr)
+            elif action not in DEFAULT_KEYS:
                 print(f"[keys] Unbekannte Aktion: {action!r}", file=sys.stderr)
             elif not (isinstance(value, str)
                       or isinstance(value, list) and all(isinstance(v, str) for v in value)):

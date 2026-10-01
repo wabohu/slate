@@ -52,7 +52,8 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Strg+V / Strg+D | Einfügen / Duplizieren | 12 |
 | Strg+A | Alles auswählen | 12 |
 | Enter | Bild in die Zwischenablage und beenden | 7 |
-| Strg+S | Als PNG speichern | 7 |
+| Strg+S | Zeichnung speichern (bearbeitbares PNG) | D1 |
+| Strg+E | Sauberes PNG exportieren | 7 |
 | Alt+← / Alt+→ | Verlauf: vorheriger / nächster Screenshot | 10 |
 | Leertaste + Ziehen, Strg+Mausrad | Whiteboard: Fläche verschieben, zoomen | 11 |
 | Strg+↑ / Strg+↓ | Nach vorne / nach hinten | 12 |

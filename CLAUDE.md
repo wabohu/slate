@@ -18,6 +18,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Eigene Config: `~/.config/annotate/config.toml`, gelesen in `config.py`, Vorlage in `config.example.toml`. Farbwerte kommen aus Alacritty (`colors.py`), Auswahl, Reihenfolge und Startwert von Farben und Werkzeugen aus der eigenen Config
 - Tasten zentral in `keymap.py`: `DEFAULT_KEYS` (Aktion → Taste), Overrides aus `[keys]` der Config (alte Schreibweise `[tools] keys` gilt weiter), Handler in `Canvas.actions`. Neue Taste = genau diese zwei Stellen. Tasten passen exakt (Shift+T ist nicht T). Esc ist fest im Code
 - Export in `export.py`: Szene ohne Leiste rendern (Ausschnitt = Screenshot-Rechteck), Zwischenablage über `xclip` (hält das Bild auch nach dem Beenden), Fallback Qt-Zwischenablage
+- Speichern/Laden in `document.py`: normales PNG mit den Markierungen, Bearbeitungsdaten als JSON im PNG-Text-Chunk `annotate` (Format/Version, roher Hintergrund als Base64-PNG, Elemente von unten nach oben). Elemente liefern `to_dict()`/`from_dict()`, Farben als `#rrggbb`. Fehlerhafte Daten nie Absturz: Bild als Hintergrund bzw. Element überspringen
 - Undo/Redo über `QUndoStack`. Jede Änderung an der Szene ist ein `QUndoCommand` in `commands.py` und wird per `undo_stack.push()` abgelegt, nie direkt ausgeführt, sonst fehlt sie im Undo
 
 ## Bedienung (aktueller Stand)
@@ -27,12 +28,14 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
 - Alt+A S D F: Größe in Stufen 1-4 (Strichstärke bzw. Schriftgröße, `[size]` in der Config)
 - Alt+Mausrad: Größe fein einstellen (Text ±2 px, Strich ±1 px pro Raste), für Auswahl oder gerade getippten Text. Rasten kurz hintereinander = ein Undo-Schritt (`PropertyCommand` mit `mergeWith`)
-- Enter: Bild in die Zwischenablage und beenden, Strg+C: nur kopieren, Strg+S: PNG in `[output] dir` (Standard `~/Pictures/annotate`)
+- Enter: Bild in die Zwischenablage und beenden, Strg+C: nur kopieren
+- Strg+S: bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten, erst neue Datei in `[output] dir`, danach dieselbe überschreiben), Strg+E: sauberes PNG exportieren
+- `python annotate.py bild.png`: gespeicherte Zeichnung wieder öffnen (alles bearbeitbar) oder beliebiges PNG als Hintergrund
 - R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`
 
 ## Konventionen
 - Kleine, lauffähige Schritte. Nach jedem Schritt muss das Programm starten
-- Vor jedem Commit `python tests/regress.py` (zeichnet ohne Bildschirm eine feste Szene und vergleicht mit `tests/regress_reference.png`). Ändert sich die Optik absichtlich, Referenz mit `--update` neu schreiben und das im Commit erwähnen
+- Vor jedem Commit `python tests/regress.py` und `python tests/test_document.py` (Speichern, Laden, Weiterbearbeiten) (zeichnet ohne Bildschirm eine feste Szene und vergleicht mit `tests/regress_reference.png`). Ändert sich die Optik absichtlich, Referenz mit `--update` neu schreiben und das im Commit erwähnen
 - Code bleibt lesbar und in getrennten Bereichen bzw. Dateien: Capture, Zeichenlogik/Canvas, UI, Export
 - Tastenkürzel müssen auf dem US-Tastaturlayout funktionieren (`us`, Variante `altgr-intl`)
 - Fehlende Konfigurationsdateien oder Werte dürfen nie zum Absturz führen, immer sinnvolle Fallbacks
@@ -64,7 +67,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
     - Aufbewahrung: letzte N, nach Alter (Tage) oder unbegrenzt? Wert in der Config
     - Zeitpunkt: Start + Beenden, nach jeder Änderung (absturzsicher) oder nur beim Beenden? Leere Sessions ohne Annotationen speichern?
     - Speicherort: z. B. `~/.local/share/annotate/` (XDG), in der Config änderbar?
-    - Beziehung zu Punkt 7: Ist das automatische Speichern zugleich „PNG speichern“ oder bleibt das ein eigener Export?
+    - Teilweise geklärt: Speicherformat ist das bearbeitbare PNG aus `document.py` (Strg+S). Offen: automatisch bei jedem Screenshot speichern, Aufruf, Aufbewahrung
 11. [ ] Leere Zeichenfläche für Diagramme (Ersatz für Excalidraw): Start ohne Screenshot, einfarbiger Hintergrund. Offen: Start per Kommandozeilen-Option und/oder Taste? Feste Bildschirmgröße oder unendliche Fläche mit Verschieben/Zoom? Vollbild oder normales (gekacheltes) Fenster? Speichern und wieder öffnen (siehe D1)
 12. [ ] (Schritt 1 erledigt: auswählen, verschieben, löschen, umfärben, Größe; Schritt 2 erledigt: Griffe zum Größe ändern) Auswahl-Werkzeug für alle Elemente: anklicken, verschieben, löschen (Entf), Farbe nachträglich ändern (Element auswählen, Farbe wählen). Später: Mehrfachauswahl, Größe ändern, Drehen, Strichstärke nachträglich ändern, Kopieren/Einfügen, Vorder-/Hintergrund. Das Verschieben von Text im Text-Werkzeug geht dann darin auf. Drehen nur, wenn die Bedienung übersichtlich bleibt (z. B. Tasten in festen Schritten oder ein Griff an der Auswahl)
 13. [ ] Leisten-Layout: Platz für weitere Leisten (Strichstärke, Füllung, Modi …), siehe D3
@@ -73,7 +76,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.
-- **D1 Datenmodell (Schritt 1 erledigt):** Formen (`ShapeElement`) und Text (`TextElement`) kennen ID, Art, Geometrie in lokalen Koordinaten, Farbe und Strichstärke bzw. Schriftgröße; Lage über `pos()`/`rotation()`. Offen: JSON-Speicherformat (Schritt 2), Gruppen über `QGraphicsItemGroup` für Vorlagen, Bezüge per ID für Verbinder. Plan in `docs/plan-datenmodell.md`
+- **D1 Datenmodell (Schritt 1 erledigt):** Formen (`ShapeElement`) und Text (`TextElement`) kennen ID, Art, Geometrie in lokalen Koordinaten, Farbe und Strichstärke bzw. Schriftgröße; Lage über `pos()`/`rotation()`. Schritt 2 erledigt: Speicherformat (PNG mit eingebettetem JSON, `document.py`). Offen: Gruppen über `QGraphicsItemGroup` für Vorlagen, Bezüge per ID für Verbinder. Plan in `docs/plan-datenmodell.md`
 - **D2 Treffer beim Anklicken (entschieden, umgesetzt):** Nur der Rand mit `HIT_TOLERANCE` (6 px), über `ShapeElement.shape()`. Gefüllte Formen (später) sollen auch innen treffen
 - **D3 Leisten (entschieden):** Variante A, eine gemeinsame Leiste unten mittig (Werkzeuge | Farben | Stärke | Füllung), Position per Config, B blendet aus, Vorlagen als Popup. Details in `docs/plan-bedienung.md`
 - **D4 Tasten (entschieden):** Belegung und Grundsätze in `docs/plan-bedienung.md`. Wichtig: Eigenschaften (Farbe, Stärke, Füllung, Schriftgröße) wirken auf die Auswahl, sonst auf neue Elemente. Strichstärke Alt+A S D F. Nächster Schritt: zentrale Tabelle „Aktion → Taste“ mit Config

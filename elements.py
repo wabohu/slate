@@ -69,6 +69,33 @@ class ShapeElement(QGraphicsPathItem):
         self.update_pen()
         self.rebuild()
 
+    # --- Speichern / Laden (document.py) ---
+    def to_dict(self):
+        """Alle Werte als einfache Python-Daten (JSON-tauglich). Farben als "#rrggbb"."""
+        return {
+            "type": "shape",
+            "id": self.id,
+            "tool": self.tool.name.lower(),
+            "pos": [self.pos().x(), self.pos().y()],
+            "rotation": self.rotation(),
+            "points": [[p.x(), p.y()] for p in self.points],
+            "color": self.color.name(),
+            "width": self.width,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Gegenstück zu to_dict. Fehlerhafte Daten lösen KeyError/ValueError/TypeError aus."""
+        tool = Tool[data["tool"].upper()]
+        item = cls(tool, QPointF(*data["pos"]), data["color"], data["width"], element_id=data.get("id"))
+        item.points = [QPointF(x, y) for x, y in data["points"]]
+        expected = None if tool == Tool.FREEHAND else 2
+        if not item.points or (expected and len(item.points) != expected):
+            raise ValueError(f"{tool.name}: falsche Anzahl Punkte")
+        item.setRotation(data.get("rotation", 0))
+        item.rebuild()
+        return item
+
     # --- Werte ändern ---
     def set_color(self, color):
         self.color = QColor(color)
@@ -243,6 +270,25 @@ class TextElement(QGraphicsTextItem):
         self.set_font_size(max(low, min(high, round(start_size * ratio))))
         # Neue Größe: Position so setzen, dass die feste Ecke an ihrem Platz bleibt
         self.setPos(fixed_scene - corners(self.boundingRect())[(index + 2) % 4])
+
+    # --- Speichern / Laden (document.py) ---
+    def to_dict(self):
+        return {
+            "type": "text",
+            "id": self.id,
+            "pos": [self.pos().x(), self.pos().y()],
+            "rotation": self.rotation(),
+            "text": self.toPlainText(),
+            "color": self.color.name(),
+            "font_size": self.font_size,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        item = cls(QPointF(*data["pos"]), data["color"], data["font_size"],
+                   text=data["text"], element_id=data.get("id"))
+        item.setRotation(data.get("rotation", 0))
+        return item
 
     # --- Bearbeiten ---
     def start_editing(self):

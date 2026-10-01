@@ -13,10 +13,12 @@
 - R / Shift+R: Undo / Redo (Tasten in der Config einstellbar)
 - Esc: beenden (während einer Texteingabe: nur die Eingabe beenden)
 """
+import argparse
 import sys
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt
 from PySide6.QtGui import (
+    QPixmap,
     QBrush,
     QColor,
     QCursor,
@@ -39,7 +41,8 @@ from config import get_float, get_int, get_int_list, get_list, get_str, load_con
 from elements import ShapeElement, TextElement
 from keymap import KeyMap
 from tools import Tool, parse_tool, tool_icon, tool_order
-from export import copy_to_clipboard, default_output_dir, render_scene, save_png
+from document import build_document, load_document, save_document
+from export import copy_to_clipboard, default_output_dir, new_file_path, render_scene, save_png
 from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
 
 
@@ -102,7 +105,9 @@ def grab_screen():
 
 # --- Zeichenfläche -----------------------------------------------------------
 class Canvas(QGraphicsView):
-    def __init__(self, screen, pixmap):
+    def __init__(self, screen, pixmap, elements=(), document_path=None):
+        """pixmap: Hintergrund (Screenshot oder geladenes Bild); elements: geladene
+        Elemente (unten -> oben); document_path: Datei, in die Strg+S speichert."""
         super().__init__()
 
         # Szene mit dem Screenshot als Hintergrund
@@ -111,6 +116,10 @@ class Canvas(QGraphicsView):
         # Für den Export: Bereich des Screenshots in der Szene und seine Größe in Pixeln
         self.export_rect = background.boundingRect()
         self.export_size = pixmap.size()
+        self.background_image = pixmap.toImage()  # roh, wird beim Speichern eingebettet
+        for item in elements:  # Ausgangszustand, darum nicht im Undo
+            self.scene_.addItem(item)
+        self.document_path = document_path
         self.setScene(self.scene_)
 
         # Fenster: rahmenlos, exakt auf dem Monitor, am Window-Manager vorbei.
@@ -210,7 +219,8 @@ class Canvas(QGraphicsView):
             "redo": self.undo_stack.redo,
             "copy_quit": self.copy_and_quit,
             "copy_image": self.copy_image,
-            "save_png": self.save_image,
+            "save": self.save_drawing,
+            "export_png": self.export_image,
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
         }
@@ -382,8 +392,27 @@ class Canvas(QGraphicsView):
         if self.copy_image():
             self.close()
 
-    def save_image(self):
+    def export_image(self):
+        """Sauberes PNG ohne Bearbeitungsdaten, immer als neue Datei."""
         _, message = save_png(self.render_image(), self.output_dir)
+        self.toast.show_message(message)
+
+    def elements(self):
+        """Alle Elemente von unten nach oben (Reihenfolge beim Speichern)."""
+        return [i for i in self.scene_.items(Qt.AscendingOrder)
+                if isinstance(i, (ShapeElement, TextElement))]
+
+    def save_drawing(self):
+        """Bearbeitbare Zeichnung: beim ersten Mal neue Datei, danach dieselbe überschreiben."""
+        rendered = self.render_image()
+        try:
+            path = self.document_path or new_file_path(self.output_dir)
+        except OSError as e:
+            self.toast.show_message(f"Speichern fehlgeschlagen: {e}")
+            return
+        ok, message = save_document(path, rendered, build_document(self.background_image, self.elements()))
+        if ok:
+            self.document_path = path
         self.toast.show_message(message)
 
     # --- Text ---
@@ -675,10 +704,27 @@ class Canvas(QGraphicsView):
 
 # --- Start -------------------------------------------------------------------
 def main():
-    app = QApplication(sys.argv)
-    screen, pixmap = grab_screen()  # erst grabben, dann Fenster zeigen!
-    canvas = Canvas(screen, pixmap)
-    canvas.show_overlay()
+    parser = argparse.ArgumentParser(description="Screenshot-Annotationstool")
+    parser.add_argument("file", nargs="?",
+                        help="gespeicherte Zeichnung oder beliebiges PNG öffnen statt Screenshot")
+    args, qt_args = parser.parse_known_args()  # Rest (z. B. Qt-Optionen) an Qt weiterreichen
+    app = QApplication(sys.argv[:1] + qt_args)
+
+    if args.file:
+        background, elements, is_drawing, message = load_document(args.file)
+        if background is None:
+            print(message, file=sys.stderr)
+            sys.exit(1)
+        screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+        # Eigene Zeichnung: Strg+S überschreibt sie. Fremdes Bild: Strg+S legt eine neue Datei an
+        canvas = Canvas(screen, QPixmap.fromImage(background), elements,
+                        document_path=args.file if is_drawing else None)
+        canvas.show_overlay()
+        canvas.toast.show_message(message)
+    else:
+        screen, pixmap = grab_screen()  # erst grabben, dann Fenster zeigen!
+        canvas = Canvas(screen, pixmap)
+        canvas.show_overlay()
     sys.exit(app.exec())
 
 

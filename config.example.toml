@@ -33,7 +33,8 @@ bar_foreground = "foreground"   # Symbole, Rahmen, Beschriftung
 bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
 
 [output]
-# Ordner für Strg+S (PNG mit Zeitstempel). ~ ist erlaubt. Standard: ~/Pictures/annotate
+# Ordner für Strg+S (Zeichnung) und Strg+E (Export), PNG mit Zeitstempel. ~ ist erlaubt.
+# Standard: ~/Pictures/annotate
 dir = "~/Pictures/annotate"
 
 [keys]
@@ -50,7 +51,8 @@ color_next = "tab"
 color_prev = "shift+tab"
 copy_quit = "return"       # Bild in die Zwischenablage und beenden
 copy_image = "ctrl+c"      # Bild in die Zwischenablage, offen bleiben
-save_png = "ctrl+s"        # als PNG in [output] dir speichern
+save = "ctrl+s"            # bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten)
+export_png = "ctrl+e"      # sauberes PNG ohne Bearbeitungsdaten
 # Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order (tool_7-9 ohne Standard)
 tool_1 = "a"
 tool_2 = "s"

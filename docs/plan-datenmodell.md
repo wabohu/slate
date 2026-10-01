@@ -1,6 +1,6 @@
 # Plan: Datenmodell umbauen (D1, Schritt 1)
 
-Status: **abgeschlossen** (1a, 1b, 1c erledigt)
+Status: **abgeschlossen** (Schritt 1: 1a, 1b, 1c; Schritt 2: Speichern/Laden)
 
 **Ziel:** Jedes gezeichnete Element kennt seine eigenen Werte: ID, Art, Geometrie,
 Farbe, Strichstärke, Position und Drehung. **An der Bedienung ändert sich nichts.**
@@ -78,8 +78,15 @@ landet wie vorher.
 - `CLAUDE.md` wird im jeweiligen Schritt angepasst (neue Dateien, „Jedes Zeichenobjekt ist
   ein `ShapeElement` …“).
 
-## Offene Frage für Schritt 2 (Speichern)
-Wie sollen Farben gespeichert werden?
-- **Als Farbwert** (`#e0af68`): Ein altes Bild sieht immer gleich aus, auch nach einem
-  Wechsel des Alacritty-Themes. Empfehlung.
-- **Als Name** (`yellow`): Ein altes Bild nimmt nach einem Theme-Wechsel die neuen Farben an.
+## Schritt 2: Speichern und Laden (erledigt)
+
+Entscheidungen (2026-10-01):
+- Farben als Farbwert `#rrggbb` (alte Zeichnungen sehen nach einem Theme-Wechsel gleich aus)
+- Eine Datei: normales PNG mit den Markierungen, Bearbeitungsdaten als JSON im PNG-Text-Chunk
+  `annotate`, roher Hintergrund als Base64-PNG darin. Grund: Bildbetrachter und Dateimanager
+  zeigen die Zeichnung direkt, annotate kann sie wieder bearbeiten
+- Strg+S speichert die Zeichnung (erst neue Datei, dann überschreiben), Strg+E exportiert ein
+  sauberes PNG ohne Daten
+
+Umsetzung: `to_dict()`/`from_dict()` in den Elementen, `document.py` für das Format,
+`python annotate.py datei.png` zum Öffnen, Test in `tests/test_document.py`.
