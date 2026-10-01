@@ -59,6 +59,7 @@ DEFAULT_KEYS = {
     "history_prev": "left",    # Verlauf: älterer Screenshot (nur Screenshot-Modus)
     "history_next": "right",   # Verlauf: neuerer Screenshot
     "help": "shift+?",         # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
+    "toggle_bar": "b",         # Leiste ein-/ausblenden
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
     **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),

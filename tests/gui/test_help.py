@@ -41,6 +41,13 @@ def main():
         time.sleep(0.4)
         check("Klick schließt die Übersicht", s.pixel(*CENTER) == closed and pid in s.annotate_pids())
 
+        # b: Leiste aus und wieder ein (Pixel mitten in der Leiste unten)
+        bar = s.pixel(960, 1037, name="03-leiste")
+        s.key("b")
+        check("b blendet die Leiste aus", wait(lambda: s.pixel(960, 1037, name="04-ohne-leiste") != bar, 3))
+        s.key("b")
+        check("b blendet sie wieder ein", wait(lambda: s.pixel(960, 1037) == bar, 3))
+
         s.key("Escape")
         check("danach beendet Esc das Tool", wait(lambda: not s.annotate_pids(), 5))
 

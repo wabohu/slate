@@ -47,7 +47,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | C | Werkzeug nummerierter Marker | 9 |
 | Z | Werkzeug Unschärfe | 9 |
 | V | Vorlagen öffnen (Popup) | 14 |
-| B | Leisten ein-/ausblenden | 13 |
+| B | Leiste ein-/ausblenden (umgesetzt) | 13 |
 | Strg+C | mit Auswahl: Elemente kopieren; ohne: ganzes Bild in die Zwischenablage | 7, 12 |
 | Strg+V / Strg+D | Einfügen / Duplizieren | 12 |
 | Strg+A | Alles auswählen | 12 |

@@ -167,6 +167,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
             "history_prev": lambda: self.history_step(-1),
             "history_next": lambda: self.history_step(+1),
             "help": self.show_help,
+            "toggle_bar": lambda: self.main_bar.setVisible(not self.main_bar.isVisible()),
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
         }

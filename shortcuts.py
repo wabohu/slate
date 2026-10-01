@@ -32,6 +32,7 @@ DESCRIPTIONS = {
     "export_png": ("Ausgabe", "sauberes PNG exportieren", BOTH),
     "quit": ("Allgemein", "beenden", BOTH),
     "help": ("Allgemein", "diese Übersicht", BOTH),
+    "toggle_bar": ("Allgemein", "Leiste ein/aus", BOTH),
     "zoom_reset": ("Ansicht", "Zoom 100 %", (BOARD,)),
     "overview": ("Ansicht", "Übersicht / zurück", (BOARD,)),
     "background_next": ("Ansicht", "Hintergrund hell/dunkel", (BOARD,)),
