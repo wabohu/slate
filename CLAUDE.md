@@ -82,6 +82,10 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
     - Kurze Meldungen (Gespeichert, Kopiert …) per dunst statt `ui.Toast`, oder beides wählbar
     - Alternative ohne externe Programme: Qt-Dialog per Stylesheet an `ui.Theme` anpassen (Farbe, Größe, Schrift)
     - Zu beachten: Im Screenshot-Modus hält das Tool einen Keyboard-Grab; vor rofi freigeben und danach wieder holen, sonst bekommt rofi keine Tasten. Fehlt rofi/dunst, auf die Qt-Lösung zurückfallen (nie Absturz). Per Config wählbar machen ([ui] dialogs = "rofi" | "qt", messages = "dunst" | "toast")
+18. [ ] Hintergrundfarbe im laufenden Whiteboard ändern (bisher nur per Config `[board] background`). Ideen:
+    - Auswahl aus der Farbleiste plus Hell/Dunkel (z. B. Weiß wie Papier, Alacritty-Hintergrund), per Taste oder Schalter in der Leiste; Tastenbelegung mit D4 abstimmen
+    - Als Undo-Schritt (`PropertyCommand` auf eine Setter-Methode für die Board-Farbe), wird mitgespeichert (steckt schon im Dateiformat: `background.type = "color"`)
+    - Zu klären: Gilt das auch im Screenshot-Modus (z. B. Screenshot abdunkeln oder durch Fläche ersetzen)? Bei hellem Hintergrund passen helle Palettenfarben schlecht, evtl. Leistenfarben/Kontrast mitdenken
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.
