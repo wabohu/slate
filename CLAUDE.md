@@ -23,7 +23,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Undo/Redo über `QUndoStack`. Jede Änderung an der Szene ist ein `QUndoCommand` in `commands.py` und wird per `undo_stack.push()` abgelegt, nie direkt ausgeführt, sonst fehlt sie im Undo
 
 ## Bedienung (aktueller Stand)
-- W: Auswahl-Werkzeug. Element am Rand anklicken (bei ungefüllten Formen zählt nur der Rand, 6 px Toleranz), ziehen = verschieben, Griffe ziehen = Größe ändern (Ecken; bei Linie/Pfeil die Endpunkte; bei Text skaliert die Schrift), Entf/Backspace = löschen, Esc = abwählen, Doppelklick auf Text = bearbeiten. Farbe und Größe wirken auf die Auswahl
+- W: Auswahl-Werkzeug. Element am Rand anklicken (bei ungefüllten Formen zählt nur der Rand, 6 px Toleranz), ziehen = verschieben, Griffe ziehen = Größe ändern (Ecken; bei Linie/Pfeil die Endpunkte; bei Text skaliert die Schrift), Entf/Backspace = löschen, Esc = abwählen, Doppelklick auf Text = bearbeiten, Doppelklick auf leere Stelle = neuer Text. Farbe und Größe wirken auf die Auswahl
 - Tasten A S D F G T: Werkzeuge in der Reihenfolge der Config, auch per Klick auf die gemeinsame Leiste unten (Werkzeuge | Farben | Größe, `ui.MainBar`) (Standard: Freihand, Linie, Pfeil, Rechteck, Ellipse, Text)
 - Text: klicken und tippen, Esc oder Klick daneben beendet die Eingabe. Vorhandenen Text ziehen = verschieben, Doppelklick = bearbeiten
 - Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
@@ -86,9 +86,9 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
     - Auswahl aus der Farbleiste plus Hell/Dunkel (z. B. Weiß wie Papier, Alacritty-Hintergrund), per Taste oder Schalter in der Leiste; Tastenbelegung mit D4 abstimmen
     - Als Undo-Schritt (`PropertyCommand` auf eine Setter-Methode für die Board-Farbe), wird mitgespeichert (steckt schon im Dateiformat: `background.type = "color"`)
     - Nur im Whiteboard, nicht im Screenshot-Modus (entschieden). Bei hellem Hintergrund passen helle Palettenfarben schlecht, evtl. Leistenfarben/Kontrast mitdenken
-19. [ ] Text per Doppelklick anlegen, ohne vorher T zu drücken. Empfehlung: im Auswahl-Werkzeug Doppelklick auf leere Stelle = neuer Text dort (wie Excalidraw); auf Text = bearbeiten (gibt es schon); auf Form = beschriften (Punkt 15)
+19. [x] Text per Doppelklick anlegen (im Auswahl-Werkzeug), ohne vorher T zu drücken. Empfehlung: im Auswahl-Werkzeug Doppelklick auf leere Stelle = neuer Text dort (wie Excalidraw); auf Text = bearbeiten (gibt es schon); auf Form = beschriften (Punkt 15)
     - In Zeichenwerkzeugen eher nicht: Qt meldet den Doppelklick erst nach dem ersten Klick, Freihand hat dann schon einen Punkt gezeichnet (müsste samt Undo-Schritt wieder weg), und zwei schnelle Freihand-Punkte würden ungewollt zu Text. Linie/Rechteck/Ellipse wären unkritisch (Klick ohne Ziehen wird verworfen)
-    - Offen: nur Auswahl-Werkzeug oder auch Zeichenwerkzeuge
+    - Entschieden: nur im Auswahl-Werkzeug
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.

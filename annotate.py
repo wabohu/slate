@@ -633,6 +633,8 @@ class Canvas(QGraphicsView):
                 self.start_text(pos)
             return
 
+        if self.current_item is not None:  # vorige Form ohne Loslassen (z. B. Doppelklick)
+            self.finish_shape(pos)
         self.start_pos = pos
         self.current_item = ShapeElement(self.tool, pos, self.pen_color, self.pen_width)
         self.scene_.addItem(self.current_item)
@@ -648,9 +650,15 @@ class Canvas(QGraphicsView):
                 self.mousePressEvent(event)  # daneben: Eingabe beenden wie bei einem Klick
             return
         item = self.text_at(pos) if self.tool in (Tool.TEXT, Tool.SELECT) else None
-        if item and event.button() == Qt.LeftButton:
+        left = event.button() == Qt.LeftButton
+        if item and left:
             self.dragging = None
             self.edit_text(item, old=(item.toPlainText(), item.color, item.font_size))
+        elif left and self.tool == Tool.SELECT and self.element_at(pos) is None:
+            # Auswahl-Werkzeug, Doppelklick auf leere Stelle: neuer Text (wie Excalidraw).
+            # Nur hier, in Zeichenwerkzeugen hätte der erste Klick schon etwas gezeichnet
+            self.dragging = None
+            self.start_text(pos)
         else:
             self.mousePressEvent(event)  # sonst wie ein normaler Klick behandeln
 
@@ -701,7 +709,10 @@ class Canvas(QGraphicsView):
             return
         if self.current_item is None:
             return
-        pos = self.mapToScene(event.position().toPoint())
+        self.finish_shape(self.mapToScene(event.position().toPoint()))
+
+    def finish_shape(self, pos):
+        """Aufgezogene Form abschließen: als Undo-Schritt ablegen oder, wenn zu klein, verwerfen."""
         # Versehentlicher Klick ohne Ziehen: leere Form wieder wegwerfen
         too_small = (pos - self.start_pos).manhattanLength() < 3
         if self.current_item.tool != Tool.FREEHAND and too_small:
