@@ -18,6 +18,7 @@ class Tool(Enum):
     RECT = "Rechteck"
     ELLIPSE = "Kreis / Ellipse"
     TEXT = "Text"
+    SELECT = "Auswahl"  # kein Zeichenwerkzeug, steht in der Leiste immer vorne (Taste W)
 
 
 # Eckenradius des Rechtecks in Pixeln
@@ -33,15 +34,16 @@ def tool_order(names):
     """Werkzeuge in der Reihenfolge der Config, ohne Unbekannte und Duplikate.
 
     Ohne brauchbare Liste: alle Werkzeuge in Reihenfolge des Enums.
+    Das Auswahl-Werkzeug gehört nicht dazu, es hat einen festen Platz.
     """
     result = []
     for name in names or []:
         tool = parse_tool(name)
         if tool is None:
             print(f"[tools] Unbekanntes Werkzeug: {name!r}", file=sys.stderr)
-        elif tool not in result:
+        elif tool not in result and tool != Tool.SELECT:
             result.append(tool)
-    return result or list(Tool)
+    return result or [t for t in Tool if t != Tool.SELECT]
 
 
 def shape_path(tool, start, end, pen_width):
@@ -95,4 +97,13 @@ def tool_icon(tool):
         path.lineTo(22, 8)
         path.moveTo(15, 8)
         path.lineTo(15, 22)
+    elif tool == Tool.SELECT:  # Mauszeiger
+        path.moveTo(9, 5)
+        path.lineTo(9, 21)
+        path.lineTo(13, 17)
+        path.lineTo(16, 23)
+        path.lineTo(18.5, 22)
+        path.lineTo(15.5, 16)
+        path.lineTo(21, 16)
+        path.closeSubpath()
     return path

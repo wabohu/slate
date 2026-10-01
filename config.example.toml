@@ -32,8 +32,11 @@ dir = "~/Pictures/annotate"
 [keys]
 # Aktion = Taste. Nur eintragen, was vom Standard abweichen soll; hier stehen alle Standardwerte.
 # Schreibweise wie in Qt-Menüs: "r", "shift+r", "ctrl+z", "alt+a", "tab", "f1".
+# Mehrere Tasten für eine Aktion als Liste: ["delete", "backspace"].
 # "" = Aktion ohne Taste. Esc ist fest (Texteingabe beenden bzw. Tool beenden).
 # Doppelt belegt: Was hier steht, gewinnt; die andere Aktion verliert ihre Taste (Warnung im Terminal).
+tool_select = "w"            # Auswahl-Werkzeug (steht in der Leiste immer vorne)
+delete = ["delete", "backspace"]   # Auswahl löschen; Liste = mehrere Tasten
 undo = "r"
 redo = "shift+r"
 color_next = "tab"

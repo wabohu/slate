@@ -5,7 +5,8 @@
     python tests/regress.py --update   # Referenz neu schreiben (nach gewollter Optikänderung)
 
 Die Szene deckt alle Formen, Farben und Größen per Taste, eine verworfene Mini-Form, Text,
-Verschieben von Text sowie Undo/Redo ab. Läuft über Qts Offscreen-Plattform und
+Verschieben von Text, das Auswahl-Werkzeug (Treffer nur am Rand, umfärben, verschieben)
+sowie Undo/Redo ab. Läuft über Qts Offscreen-Plattform und
 mit leerem HOME/XDG_CONFIG_HOME: Weder die eigene Config noch das Alacritty-Theme
 beeinflussen das Ergebnis (es gilt die Standardpalette).
 
@@ -65,6 +66,12 @@ def draw_scene(canvas, view):
     QTest.mousePress(view, Qt.LeftButton, pos=start)
     QTest.mouseMove(view, start + QPoint(200, 80))
     QTest.mouseRelease(view, Qt.LeftButton, pos=start + QPoint(200, 80))
+    key(Qt.Key_W)                                                                   # Auswahl:
+    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(525, 100))                     # Inneres trifft nicht
+    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(525, 42))                      # Rand trifft
+    key(Qt.Key_X, Qt.ShiftModifier); key(Qt.Key_A, Qt.AltModifier)                 # umfärben, dünner
+    drag((525, 42), (845, 202))                                                     # verschieben
+    key(Qt.Key_Escape)                                                              # abwählen
     key(Qt.Key_S); drag((500, 300), (700, 450))                                     # Linie …
     key(Qt.Key_R); key(Qt.Key_R); key(Qt.Key_R, Qt.ShiftModifier)                  # … Undo, Undo, Redo
 

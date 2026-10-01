@@ -79,3 +79,22 @@ class EditTextCommand(QUndoCommand):
 
     def undo(self):
         self.apply(self.old)
+
+
+class PropertyCommand(QUndoCommand):
+    """Eine Eigenschaft geändert, z. B. Farbe oder Größe eines ausgewählten Elements.
+
+    setter ist die Methode, die den Wert setzt (z. B. item.set_color).
+    """
+
+    def __init__(self, setter, old, new, text="Eigenschaft ändern"):
+        super().__init__(text)
+        self.setter = setter
+        self.old = old
+        self.new = new
+
+    def redo(self):
+        self.setter(self.new)
+
+    def undo(self):
+        self.setter(self.old)

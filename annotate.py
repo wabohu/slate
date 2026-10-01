@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from colors import load_palette
-from commands import AddItemCommand, EditTextCommand, MoveItemCommand, RemoveItemCommand
+from commands import AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand
 from config import get_int, get_int_list, get_list, get_str, load_config
 from elements import ShapeElement, TextElement
 from keymap import KeyMap
@@ -146,16 +146,19 @@ class Canvas(QGraphicsView):
         self.start_pos = None
         self.editing_text = None  # TextElement, solange getippt wird
         self.editing_old = None   # (Text, Farbe, Größe) vor dem Bearbeiten; None = neuer Text
-        self.dragging = None      # Textobjekt, das gerade verschoben wird
+        self.dragging = None      # Element, das gerade verschoben wird
         self.drag_offset = None   # Abstand Mauspunkt -> Item-Position beim Anfassen
         self.drag_start = None    # Item-Position vor dem Verschieben
         self.passthrough = False  # Maus-Events gehen an den Text-Editor (Cursor setzen, markieren)
 
-        # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus)
-        labels = [self.keymap.label(f"tool_{i}") for i in range(1, len(self.tools) + 1)]
-        self.tool_bar = ToolBar([tool_icon(t) for t in self.tools], labels)
+        # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
+        # Auswahl-Werkzeug fest vorne, dann die Zeichenwerkzeuge in Config-Reihenfolge
+        self.bar_tools = [Tool.SELECT] + self.tools
+        labels = [self.keymap.label("tool_select")]
+        labels += [self.keymap.label(f"tool_{i}") for i in range(1, len(self.tools) + 1)]
+        self.tool_bar = ToolBar([tool_icon(t) for t in self.bar_tools], labels)
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
-        self.tool_bar.selected.connect(lambda i: self.set_tool(self.tools[i]))
+        self.tool_bar.selected.connect(lambda i: self.set_tool(self.bar_tools[i]))
         self.palette_bar = PaletteBar(self.swatches)
         self.palette_bar.selected.connect(self.set_color)
         self.size_bar = SizeBar(SIZE_LEVELS)
@@ -171,9 +174,13 @@ class Canvas(QGraphicsView):
         self.set_tool(self.tool)
         self.set_color(self.color_index)
         self.set_size(self.size_level)
+        # Nach jedem Undo/Redo/Push kann sich die Auswahl geändert haben -> Leiste anpassen
+        self.undo_stack.indexChanged.connect(self.on_undo_index_changed)
 
         # Aktion (Name aus keymap.py) -> Funktion. Neue Taste = Eintrag dort + Handler hier
         self.actions = {
+            "tool_select": lambda: self.set_tool(Tool.SELECT),
+            "delete": self.delete_selected,
             "undo": self.undo_stack.undo,
             "redo": self.undo_stack.redo,
             "copy_quit": self.copy_and_quit,
@@ -196,8 +203,55 @@ class Canvas(QGraphicsView):
 
     def set_tool(self, tool):
         self.tool = tool
+        if tool != Tool.SELECT:
+            self.scene_.clearSelection()  # Zeichnen wirkt nie auf eine Auswahl
         # Startwerkzeug kann fehlen, wenn es nicht in [tools] order steht -> nichts markieren
-        self.tool_bar.set_active(self.tools.index(tool) if tool in self.tools else -1)
+        self.tool_bar.set_active(self.bar_tools.index(tool) if tool in self.bar_tools else -1)
+        self.viewport().setCursor(Qt.ArrowCursor if tool == Tool.SELECT else Qt.CrossCursor)
+        self.update_bars()
+
+    # --- Auswahl ---
+    def selected_element(self):
+        """Das ausgewählte Element oder None (vorerst höchstens eins)."""
+        items = [i for i in self.scene_.selectedItems() if isinstance(i, (ShapeElement, TextElement))]
+        return items[0] if items else None
+
+    def element_at(self, pos):
+        """Oberstes Element an der Szenenposition pos oder None.
+
+        scene.items(pos) prüft über shape(): bei Formen nur der Rand plus Toleranz (D2).
+        """
+        for item in self.scene_.items(pos):  # sortiert von oben nach unten
+            if isinstance(item, (ShapeElement, TextElement)):
+                return item
+        return None
+
+    def delete_selected(self):
+        item = self.selected_element()
+        if item:
+            item.setSelected(False)  # sonst wäre es nach einem Undo noch markiert
+            self.undo_stack.push(RemoveItemCommand(self.scene_, item, "Löschen"))
+
+    def on_undo_index_changed(self, _index):
+        self.update_bars()
+
+    def update_bars(self):
+        """Leiste zeigt die Werte der Auswahl, sonst die für neue Elemente (Grundsatz 3).
+
+        Passt ein Wert der Auswahl zu keinem Feld, wird nichts markiert (-1).
+        """
+        item = self.selected_element()
+        if item is None:
+            self.palette_bar.set_active(self.color_index)
+            self.size_bar.set_active(self.size_level)
+            return
+        name = item.color.name()
+        self.palette_bar.set_active(self.swatches.index(name) if name in self.swatches else -1)
+        if isinstance(item, ShapeElement):
+            levels, value = self.stroke_widths, item.width
+        else:
+            levels, value = self.text_sizes, item.font_size
+        self.size_bar.set_active(levels.index(value) if value in levels else -1)
 
     # Aktuelle Größe, abgeleitet aus der Stufe
     @property
@@ -209,19 +263,31 @@ class Canvas(QGraphicsView):
         return self.text_sizes[self.size_level]
 
     def set_size(self, level):
-        """Größen-Stufe (0-basiert) für neue Objekte bzw. den gerade getippten Text."""
+        """Größen-Stufe (0-basiert) für neue Objekte, den getippten Text und die Auswahl."""
         self.size_level = level
-        self.size_bar.set_active(level)
         if self.editing_text:
             self.editing_text.set_font_size(self.text_size)
+        item = self.selected_element()
+        if isinstance(item, ShapeElement) and item.width != self.pen_width:
+            self.undo_stack.push(
+                PropertyCommand(item.set_width, item.width, self.pen_width, "Strichstärke ändern"))
+        elif isinstance(item, TextElement) and item.font_size != self.text_size:
+            self.undo_stack.push(
+                PropertyCommand(item.set_font_size, item.font_size, self.text_size, "Schriftgröße ändern"))
+        self.update_bars()
 
     def set_color(self, index):
-        """Farbe für neue Objekte; bereits gezeichnete behalten ihre Farbe."""
+        """Farbe für neue Objekte, den getippten Text und die Auswahl."""
         self.color_index = index % len(self.colors)
         self.pen_color = self.colors[self.color_index]
-        self.palette_bar.set_active(self.color_index)
         if self.editing_text:  # Farbwechsel während der Eingabe gilt für diesen Text
             self.editing_text.set_color(self.pen_color)
+        item = self.selected_element()
+        if item and item.color != self.pen_color:
+            # Kopien von QColor, damit spätere Änderungen die gemerkten Werte nicht verändern
+            self.undo_stack.push(
+                PropertyCommand(item.set_color, QColor(item.color), QColor(self.pen_color), "Farbe ändern"))
+        self.update_bars()
 
     def place_bars(self):
         """Gemeinsame Leiste unten mittig."""
@@ -243,6 +309,9 @@ class Canvas(QGraphicsView):
 
     def closeEvent(self, event):
         self.releaseKeyboard()
+        # Beim Abbau löscht Qt die Szene vor dem Undo-Stack; der meldet dabei noch
+        # Änderungen. Ohne Trennen liefe update_bars() gegen eine gelöschte Szene
+        self.undo_stack.indexChanged.disconnect(self.on_undo_index_changed)
         super().closeEvent(event)
 
     def resizeEvent(self, event):
@@ -256,6 +325,8 @@ class Canvas(QGraphicsView):
         """Screenshot plus Zeichnungen als QImage, ohne Leiste und ohne Textcursor."""
         if self.editing_text:
             self.finish_text()
+        self.scene_.clearSelection()  # sonst wäre der gestrichelte Auswahlrahmen im Bild
+        self.update_bars()
         return render_scene(self.scene_, self.export_rect, self.export_size)
 
     def copy_image(self):
@@ -281,7 +352,8 @@ class Canvas(QGraphicsView):
         self.edit_text(item, old=None)
 
     def edit_text(self, item, old):
-        """Item zum Tippen öffnen. old = (Text, Farbe) vorher, None bei neuem Text."""
+        """Item zum Tippen öffnen. old = (Text, Farbe, Größe) vorher, None bei neuem Text."""
+        self.scene_.clearSelection()  # beim Tippen keinen Auswahlrahmen zeigen
         item.start_editing()
         self.editing_text = item
         self.editing_old = old
@@ -329,8 +401,20 @@ class Canvas(QGraphicsView):
                 return
             # Klick daneben beendet die Eingabe nur
             self.finish_text()
-            if self.tool == Tool.TEXT:
+            if self.tool in (Tool.TEXT, Tool.SELECT):
                 return
+
+        if self.tool == Tool.SELECT:
+            # Element anklicken = auswählen und zum Verschieben anfassen; daneben = abwählen
+            item = self.element_at(pos)
+            self.scene_.clearSelection()
+            if item:
+                item.setSelected(True)
+                self.dragging = item
+                self.drag_start = item.pos()
+                self.drag_offset = pos - item.pos()
+            self.update_bars()
+            return
 
         if self.tool == Tool.TEXT:
             item = self.text_at(pos)
@@ -356,7 +440,7 @@ class Canvas(QGraphicsView):
             else:
                 self.mousePressEvent(event)  # daneben: Eingabe beenden wie bei einem Klick
             return
-        item = self.text_at(pos) if self.tool == Tool.TEXT else None
+        item = self.text_at(pos) if self.tool in (Tool.TEXT, Tool.SELECT) else None
         if item and event.button() == Qt.LeftButton:
             self.dragging = None
             self.edit_text(item, old=(item.toPlainText(), item.color, item.font_size))
@@ -426,7 +510,11 @@ class Canvas(QGraphicsView):
                 super().keyPressEvent(event)  # QGraphicsView reicht die Taste an die Szene weiter
             return
         if key == Qt.Key_Escape:  # fest, damit man das Tool immer verlassen kann
-            self.close()
+            if self.selected_element():  # erst die Auswahl aufheben, dann beenden
+                self.scene_.clearSelection()
+                self.update_bars()
+            else:
+                self.close()
             return
         action = self.keymap.action_for(event)
         if action in self.actions:  # Plätze ohne Werkzeug/Farbe haben keinen Handler

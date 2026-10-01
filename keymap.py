@@ -7,6 +7,7 @@ Standardtaste. In der Config überschreibt [keys] einzelne Einträge:
     undo = "r"
     tool_6 = "t"
     color_next = ""      # leer = Aktion ohne Taste
+    delete = ["delete", "backspace"]   # Liste = mehrere Tasten für eine Aktion
 
 Neue Funktion mit Taste: Eintrag in DEFAULT_KEYS + Handler in Canvas.actions.
 
@@ -35,6 +36,8 @@ def _slots(prefix, count, keys, modifier=""):
 
 
 DEFAULT_KEYS = {
+    "tool_select": "w",
+    "delete": ("delete", "backspace"),  # ausgewähltes Element löschen
     "undo": "r",
     "redo": "shift+r",
     "color_next": "tab",
@@ -71,10 +74,15 @@ def _normalize(combo):
     return QKeyCombination(mods, key)
 
 
+def _as_list(value):
+    """'r' -> ['r'], ('del', 'backspace') -> ['del', 'backspace']"""
+    return [value] if isinstance(value, str) else list(value)
+
+
 class KeyMap:
     def __init__(self, config):
         keys_table = config.get("keys") if isinstance(config.get("keys"), dict) else {}
-        user = {}  # vom Benutzer gesetzte Einträge: action -> Text
+        user = {}  # vom Benutzer gesetzte Einträge: action -> Text oder Liste von Texten
 
         # Alte Schreibweise [tools] keys = ["a", "s", …] -> tool_1, tool_2, …
         tools_table = config.get("tools") if isinstance(config.get("tools"), dict) else {}
@@ -84,41 +92,47 @@ class KeyMap:
                 if isinstance(text, str):
                     user[f"tool_{i}"] = text
 
-        for action, text in keys_table.items():
+        for action, value in keys_table.items():
             if action not in DEFAULT_KEYS:
                 print(f"[keys] Unbekannte Aktion: {action!r}", file=sys.stderr)
-            elif not isinstance(text, str):
-                print(f"[keys] {action}: Wert muss Text sein, nicht {text!r}", file=sys.stderr)
+            elif not (isinstance(value, str)
+                      or isinstance(value, list) and all(isinstance(v, str) for v in value)):
+                print(f"[keys] {action}: Wert muss Text oder Liste von Texten sein, nicht {value!r}",
+                      file=sys.stderr)
             else:
-                user[action] = text
+                user[action] = value
 
-        self.texts = {}     # action -> Tastentext (für Anzeigen)
+        self.texts = {}     # action -> erster Tastentext (für Anzeigen)
         self._lookup = {}   # Taste (als Zahl) -> action
         # Erst die Einträge des Benutzers, dann die Standardwerte: bei doppelter
         # Belegung gewinnt, was ausdrücklich in der Config steht
         ordered = [(a, user[a], True) for a in user] + [
             (a, t, False) for a, t in DEFAULT_KEYS.items() if a not in user
         ]
-        for action, text, from_config in ordered:
-            if not text.strip():
-                continue  # bewusst ohne Taste
-            combo = parse_shortcut(text)
-            if combo is None:
-                if not from_config:
+        for action, value, from_config in ordered:
+            for text in _as_list(value):
+                if not text.strip():
+                    continue  # bewusst ohne Taste
+                combo = parse_shortcut(text)
+                if combo is None:
+                    print(f"[keys] {action}: ungültige Taste {text!r}, wird ignoriert", file=sys.stderr)
                     continue
-                default = DEFAULT_KEYS[action]
-                print(f"[keys] {action}: ungültige Taste {text!r}, nehme {default or 'keine'!r}",
-                      file=sys.stderr)
-                if not default:
-                    continue
-                text, combo = default, parse_shortcut(default)
-            code = combo.toCombined()
-            if code in self._lookup:
-                print(f"[keys] {text!r} ist doppelt belegt: {self._lookup[code]} behält sie, "
-                      f"{action} hat keine Taste", file=sys.stderr)
-                continue
-            self._lookup[code] = action
-            self.texts[action] = text
+                self._bind(action, text, combo)
+            # Hat der Benutzer nur Ungültiges eingetragen, bleibt der Standard
+            if from_config and action not in self.texts:
+                for text in _as_list(DEFAULT_KEYS[action]):
+                    if text and (combo := parse_shortcut(text)) is not None:
+                        print(f"[keys] {action}: nehme Standard {text!r}", file=sys.stderr)
+                        self._bind(action, text, combo)
+
+    def _bind(self, action, text, combo):
+        code = combo.toCombined()
+        if code in self._lookup:
+            print(f"[keys] {text!r} ist doppelt belegt: {self._lookup[code]} behält sie, "
+                  f"{action} hat sie nicht", file=sys.stderr)
+            return
+        self._lookup[code] = action
+        self.texts.setdefault(action, text)
 
     def action_for(self, event):
         """Aktion für ein QKeyEvent oder None."""

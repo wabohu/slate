@@ -8,10 +8,14 @@ Drehen nur rotation, die Punkte selbst bleiben unverändert.
 import uuid
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem
 
 from tools import Tool, shape_path
+
+
+# Wie viele Pixel neben dem Strich ein Klick noch als Treffer zählt
+HIT_TOLERANCE = 6
 
 
 def new_id():
@@ -29,6 +33,8 @@ class ShapeElement(QGraphicsPathItem):
 
     def __init__(self, tool, origin, color, width, element_id=None):
         super().__init__()
+        self._hit_shape = None  # Zwischenspeicher für shape(), siehe unten
+        self.setFlag(QGraphicsPathItem.ItemIsSelectable)  # Qt verwaltet Auswahl + Markierung
         self.id = element_id or new_id()
         self.tool = tool
         self.color = QColor(color)
@@ -62,6 +68,33 @@ class ShapeElement(QGraphicsPathItem):
         path.lineTo(local)
         self.setPath(path)
 
+    # --- Treffer beim Anklicken (D2: nur der Rand, mit Toleranz) ---
+    # Qt fragt shape() für Klicks und boundingRect() für Neuzeichnen und Suche.
+    # Standard bei geschlossenen Pfaden wäre: auch das Innere ist Treffer.
+    def shape(self):
+        if self._hit_shape is None:
+            stroker = QPainterPathStroker()  # macht aus einer Linie eine Fläche dieser Breite
+            stroker.setWidth(self.width + 2 * HIT_TOLERANCE)
+            stroker.setCapStyle(Qt.RoundCap)
+            stroker.setJoinStyle(Qt.RoundJoin)
+            self._hit_shape = stroker.createStroke(self.path())
+        return self._hit_shape
+
+    def boundingRect(self):
+        return self.shape().boundingRect()  # muss die Trefferfläche ganz umschließen
+
+    # Pfad oder Stift ändern sich -> Zwischenspeicher verwerfen (vor und nach dem
+    # eigentlichen Setzen, weil Qt dazwischen noch das alte Rechteck abfragt)
+    def setPath(self, path):
+        self._hit_shape = None
+        super().setPath(path)
+        self._hit_shape = None
+
+    def setPen(self, pen):
+        self._hit_shape = None
+        super().setPen(pen)
+        self._hit_shape = None
+
     # --- Aufbau aus den Werten ---
     def update_pen(self):
         pen = QPen(self.color, self.width)
@@ -91,6 +124,7 @@ class TextElement(QGraphicsTextItem):
 
     def __init__(self, origin, color, font_size, text="", element_id=None):
         super().__init__()
+        self.setFlag(QGraphicsTextItem.ItemIsSelectable)
         self.id = element_id or new_id()
         self.set_font_size(font_size)
         self.set_color(color)
