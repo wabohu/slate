@@ -15,12 +15,15 @@
 """
 import sys
 
-from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt
 from PySide6.QtGui import (
+    QBrush,
     QColor,
     QCursor,
     QGuiApplication,
     QPainter,
+    QPen,
+    QPolygonF,
     QUndoStack,
 )
 from PySide6.QtWidgets import (
@@ -44,6 +47,10 @@ from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
 # Fallbacks, wenn die eigene Config fehlt oder unbrauchbare Werte enthält
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
+
+# Griffe am Auswahlrahmen: Kantenlänge beim Zeichnen und Fangradius beim Anklicken (Pixel)
+HANDLE_SIZE = 8
+HANDLE_GRAB = 7
 
 # Feineinstellung per Alt+Mausrad: Pixel pro Raste
 WHEEL_TEXT_STEP = 2
@@ -166,6 +173,8 @@ class Canvas(QGraphicsView):
         self.drag_start = None    # Item-Position vor dem Verschieben
         self.passthrough = False  # Maus-Events gehen an den Text-Editor (Cursor setzen, markieren)
         self.wheel_rest = 0       # angefangene Mausrad-Raste (Touchpads liefern kleine Schritte)
+        self.resizing = None      # (Element, Griff-Nummer, Geometrie bei Zugbeginn) beim Ziehen am Griff
+        self.viewport().setMouseTracking(True)  # Mausbewegung auch ohne Taste (Zeiger über Griffen)
 
         # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
         # Auswahl-Werkzeug fest vorne, dann die Zeichenwerkzeuge in Config-Reihenfolge
@@ -274,6 +283,7 @@ class Canvas(QGraphicsView):
 
         Passt ein Wert der Auswahl zu keinem Feld, wird nichts markiert (-1).
         """
+        self.viewport().update()  # Rahmen und Griffe neu zeichnen (drawForeground)
         item = self.selected_element()
         if item is None:
             self.palette_bar.set_active(self.color_index)
@@ -421,6 +431,57 @@ class Canvas(QGraphicsView):
                 return item
         return None
 
+    # --- Griffe ---
+    def handle_at(self, pos):
+        """Nummer des Griffs der Auswahl an Szenenposition pos oder None."""
+        item = self.selected_element()
+        if item is None or self.tool != Tool.SELECT or self.editing_text:
+            return None
+        for i, local in enumerate(item.handle_points()):
+            point = item.mapToScene(local)
+            if abs(point.x() - pos.x()) <= HANDLE_GRAB and abs(point.y() - pos.y()) <= HANDLE_GRAB:
+                return i
+        return None
+
+    def update_cursor(self, pos):
+        """Mauszeiger im Auswahl-Werkzeug: Pfeil, über Griffen ein Größen-Pfeil."""
+        if self.tool != Tool.SELECT:
+            return
+        handle = self.handle_at(pos)
+        item = self.selected_element()
+        if handle is None:
+            cursor = Qt.ArrowCursor
+        elif isinstance(item, ShapeElement) and item.tool in (Tool.LINE, Tool.ARROW):
+            cursor = Qt.SizeAllCursor
+        else:  # Ecken 0/2 diagonal ↖↘, 1/3 diagonal ↗↙
+            cursor = Qt.SizeFDiagCursor if handle in (0, 2) else Qt.SizeBDiagCursor
+        self.viewport().setCursor(cursor)
+
+    def drawForeground(self, painter, rect):
+        """Rahmen und Griffe der Auswahl über allem zeichnen.
+
+        Qt-Konzept: drawForeground gehört zur Ansicht, nicht zur Szene. Was hier
+        gezeichnet wird, landet darum nie im exportierten Bild (scene.render).
+        """
+        item = self.selected_element()
+        if item is None or self.tool != Tool.SELECT or self.editing_text:
+            return
+        points = [item.mapToScene(p) for p in item.handle_points()]
+        painter.setRenderHint(QPainter.Antialiasing)
+        if len(points) == 4:  # Rahmen durch die Ecken (bei Linien nur die Endpunkte)
+            frame = QPen(self.theme.foreground, 1, Qt.DashLine)
+            frame.setCosmetic(True)  # immer 1 Pixel, unabhängig von Zoom/Transformation
+            painter.setPen(frame)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawPolygon(QPolygonF(points))
+        fill = QColor(self.theme.background)
+        fill.setAlpha(255)
+        painter.setPen(QPen(self.theme.foreground, 1.5))
+        painter.setBrush(QBrush(fill))
+        half = HANDLE_SIZE / 2
+        for p in points:
+            painter.drawRect(QRectF(p.x() - half, p.y() - half, HANDLE_SIZE, HANDLE_SIZE))
+
     # --- Maus ---
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton:
@@ -439,6 +500,11 @@ class Canvas(QGraphicsView):
                 return
 
         if self.tool == Tool.SELECT:
+            handle = self.handle_at(pos)
+            if handle is not None:  # Griff anfassen = Größe ändern
+                item = self.selected_element()
+                self.resizing = (item, handle, item.geometry())
+                return
             # Element anklicken = auswählen und zum Verschieben anfassen; daneben = abwählen
             item = self.element_at(pos)
             self.scene_.clearSelection()
@@ -486,10 +552,20 @@ class Canvas(QGraphicsView):
             super().mouseMoveEvent(event)
             return
         pos = self.mapToScene(event.position().toPoint())
+        if self.resizing:
+            item, handle, start = self.resizing
+            if isinstance(item, TextElement):
+                item.drag_handle(handle, pos, start, TEXT_SIZE_RANGE)
+            else:
+                item.drag_handle(handle, pos, start)
+            self.viewport().update()
+            return
         if self.dragging:
             self.dragging.setPos(pos - self.drag_offset)
+            self.viewport().update()  # Griffe wandern mit
             return
         if self.current_item is None:
+            self.update_cursor(pos)  # nur Bewegung ohne Taste
             return
         # Werkzeug des Elements, nicht self.tool: ein Tastendruck mitten im Ziehen ändert nichts mehr
         if self.current_item.tool == Tool.FREEHAND:
@@ -503,6 +579,12 @@ class Canvas(QGraphicsView):
         if self.passthrough:
             self.passthrough = False
             super().mouseReleaseEvent(event)
+            return
+        if self.resizing:
+            item, _, start = self.resizing
+            self.resizing = None
+            if item.geometry() != start:  # nur echte Änderung ist ein Undo-Schritt
+                self.undo_stack.push(PropertyCommand(item.set_geometry, start, item.geometry(), "Größe ändern"))
             return
         if self.dragging:
             item, start = self.dragging, self.drag_start

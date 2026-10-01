@@ -5,7 +5,7 @@
     python tests/regress.py --update   # Referenz neu schreiben (nach gewollter Optikänderung)
 
 Die Szene deckt alle Formen, Farben und Größen per Taste, eine verworfene Mini-Form, Text,
-Verschieben von Text, das Auswahl-Werkzeug (Treffer nur am Rand, umfärben, verschieben)
+Verschieben von Text, das Auswahl-Werkzeug (Treffer nur am Rand, umfärben, verschieben, Griff ziehen)
 sowie Undo/Redo ab. Läuft über Qts Offscreen-Plattform und
 mit leerem HOME/XDG_CONFIG_HOME: Weder die eigene Config noch das Alacritty-Theme
 beeinflussen das Ergebnis (es gilt die Standardpalette).
@@ -72,6 +72,12 @@ def draw_scene(canvas, view):
     key(Qt.Key_X, Qt.ShiftModifier); key(Qt.Key_A, Qt.AltModifier)                 # umfärben, dünner
     drag((525, 42), (845, 202))                                                     # verschieben
     key(Qt.Key_Escape)                                                              # abwählen
+    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(700, 42))                      # Ellipse am Rand
+    ellipse = canvas.selected_element()
+    assert ellipse is not None, "Ellipse nicht getroffen"
+    corner = canvas.mapFromScene(ellipse.mapToScene(ellipse.handle_points()[2]))    # Griff unten rechts
+    drag((corner.x(), corner.y()), (corner.x() + 60, corner.y() + 60), steps=2)     # Griff: größer
+    key(Qt.Key_Escape)
     key(Qt.Key_S); drag((500, 300), (700, 450))                                     # Linie …
     key(Qt.Key_R); key(Qt.Key_R); key(Qt.Key_R, Qt.ShiftModifier)                  # … Undo, Undo, Redo
 

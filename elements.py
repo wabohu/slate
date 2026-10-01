@@ -5,11 +5,12 @@ Koordinaten. Qt-Konzept: Jedes QGraphicsItem hat ein eigenes Koordinatensystem;
 pos() und rotation() bilden es in die Szene ab. Verschieben ändert also nur pos,
 Drehen nur rotation, die Punkte selbst bleiben unverändert.
 """
+import math
 import uuid
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen
-from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF
+from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem, QStyle, QStyleOptionGraphicsItem
 
 from tools import Tool, shape_path
 
@@ -21,6 +22,29 @@ HIT_TOLERANCE = 6
 def new_id():
     """Eindeutige Kennung, z. B. für Verbinder und Speichern."""
     return uuid.uuid4().hex
+
+
+def corners(rect):
+    """Ecken eines Rechtecks in fester Reihenfolge: oben links, oben rechts, unten rechts,
+    unten links. Die gegenüberliegende Ecke von i ist (i + 2) % 4."""
+    return [rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()]
+
+
+def without_selection_highlight(option):
+    """Kopie der Zeichen-Optionen ohne "ausgewählt": Qt soll seinen eigenen gestrichelten
+    Rahmen nicht zeichnen, die Canvas zeichnet Rahmen und Griffe selbst."""
+    option = QStyleOptionGraphicsItem(option)
+    option.state &= ~QStyle.State_Selected
+    return option
+
+
+def scale_factor(new, fixed, old):
+    """Streckfaktor entlang einer Achse; bei (fast) null Ausdehnung nicht strecken."""
+    return (new - fixed) / (old - fixed) if abs(old - fixed) > 0.5 else 1.0
+
+
+def distance(a, b):
+    return math.hypot(a.x() - b.x(), a.y() - b.y())
 
 
 class ShapeElement(QGraphicsPathItem):
@@ -95,6 +119,51 @@ class ShapeElement(QGraphicsPathItem):
         super().setPen(pen)
         self._hit_shape = None
 
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, without_selection_highlight(option), widget)
+
+    # --- Griffe zum Größe ändern (Auswahl-Werkzeug) ---
+    def handle_points(self):
+        """Griffpunkte in lokalen Koordinaten: Endpunkte bei Linie/Pfeil, sonst 4 Ecken."""
+        if self.tool in (Tool.LINE, Tool.ARROW):
+            return list(self.points)
+        return corners(self.box(self.points))
+
+    def box(self, points):
+        """Umrandendes Rechteck der Geometrie (ohne Strichbreite)."""
+        if self.tool == Tool.FREEHAND:
+            return QPolygonF(points).boundingRect()
+        return QRectF(points[0], points[1]).normalized()
+
+    def geometry(self):
+        """Alles, was sich beim Größe ändern ändern kann, für Undo (kopiert)."""
+        return (QPointF(self.pos()), [QPointF(p) for p in self.points])
+
+    def set_geometry(self, state):
+        pos, points = state
+        self.setPos(pos)
+        self.points = [QPointF(p) for p in points]
+        self.rebuild()
+
+    def drag_handle(self, index, scene_pos, start):
+        """Griff index wurde nach scene_pos gezogen; start = geometry() bei Zugbeginn."""
+        local = self.mapFromScene(scene_pos)  # pos ändert sich beim Ziehen nicht
+        points = [QPointF(p) for p in start[1]]
+        if self.tool in (Tool.LINE, Tool.ARROW):
+            points[index] = local
+        elif self.tool == Tool.FREEHAND:
+            # Alle Punkte strecken; die gegenüberliegende Ecke bleibt fest
+            box = corners(self.box(points))
+            fixed, handle = box[(index + 2) % 4], box[index]
+            sx = scale_factor(local.x(), fixed.x(), handle.x())
+            sy = scale_factor(local.y(), fixed.y(), handle.y())
+            points = [QPointF(fixed.x() + (p.x() - fixed.x()) * sx,
+                              fixed.y() + (p.y() - fixed.y()) * sy) for p in points]
+        else:  # Rechteck, Ellipse: gegenüberliegende Ecke + neue Ecke
+            points = [corners(self.box(points))[(index + 2) % 4], local]
+        self.points = points
+        self.rebuild()
+
     # --- Aufbau aus den Werten ---
     def update_pen(self):
         pen = QPen(self.color, self.width)
@@ -145,6 +214,35 @@ class TextElement(QGraphicsTextItem):
         font.setPixelSize(size)
         font.setBold(True)
         self.setFont(font)
+
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, without_selection_highlight(option), widget)
+
+    # --- Griffe: Ziehen an einer Ecke skaliert die Schrift ---
+    def handle_points(self):
+        return corners(self.boundingRect())
+
+    def geometry(self):
+        return (QPointF(self.pos()), self.font_size)
+
+    def set_geometry(self, state):
+        pos, size = state
+        self.set_font_size(size)
+        self.setPos(pos)
+
+    def drag_handle(self, index, scene_pos, start, size_range=(6, 300)):
+        """Schriftgröße im Verhältnis der Diagonale; gegenüberliegende Ecke bleibt stehen."""
+        start_pos, start_size = start
+        self.set_geometry(start)  # vom Ausgangszustand aus rechnen, nicht schrittweise
+        box = corners(self.boundingRect())
+        fixed_local, handle_local = box[(index + 2) % 4], box[index]
+        fixed_scene = start_pos + fixed_local
+        ratio = (distance(scene_pos, fixed_scene)
+                 / max(1.0, distance(start_pos + handle_local, fixed_scene)))
+        low, high = size_range
+        self.set_font_size(max(low, min(high, round(start_size * ratio))))
+        # Neue Größe: Position so setzen, dass die feste Ecke an ihrem Platz bleibt
+        self.setPos(fixed_scene - corners(self.boundingRect())[(index + 2) % 4])
 
     # --- Bearbeiten ---
     def start_editing(self):
