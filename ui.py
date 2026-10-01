@@ -8,8 +8,29 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
-BAR_BACKGROUND = QColor(20, 20, 20, 190)
-SEPARATOR = QColor(255, 255, 255, 50)
+
+
+class Theme:
+    """Farben der Oberfläche: Hintergrund der Leiste und Vordergrund (Symbole, Rahmen, Text).
+
+    Standard ist ein neutrales Dunkelgrau mit Weiß; annotate.py setzt normalerweise
+    die Farben aus dem Alacritty-Schema ([ui] in der Config).
+    """
+
+    def __init__(self, background=QColor(20, 20, 20), foreground=QColor("white"), opacity=0.75):
+        self.background = QColor(background)
+        self.background.setAlphaF(opacity)
+        self.foreground = QColor(foreground)
+
+    def fg(self, alpha=255):
+        """Vordergrundfarbe mit Deckkraft alpha (0-255), z. B. für dezente Flächen."""
+        color = QColor(self.foreground)
+        color.setAlpha(alpha)
+        return color
+
+    def css(self, color):
+        """QColor -> 'rgba(r, g, b, a)' für Qt-Stylesheets."""
+        return f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()})"
 
 
 class MainBar(QWidget):
@@ -22,9 +43,10 @@ class MainBar(QWidget):
 
     SPACING = 14  # Abstand zwischen den Gruppen, in der Mitte liegt der Trennstrich
 
-    def __init__(self, groups, parent=None):
+    def __init__(self, groups, theme, parent=None):
         super().__init__(parent)
         self.groups = groups
+        self.theme = theme
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(self.SPACING)
@@ -36,9 +58,9 @@ class MainBar(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(Qt.NoPen)
-        p.setBrush(BAR_BACKGROUND)
+        p.setBrush(self.theme.background)
         p.drawRoundedRect(QRectF(self.rect()), 8, 8)
-        p.setPen(QPen(SEPARATOR, 1))
+        p.setPen(QPen(self.theme.fg(50), 1))
         for left, right in zip(self.groups, self.groups[1:]):
             x = (left.geometry().right() + right.geometry().left()) / 2 + 0.5
             p.drawLine(QPointF(x, 10), QPointF(x, self.height() - 10))
@@ -64,9 +86,10 @@ class CellBar(QWidget):
     GAP = 6        # Abstand zwischen den Feldern
     PADDING = 8    # Rand um alle Felder
 
-    def __init__(self, count, parent=None):
+    def __init__(self, count, theme, parent=None):
         super().__init__(parent)
         self.count = count
+        self.theme = theme
         self.active = 0
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(self.sizeHint())  # feste Größe, damit das Layout sie nicht streckt
@@ -99,7 +122,7 @@ class CellBar(QWidget):
             p.restore()
             if i == self.active:
                 p.setBrush(Qt.NoBrush)
-                p.setPen(QPen(Qt.white, 2))
+                p.setPen(QPen(self.theme.foreground, 2))
                 p.drawRoundedRect(rect.adjusted(-3, -3, 3, 3), 6, 6)
 
     def mousePressEvent(self, event):
@@ -117,13 +140,13 @@ class CellBar(QWidget):
 class PaletteBar(CellBar):
     """Farbleiste: ein Farbfeld pro Farbe."""
 
-    def __init__(self, colors, parent=None):
+    def __init__(self, colors, theme, parent=None):
         self.colors = [QColor(c) for c in colors]
-        super().__init__(len(self.colors), parent)
+        super().__init__(len(self.colors), theme, parent)
 
     def paint_cell(self, p, index, rect):
         p.setBrush(self.colors[index])
-        p.setPen(QPen(QColor(255, 255, 255, 60), 1))  # dünner Rand, damit Schwarz sichtbar bleibt
+        p.setPen(QPen(self.theme.fg(60), 1))  # dünner Rand, damit dunkle Farben sichtbar bleiben
         p.drawRoundedRect(rect, 4, 4)
 
 
@@ -135,17 +158,17 @@ class ToolBar(CellBar):
 
     CELL = 30
 
-    def __init__(self, icons, labels, parent=None):
+    def __init__(self, icons, labels, theme, parent=None):
         self.icons = icons
         self.labels = labels
-        super().__init__(len(icons), parent)
+        super().__init__(len(icons), theme, parent)
 
     def paint_cell(self, p, index, rect):
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 25))
+        p.setBrush(self.theme.fg(25))
         p.drawRoundedRect(rect, 4, 4)
 
-        pen = QPen(Qt.white, 2)
+        pen = QPen(self.theme.foreground, 2)
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
         p.setPen(pen)
@@ -158,7 +181,7 @@ class ToolBar(CellBar):
             font.setPixelSize(9)
             font.setBold(True)
             p.setFont(font)
-            p.setPen(QColor(255, 255, 255, 150))
+            p.setPen(self.theme.fg(150))
             p.drawText(QRectF(0, 0, self.CELL - 2, self.CELL - 1),
                        Qt.AlignRight | Qt.AlignBottom, self.labels[index])
 
@@ -166,15 +189,15 @@ class ToolBar(CellBar):
 class SizeBar(CellBar):
     """Größen-Stufen: Punkte wachsender Größe (Strichstärke bzw. Schriftgröße)."""
 
-    def __init__(self, levels, parent=None):
-        super().__init__(levels, parent)
+    def __init__(self, levels, theme, parent=None):
+        super().__init__(levels, theme, parent)
 
     def paint_cell(self, p, index, rect):
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 25))
+        p.setBrush(self.theme.fg(25))
         p.drawRoundedRect(rect, 4, 4)
         diameter = 4 + index * 4  # 4, 8, 12, 16 px: zeigt die Stufe, nicht den Pixelwert
-        p.setBrush(Qt.white)
+        p.setBrush(self.theme.foreground)
         p.drawEllipse(rect.center(), diameter / 2, diameter / 2)
 
 
@@ -183,11 +206,11 @@ class Toast(QLabel):
 
     DURATION_MS = 2500
 
-    def __init__(self, parent):
+    def __init__(self, theme, parent):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)  # Klicks gehen durch
         self.setStyleSheet(
-            "background: rgba(20, 20, 20, 190); color: white;"
+            f"background: {theme.css(theme.background)}; color: {theme.css(theme.foreground)};"
             "padding: 8px 16px; border-radius: 8px; font-size: 14px;"
         )
         # Ein Timer statt vieler singleShot-Aufrufe: neue Meldung startet die Zeit neu

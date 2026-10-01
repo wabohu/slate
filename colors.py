@@ -26,6 +26,7 @@ DEFAULT_BRIGHT = {
     "blue": "#7aa6da", "magenta": "#c397d8", "cyan": "#70c0b1", "white": "#eaeaea",
 }
 DEFAULT_FOREGROUND = "#d8d8d8"
+DEFAULT_BACKGROUND = "#1d1f21"
 
 # Alacritty erlaubt verschachtelte Imports, begrenzt die Tiefe aber auch
 MAX_IMPORT_DEPTH = 5
@@ -38,13 +39,20 @@ class Palette:
     normal: dict = field(default_factory=lambda: dict(DEFAULT_NORMAL))
     bright: dict = field(default_factory=lambda: dict(DEFAULT_BRIGHT))
     foreground: str = DEFAULT_FOREGROUND
+    background: str = DEFAULT_BACKGROUND  # nur für die Oberfläche, nicht in der Farbleiste
     source: str = "Standardpalette"  # woher die Farben kamen (nur zur Info)
 
     def lookup(self, name):
-        """'red' -> normal, 'bright_red' / 'bright red' -> bright, 'foreground'. Sonst None."""
+        """'red' -> normal, 'bright_red' / 'bright red' -> bright, 'foreground',
+        'background' oder direkt ein Farbwert '#rrggbb'. Sonst None."""
+        direct = normalize_color(name)
+        if direct:
+            return direct
         key = name.strip().lower().replace(" ", "_").replace("-", "_")
         if key == "foreground":
             return self.foreground
+        if key == "background":
+            return self.background
         if key.startswith("bright_"):
             return self.bright.get(key[len("bright_"):])
         return self.normal.get(key)
@@ -144,9 +152,10 @@ def _merge_colors(target, data):
                 target[section][name] = color
     primary = colors.get("primary")
     if isinstance(primary, dict):
-        color = normalize_color(primary.get("foreground"))
-        if color:
-            target["foreground"] = color
+        for key in ("foreground", "background"):
+            color = normalize_color(primary.get(key))
+            if color:
+                target[key] = color
 
 
 def _load_file(path, target, depth, seen):
@@ -177,6 +186,7 @@ def load_palette(config_path=None):
         palette.normal.update(target["normal"])
         palette.bright.update(target["bright"])
         palette.foreground = target.get("foreground", palette.foreground)
+        palette.background = target.get("background", palette.background)
         palette.source = str(path)
     except Exception as e:  # letzte Sicherung: Farben sind nie ein Grund abzustürzen
         print(f"[colors] Fehler beim Laden der Palette: {e}", file=sys.stderr)
@@ -189,5 +199,5 @@ if __name__ == "__main__":
     print(f"Quelle: {p.source}")
     for name in COLOR_NAMES:
         print(f"  {name:8} normal {p.normal[name]}   bright {p.bright[name]}")
-    print(f"  foreground {p.foreground}")
+    print(f"  foreground {p.foreground}   background {p.background}")
     print(f"Leiste ({len(p.swatches())}): {' '.join(p.swatches())}")

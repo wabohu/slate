@@ -25,6 +25,13 @@ default = 2                  # Stufe beim Start
 stroke = [2, 4, 8, 12]       # Strichstärke, je 1-100
 text = [16, 28, 40, 64]      # Schriftgröße, je 6-300
 
+[ui]
+# Farben der Leiste und der Einblendungen. Namen wie in [colors] plus "background"
+# (Hintergrund aus Alacritty colors.primary) oder direkt "#rrggbb".
+bar_background = "background"
+bar_foreground = "foreground"   # Symbole, Rahmen, Beschriftung
+bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
+
 [output]
 # Ordner für Strg+S (PNG mit Zeitstempel). ~ ist erlaubt. Standard: ~/Pictures/annotate
 dir = "~/Pictures/annotate"

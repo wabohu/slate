@@ -32,18 +32,23 @@ from PySide6.QtWidgets import (
 
 from colors import load_palette
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand
-from config import get_int, get_int_list, get_list, get_str, load_config
+from config import get_float, get_int, get_int_list, get_list, get_str, load_config
 from elements import ShapeElement, TextElement
 from keymap import KeyMap
 from tools import Tool, parse_tool, tool_icon, tool_order
 from export import copy_to_clipboard, default_output_dir, render_scene, save_png
-from ui import MainBar, PaletteBar, SizeBar, Toast, ToolBar
+from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
 
 
 # --- Einstellungen -----------------------------------------------------------
 # Fallbacks, wenn die eigene Config fehlt oder unbrauchbare Werte enthält
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
+
+# Farben der Leiste ([ui]): Namen wie in [colors] plus "background", oder "#rrggbb"
+DEFAULT_BAR_BACKGROUND = "background"  # Hintergrund aus Alacritty colors.primary
+DEFAULT_BAR_FOREGROUND = "foreground"
+DEFAULT_BAR_OPACITY = 0.9
 
 # Größe in Stufen ([size]): Alt+A S D F wählt Stufe 1-4, gilt als Strichstärke
 # für Formen und als Schriftgröße für Text (Werte in Pixeln)
@@ -139,6 +144,7 @@ class Canvas(QGraphicsView):
         default_color = get_str(config, "colors", "default") or DEFAULT_COLOR
         self.color_index = self.index_of(self.palette_.lookup(default_color))
         self.pen_color = self.colors[self.color_index]
+        self.theme = self.load_theme(config)
 
         # Zustand
         self.undo_stack = QUndoStack(self)  # alle Änderungen, für Undo/Redo (siehe commands.py)
@@ -156,17 +162,17 @@ class Canvas(QGraphicsView):
         self.bar_tools = [Tool.SELECT] + self.tools
         labels = [self.keymap.label("tool_select")]
         labels += [self.keymap.label(f"tool_{i}") for i in range(1, len(self.tools) + 1)]
-        self.tool_bar = ToolBar([tool_icon(t) for t in self.bar_tools], labels)
+        self.tool_bar = ToolBar([tool_icon(t) for t in self.bar_tools], labels, self.theme)
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
         self.tool_bar.selected.connect(lambda i: self.set_tool(self.bar_tools[i]))
-        self.palette_bar = PaletteBar(self.swatches)
+        self.palette_bar = PaletteBar(self.swatches, self.theme)
         self.palette_bar.selected.connect(self.set_color)
-        self.size_bar = SizeBar(SIZE_LEVELS)
+        self.size_bar = SizeBar(SIZE_LEVELS, self.theme)
         self.size_bar.selected.connect(self.set_size)
-        self.main_bar = MainBar([self.tool_bar, self.palette_bar, self.size_bar], self)
+        self.main_bar = MainBar([self.tool_bar, self.palette_bar, self.size_bar], self.theme, self)
         self.place_bars()
 
-        self.toast = Toast(self)  # kurze Meldungen, z. B. nach dem Speichern
+        self.toast = Toast(self.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
 
         # Ausgabe: Zielordner für PNGs ([output] dir), ~ ist erlaubt
         self.output_dir = get_str(config, "output", "dir") or default_output_dir()
@@ -196,6 +202,24 @@ class Canvas(QGraphicsView):
             self.actions[f"color_{i + 1}"] = lambda i=i: self.set_color(i)
         for i in range(SIZE_LEVELS):
             self.actions[f"size_{i + 1}"] = lambda i=i: self.set_size(i)
+
+    def load_theme(self, config):
+        """Leistenfarben aus [ui]; unbekannte Namen oder Werte -> Alacritty-Farben."""
+        def color(key, default):
+            name = get_str(config, "ui", key) or default
+            value = self.palette_.lookup(name)
+            if value is None:
+                print(f"[ui] {key}: unbekannte Farbe {name!r}, nehme {default!r}", file=sys.stderr)
+                value = self.palette_.lookup(default)
+            return QColor(value)
+
+        opacity = get_float(config, "ui", "bar_opacity")
+        if opacity is None or not 0 <= opacity <= 1:
+            if opacity is not None:
+                print(f"[ui] bar_opacity={opacity} außerhalb 0-1, nehme {DEFAULT_BAR_OPACITY}", file=sys.stderr)
+            opacity = DEFAULT_BAR_OPACITY
+        return Theme(color("bar_background", DEFAULT_BAR_BACKGROUND),
+                     color("bar_foreground", DEFAULT_BAR_FOREGROUND), opacity)
 
     def index_of(self, hex_color):
         """Position einer Farbe in der Leiste; fehlt sie, das erste Feld."""

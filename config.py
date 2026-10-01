@@ -54,6 +54,15 @@ def get_int(config, section, key):
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def get_float(config, section, key):
+    """config[section][key] als Zahl (int oder float); fehlt/falsch -> None."""
+    table = config.get(section)
+    value = table.get(key) if isinstance(table, dict) else None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
 def get_int_list(config, section, key):
     """config[section][key] als Liste von ints; fehlt/falsch/leer -> None."""
     table = config.get(section)
