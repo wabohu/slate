@@ -98,6 +98,30 @@ def main():
     match = [e for e in again if e.id == moved.id]
     check("Verschiebung gespeichert", match and match[0].pos() == moved.pos())
 
+    # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
+    # gezeichnet und exportiert wird in voller Auflösung
+    big = QPixmap(2200, 1000)
+    big.fill(QColor("#3b4261"))
+    large = make_canvas(big)
+    check("großes Bild: verkleinert", abs(large.zoom() - 0.5) < 0.01)
+    lview = large.viewport()
+    QTest.keyClick(large, Qt.Key_S)  # Linie
+    QTest.mousePress(lview, Qt.LeftButton, pos=QPoint(100, 100))
+    QTest.mouseMove(lview, QPoint(300, 200))
+    QTest.mouseRelease(lview, Qt.LeftButton, pos=QPoint(300, 200))
+    line = large.elements()[-1]
+    check("großes Bild: Linie in Bildpixeln", abs(line.mapToScene(line.points[1]).x()
+                                                  - line.mapToScene(line.points[0]).x() - 400) < 2)
+    check("großes Bild: Export in voller Auflösung", large.render_image().size() == big.size())
+    small = QPixmap(400, 300)
+    small.fill(QColor("#3b4261"))
+    little = make_canvas(small)
+    center = little.mapFromScene(little.export_rect.center())
+    check("kleines Bild: 1:1 und mittig", little.zoom() == 1.0
+          and (center - little.viewport().rect().center()).manhattanLength() <= 2)
+    large.close()
+    little.close()
+
     # Whiteboard: leere Fläche, speichern, als Whiteboard wieder laden
     import export
     export.shutil.which = lambda name: None  # nie die echte Zwischenablage anfassen

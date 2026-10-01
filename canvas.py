@@ -50,6 +50,9 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
             self.export_rect = background.boundingRect()
             self.export_size = pixmap.size()
             self.background_image = pixmap.toImage()  # roh, wird beim Speichern eingebettet
+            # Feste Szenengröße = Bild: Die Ansicht zeigt es mittig (fit_overlay), auch wenn
+            # ein Strich über den Rand hinausragt
+            self.scene_.setSceneRect(self.export_rect)
         for item in elements:  # Ausgangszustand, darum nicht im Undo
             self.scene_.addItem(item)
         self.document_path = document_path
@@ -75,6 +78,12 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
 
         # Werte aus der Config (ändern sich während der Sitzung nicht), siehe settings.py
         self.settings = Settings(load_config(), board)
+        if not board:
+            # Rand um ein Bild, das nicht den ganzen Bildschirm füllt (fit_overlay): Leisten-
+            # Hintergrund, deckend. Gehört zur Ansicht, nicht zur Szene, darum nie im Export
+            edge = QColor(self.settings.theme.background)
+            edge.setAlpha(255)
+            self.setBackgroundBrush(edge)
         self.tool = self.settings.default_tool
         self.size_level = self.settings.default_size_level
         self.color_index = self.settings.default_color_index
@@ -267,6 +276,21 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
         # Szene bekommt ein Textobjekt keinen Tastaturfokus, darum hier von Hand aktivieren
         QApplication.sendEvent(self.scene_, QEvent(QEvent.WindowActivate))
 
+    def fit_overlay(self):
+        """Screenshot-Modus: Bild ganz zeigen. Größer als der Bildschirm (z. B. auf einem
+        größeren Monitor gespeichert) -> verkleinert, kleiner -> Originalgröße; immer mittig.
+
+        Qt-Konzept: Die Ansicht hat eine Transformation (Zoom). Sie ändert nur die Anzeige,
+        die Szene und damit Speichern und Export behalten die volle Auflösung.
+        """
+        view, image = self.viewport().size(), self.export_rect.size()
+        if view.isEmpty() or image.isEmpty():
+            return
+        factor = min(1.0, view.width() / image.width(), view.height() / image.height())
+        self.resetTransform()
+        self.scale(factor, factor)
+        self.centerOn(self.export_rect.center())
+
     def show_window(self):
         """Whiteboard als normales Fenster zeigen, Ansicht auf die Elemente richten."""
         self.show()
@@ -293,6 +317,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, QGraphicsView):
         super().resizeEvent(event)
         if hasattr(self, "main_bar"):  # kann schon im Konstruktor kommen
             self.place_bars()
+        if not self.board:
+            self.fit_overlay()
 
     def elements(self):
         """Alle Elemente von unten nach oben (Reihenfolge beim Speichern)."""
