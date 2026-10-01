@@ -62,7 +62,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 5. [x] Text-Werkzeug
 6. [x] Strichstärke und Redo (Strichstärke als Größen-Stufen, gilt auch für Text)
 7. [x] Ausgabe: Zwischenablage (Enter, Strg+C) und PNG speichern (Strg+S)
-8. [ ] Globaler Hotkey / Autostart
+8. [x] Globaler Hotkey: sxhkd (`~/.config/herbstluftwm/keybindings.sxhkd`), Alt+Escape = Screenshot, Alt+Delete = Whiteboard, beide über `~/.local/bin/annotate-board`
 9. [ ] Extras: nummerierte Marker, Unschärfe, Bereichsauswahl, Tray-Icon
 10. [ ] Verlauf wie bei Tekapoint: jeden Screenshot automatisch speichern und per Tastenkombination wieder aufrufen. Offene Fragen, vor dem Start klären:
     - Inhalt: bearbeitbar (Screenshot + Annotationen als Objekte, z. B. JSON, plus PNG-Vorschau), nur fertiges Bild (flaches PNG) oder nur Roh-Screenshot?
