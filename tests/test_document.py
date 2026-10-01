@@ -27,8 +27,9 @@ def check(name, condition):
         failures.append(name)
 
 
-def make_canvas(annotate, pixmap, elements=(), path=None):
-    canvas = annotate.Canvas(QGuiApplication.primaryScreen(), pixmap, elements, path)
+def make_canvas(pixmap, elements=(), path=None):
+    from canvas import Canvas
+    canvas = Canvas(QGuiApplication.primaryScreen(), pixmap, elements, path)
     canvas.resize(1100, 500)
     canvas.show_overlay()
     QApplication.processEvents()
@@ -37,13 +38,15 @@ def make_canvas(annotate, pixmap, elements=(), path=None):
 
 def main():
     app = QApplication(sys.argv)  # noqa: F841
-    import annotate
+    from canvas import Canvas
+    from commands import PropertyCommand
+    from elements import TextElement
     from document import load_document
     from export import default_output_dir
 
     # Mixins der Canvas (docs/plan-aufteilung.md): Keine Methode darf in zwei Klassen
     # stehen, sonst überdeckt die eine still die andere
-    parts = [c for c in annotate.Canvas.__mro__ if c.__module__ not in ("builtins",) and
+    parts = [c for c in Canvas.__mro__ if c.__module__ not in ("builtins",) and
              not c.__module__.startswith(("PySide6", "Shiboken"))]
     names = [{n for n in c.__dict__ if not n.startswith("__")} for c in parts]
     clashes = {n for i, a in enumerate(names) for b in names[i + 1:] for n in a & b}
@@ -51,7 +54,7 @@ def main():
 
     background = QPixmap(1100, 500)
     background.fill(QColor("#3b4261"))
-    canvas = make_canvas(annotate, background)
+    canvas = make_canvas(background)
     regress.draw_scene(canvas, canvas.viewport())
     out = Path(default_output_dir())
 
@@ -76,7 +79,7 @@ def main():
     check(f"als Zeichnung geladen ({message})", is_drawing and len(elements) == len(canvas.elements()))
     check("Elemente identisch",
           [e.to_dict() for e in elements] == [e.to_dict() for e in canvas.elements()])
-    reopened = make_canvas(annotate, QPixmap.fromImage(bg), elements, path)
+    reopened = make_canvas(QPixmap.fromImage(bg), elements, path)
     check("neu geladen = pixelgleich", reopened.render_image() == rendered)
     check("Undo nach dem Laden leer", reopened.undo_stack.count() == 0)
 
@@ -98,7 +101,7 @@ def main():
     # Whiteboard: leere Fläche, speichern, als Whiteboard wieder laden
     import export
     export.shutil.which = lambda name: None  # nie die echte Zwischenablage anfassen
-    board = annotate.Canvas(QGuiApplication.primaryScreen(), None, board=True)
+    board = Canvas(QGuiApplication.primaryScreen(), None, board=True)
     board.resize(900, 500)
     board.show_window()
     QApplication.processEvents()
@@ -118,7 +121,7 @@ def main():
     check("nach dem Speichern sauber", board.undo_stack.isClean())
     bbg, belems, _, _ = load_document(board.document_path)
     check("als Whiteboard geladen", isinstance(bbg, QColor) and bbg == board.board_color and len(belems) == 1)
-    board2 = annotate.Canvas(QGuiApplication.primaryScreen(), None, belems, board.document_path,
+    board2 = Canvas(QGuiApplication.primaryScreen(), None, belems, board.document_path,
                              board=True, board_color=bbg)
     board2.show_window()
     check("Whiteboard neu geladen = gleicher Export", board2.render_image() == board_image)
@@ -145,7 +148,7 @@ def main():
     # Heller Hintergrund: Farben werden abgedunkelt gezeigt, gespeichert bleibt die Grundfarbe
     from colors import LIGHT_CONTRAST, contrast
     paper = QColor("#f8f6f0")
-    light = annotate.Canvas(QGuiApplication.primaryScreen(), None, board=True, board_color=paper)
+    light = Canvas(QGuiApplication.primaryScreen(), None, board=True, board_color=paper)
     light.resize(900, 500)
     light.show_window()
     QApplication.processEvents()
@@ -161,11 +164,11 @@ def main():
     base, shown = rect.color.name(), rect.pen().color().name()
     check("hell: Form abgedunkelt gezeigt", shown != base and contrast(shown, paper.name()) >= LIGHT_CONTRAST)
     check("hell: Grundfarbe gespeichert", rect.to_dict()["color"] == base)
-    text = annotate.TextElement(QPointF(0, 0), QColor(base), 20, text="x")
+    text = TextElement(QPointF(0, 0), QColor(base), 20, text="x")
     light.scene_.addItem(text)
     check("hell: Text abgedunkelt gezeigt", text.defaultTextColor().name() == shown and text.color.name() == base)
     check("hell: Farbleiste angepasst", light.palette_bar.colors[light.color_index].name() != light.settings.swatches[light.color_index])
-    light.undo_stack.push(annotate.PropertyCommand(light.set_board_color, QColor(paper), QColor("#24283b")))
+    light.undo_stack.push(PropertyCommand(light.set_board_color, QColor(paper), QColor("#24283b")))
     check("dunkel: Grundfarbe gezeigt", rect.pen().color().name() == base and text.defaultTextColor().name() == base)
     light.undo_stack.undo()
     check("Undo: wieder abgedunkelt", rect.pen().color().name() == shown)

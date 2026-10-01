@@ -84,11 +84,11 @@ def draw_scene(canvas, view):
 
 def main():
     app = QApplication(sys.argv)  # noqa: F841  (muss existieren)
-    import annotate
+    from canvas import Canvas
 
     background = QPixmap(1100, 500)
     background.fill(QColor("#3b4261"))
-    canvas = annotate.Canvas(QGuiApplication.primaryScreen(), background)
+    canvas = Canvas(QGuiApplication.primaryScreen(), background)
     canvas.resize(1100, 500)
     canvas.show_overlay()
     QApplication.processEvents()
