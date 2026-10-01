@@ -45,6 +45,14 @@ def distance(a, b):
     return math.hypot(a.x() - b.x(), a.y() - b.y())
 
 
+def shown_color(item, color):
+    """Farbe, wie das Element sie zeigt. color ist die Grundfarbe (wird gespeichert);
+    die Szene kann sie an den Hintergrund anpassen (Canvas.adapt_color, z. B. auf
+    hellem Whiteboard abdunkeln). Ohne Szene oder ohne Anpassung: unverändert."""
+    adapt = getattr(item.scene(), "adapt_color", None)
+    return adapt(color) if adapt else QColor(color)
+
+
 class ShapeElement(QGraphicsPathItem):
     """Freihand, Linie, Pfeil, Rechteck oder Ellipse.
 
@@ -156,6 +164,17 @@ class ShapeElement(QGraphicsPathItem):
     def paint(self, painter, option, widget=None):
         super().paint(painter, without_selection_highlight(option), widget)
 
+    # Qt-Konzept: itemChange meldet Änderungen am Item, hier "in eine Szene gelegt".
+    # Erst dann ist bekannt, auf welchem Hintergrund es liegt, also Farbe neu bestimmen.
+    def itemChange(self, change, value):
+        if change == QGraphicsPathItem.ItemSceneHasChanged:
+            self.refresh_color()
+        return super().itemChange(change, value)
+
+    def refresh_color(self):
+        """Gezeigte Farbe neu bestimmen (nach Hintergrundwechsel)."""
+        self.update_pen()
+
     # --- Griffe zum Größe ändern (Auswahl-Werkzeug) ---
     def handle_points(self):
         """Griffpunkte in lokalen Koordinaten: Endpunkte bei Linie/Pfeil, sonst 4 Ecken."""
@@ -200,7 +219,7 @@ class ShapeElement(QGraphicsPathItem):
 
     # --- Aufbau aus den Werten ---
     def update_pen(self):
-        pen = QPen(self.color, self.width)
+        pen = QPen(shown_color(self, self.color), self.width)
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
         self.setPen(pen)
@@ -234,13 +253,24 @@ class TextElement(QGraphicsTextItem):
         self.setPlainText(text)
         self.setPos(origin)
 
-    # Farbe steckt schon in QGraphicsTextItem; die Property gibt Text und Form dieselbe Schnittstelle
+    # color = Grundfarbe (wird gespeichert), gezeigt wird die an den Hintergrund
+    # angepasste Variante (siehe shown_color); Text und Form haben dieselbe Schnittstelle
     @property
     def color(self):
-        return self.defaultTextColor()
+        return QColor(self._color)
 
     def set_color(self, color):
-        self.setDefaultTextColor(QColor(color))
+        self._color = QColor(color)
+        self.refresh_color()
+
+    def refresh_color(self):
+        """Gezeigte Farbe neu bestimmen (nach Hintergrundwechsel)."""
+        self.setDefaultTextColor(shown_color(self, self._color))
+
+    def itemChange(self, change, value):
+        if change == QGraphicsTextItem.ItemSceneHasChanged:  # siehe ShapeElement.itemChange
+            self.refresh_color()
+        return super().itemChange(change, value)
 
     def set_font_size(self, size):
         self.font_size = size

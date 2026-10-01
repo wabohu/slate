@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import regress  # noqa: E402  (setzt HOME, Config und QT_QPA_PLATFORM)
 
-from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
 from PySide6.QtGui import QColor, QGuiApplication, QImage, QPixmap  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -126,6 +126,34 @@ def main():
     QTest.keyClick(board2, Qt.Key_S, Qt.ControlModifier)
     bbg2, _, _, _ = load_document(board2.document_path)
     check("Hintergrund gespeichert", bbg2 == board2.board_color != old_bg)
+
+    # Heller Hintergrund: Farben werden abgedunkelt gezeigt, gespeichert bleibt die Grundfarbe
+    from colors import LIGHT_CONTRAST, contrast
+    paper = QColor("#f8f6f0")
+    light = annotate.Canvas(QGuiApplication.primaryScreen(), None, board=True, board_color=paper)
+    light.resize(900, 500)
+    light.show_window()
+    QApplication.processEvents()
+    lview = light.viewport()
+    # Eine Farbe wählen, die auf Papier zu schwach ist (sonst bliebe sie unverändert)
+    weak = next(i for i, c in enumerate(light.swatches) if contrast(c, paper.name()) < LIGHT_CONTRAST)
+    light.set_color(weak)
+    QTest.keyClick(light, Qt.Key_F)
+    QTest.mousePress(lview, Qt.LeftButton, pos=QPoint(100, 100))
+    QTest.mouseMove(lview, QPoint(300, 200))
+    QTest.mouseRelease(lview, Qt.LeftButton, pos=QPoint(300, 200))
+    rect = light.elements()[0]
+    base, shown = rect.color.name(), rect.pen().color().name()
+    check("hell: Form abgedunkelt gezeigt", shown != base and contrast(shown, paper.name()) >= LIGHT_CONTRAST)
+    check("hell: Grundfarbe gespeichert", rect.to_dict()["color"] == base)
+    text = annotate.TextElement(QPointF(0, 0), QColor(base), 20, text="x")
+    light.scene_.addItem(text)
+    check("hell: Text abgedunkelt gezeigt", text.defaultTextColor().name() == shown and text.color.name() == base)
+    check("hell: Farbleiste angepasst", light.palette_bar.colors[light.color_index].name() != light.swatches[light.color_index])
+    light.undo_stack.push(annotate.PropertyCommand(light.set_board_color, QColor(paper), QColor("#24283b")))
+    check("dunkel: Grundfarbe gezeigt", rect.pen().color().name() == base and text.defaultTextColor().name() == base)
+    light.undo_stack.undo()
+    check("Undo: wieder abgedunkelt", rect.pen().color().name() == shown)
 
     print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
     return 1 if failures else 0

@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from colors import load_palette
+from colors import adapt_color, contrast, load_palette
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand
 from config import get_float, get_int, get_int_list, get_list, get_str, load_config
 from elements import ShapeElement, TextElement
@@ -69,8 +69,8 @@ WHEEL_PAN_STEP = 80
 BOARD_EXTENT = 1_000_000
 BOARD_EXPORT_MARGIN = 32
 DEFAULT_BOARD_BACKGROUND = "background"
-# Hintergründe zum Durchblättern (Strg+B): Alacritty-Hintergrund, Papierweiß, helles Grau
-DEFAULT_BOARD_BACKGROUNDS = ("background", "#f8f6f0", "#e8e8e8")
+# Hintergründe zum Durchblättern (Strg+B): Alacritty-Hintergrund (dunkel), Papierweiß (hell)
+DEFAULT_BOARD_BACKGROUNDS = ("background", "#f8f6f0")
 
 # Auswahl mit hjkl verschieben ([move]): Bildschirm-Pixel pro Tastendruck, normal und fein (Shift)
 DEFAULT_MOVE_STEP = 10
@@ -208,6 +208,7 @@ class Canvas(QGraphicsView):
         self.color_index = self.index_of(self.palette_.lookup(default_color))
         self.pen_color = self.colors[self.color_index]
         self.theme = self.load_theme(config)
+        self.light_overrides = self.load_light_overrides(config)
         if board:
             # Der Szenen-Hintergrund wird mitgerendert, landet also auch im Export
             self.board_color = QColor(board_color) if board_color else \
@@ -242,6 +243,10 @@ class Canvas(QGraphicsView):
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
         self.tool_bar.selected.connect(lambda i: self.set_tool(self.bar_tools[i]))
         self.palette_bar = PaletteBar(self.swatches, self.theme)
+        if board:
+            # Elemente fragen ihre Szene, wie ihre Farbe gezeigt wird (elements.shown_color)
+            self.scene_.adapt_color = self.adapt_color
+            self.refresh_colors()
         self.palette_bar.selected.connect(self.set_color)
         self.size_bar = SizeBar(SIZE_LEVELS, self.theme)
         self.size_bar.selected.connect(self.set_size)
@@ -379,6 +384,23 @@ class Canvas(QGraphicsView):
         if not colors:
             colors = [QColor(self.palette_.lookup(name)) for name in DEFAULT_BOARD_BACKGROUNDS]
         return colors
+
+    def load_light_overrides(self, config):
+        """[colors.light]: eigene helle Varianten, z. B. yellow = "#8f5e15".
+        Ergebnis: Grundfarbe -> helle Variante (beides "#rrggbb"); Fehler überspringen."""
+        colors_table = config.get("colors") if isinstance(config.get("colors"), dict) else {}
+        table = colors_table.get("light")
+        if not isinstance(table, dict):
+            return {}
+        overrides = {}
+        for name, value in table.items():
+            base = self.palette_.lookup(name)
+            light = self.palette_.lookup(value) if isinstance(value, str) else None
+            if base is None or light is None:
+                print(f"[colors.light] {name} = {value!r}: unbekannte Farbe, übersprungen", file=sys.stderr)
+            else:
+                overrides[base] = light
+        return overrides
 
     def load_theme(self, config):
         """Leistenfarben aus [ui]; unbekannte Namen oder Werte -> Alacritty-Farben."""
@@ -525,6 +547,32 @@ class Canvas(QGraphicsView):
         """Setter für PropertyCommand: Hintergrund des Whiteboards (wird mitgespeichert)."""
         self.board_color = QColor(color)
         self.scene_.setBackgroundBrush(self.board_color)
+        self.refresh_colors()
+
+    def adapt_color(self, color):
+        """Gezeigte Farbe zur Grundfarbe color: auf hellem Whiteboard abgedunkelt
+        (colors.adapt_color), sonst unverändert. Gespeichert wird immer die Grundfarbe."""
+        if not self.board:
+            return QColor(color)
+        return QColor(adapt_color(QColor(color).name(), self.board_color.name(), self.light_overrides))
+
+    def refresh_colors(self):
+        """Nach Hintergrundwechsel: Elemente und Farbleiste zeigen die passenden Varianten."""
+        for item in self.elements():
+            item.refresh_color()
+        self.palette_bar.set_colors([self.adapt_color(c) for c in self.swatches])
+        self.viewport().update()
+
+    def selection_colors(self):
+        """(Linie, Füllung) für Auswahlrahmen und Griffe: die Leistenfarbe mit mehr
+        Kontrast zum Whiteboard-Hintergrund als Linie, damit sie auf hell und dunkel sichtbar ist."""
+        line, fill = QColor(self.theme.foreground), QColor(self.theme.background)
+        if self.board and contrast(fill.name(), self.board_color.name()) > \
+                contrast(line.name(), self.board_color.name()):
+            line, fill = fill, line
+        fill.setAlpha(255)
+        line.setAlpha(255)
+        return line, fill
 
     def cycle_board_color(self, step):
         """Strg+B / Strg+Shift+B: nächster bzw. voriger Hintergrund aus der Liste.
@@ -725,16 +773,15 @@ class Canvas(QGraphicsView):
         if item is None or self.tool != Tool.SELECT or self.editing_text:
             return
         points = [item.mapToScene(p) for p in item.handle_points()]
+        line, fill = self.selection_colors()
         painter.setRenderHint(QPainter.Antialiasing)
         if len(points) == 4:  # Rahmen durch die Ecken (bei Linien nur die Endpunkte)
-            frame = QPen(self.theme.foreground, 1, Qt.DashLine)
+            frame = QPen(line, 1, Qt.DashLine)
             frame.setCosmetic(True)  # immer 1 Pixel, unabhängig von Zoom/Transformation
             painter.setPen(frame)
             painter.setBrush(Qt.NoBrush)
             painter.drawPolygon(QPolygonF(points))
-        fill = QColor(self.theme.background)
-        fill.setAlpha(255)
-        outline = QPen(self.theme.foreground, 1.5)
+        outline = QPen(line, 1.5)
         outline.setCosmetic(True)
         painter.setPen(outline)
         painter.setBrush(QBrush(fill))

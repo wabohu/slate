@@ -7,6 +7,7 @@ Bewusst ohne Qt, damit man das Modul direkt in der Konsole testen kann:
 Alles, was schiefgehen kann (Datei fehlt, kaputtes TOML, falsche Werte),
 führt zu einem Fallback auf die Standardpalette, nie zu einer Exception.
 """
+import colorsys
 import os
 import re
 import sys
@@ -82,6 +83,58 @@ class Palette:
             result.append(self.bright[name])
         result.append(self.foreground)
         return list(dict.fromkeys(result))  # Reihenfolge bleibt erhalten
+
+
+# Helle Hintergründe: Farben so weit abdunkeln, bis dieser Kontrast erreicht ist
+# (WCAG-Kontrastverhältnis; 3.0 bleibt nah am Original und ist für Striche und fette
+# Schrift gut lesbar, 4.5 wäre auch für dünne Schrift sicher, wirkt aber dunkler und greller)
+LIGHT_CONTRAST = 3.0
+
+
+def _channels(hex_color):
+    return [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+
+
+def luminance(hex_color):
+    """Relative Helligkeit nach WCAG, 0 (schwarz) bis 1 (weiß)."""
+    linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in _channels(hex_color)]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast(a, b):
+    """Kontrastverhältnis zweier Farben, 1 (gleich) bis 21 (schwarz/weiß)."""
+    high, low = sorted((luminance(a), luminance(b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+def is_light(hex_color):
+    """Heller Hintergrund = schwarze Schrift wäre besser lesbar als weiße."""
+    return contrast(hex_color, "#000000") > contrast(hex_color, "#ffffff")
+
+
+def darken_for(hex_color, background, target=LIGHT_CONTRAST):
+    """Farbe abdunkeln, bis sie auf background den Kontrast target hat.
+    Farbton und Sättigung bleiben, nur die Helligkeit sinkt (HLS-Farbmodell)."""
+    if contrast(hex_color, background) >= target:
+        return hex_color
+    hue, light, sat = colorsys.rgb_to_hls(*_channels(hex_color))
+    while light > 0:
+        light = max(0.0, light - 0.01)
+        candidate = "#%02x%02x%02x" % tuple(round(c * 255) for c in colorsys.hls_to_rgb(hue, light, sat))
+        if contrast(candidate, background) >= target:
+            return candidate
+    return "#000000"
+
+
+def adapt_color(hex_color, background, overrides=None):
+    """Farbe, wie sie auf background gezeigt wird. Dunkler Hintergrund: unverändert
+    (die Alacritty-Palette ist dafür gemacht). Heller: eigener Wert aus overrides
+    (Grundfarbe -> helle Variante, aus [colors.light]) oder automatisch abgedunkelt."""
+    if not is_light(background):
+        return hex_color
+    if overrides and hex_color in overrides:
+        return overrides[hex_color]
+    return darken_for(hex_color, background)
 
 
 def normalize_color(value):
@@ -201,3 +254,6 @@ if __name__ == "__main__":
         print(f"  {name:8} normal {p.normal[name]}   bright {p.bright[name]}")
     print(f"  foreground {p.foreground}   background {p.background}")
     print(f"Leiste ({len(p.swatches())}): {' '.join(p.swatches())}")
+    paper = "#f8f6f0"
+    print(f"Auf hellem Hintergrund ({paper}): "
+          f"{' '.join(adapt_color(c, paper) for c in p.swatches())}")

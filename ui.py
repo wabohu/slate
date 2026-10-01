@@ -144,6 +144,11 @@ class PaletteBar(CellBar):
         self.colors = [QColor(c) for c in colors]
         super().__init__(len(self.colors), theme, parent)
 
+    def set_colors(self, colors):
+        """Gezeigte Farben austauschen (gleiche Anzahl), z. B. helle Varianten."""
+        self.colors = [QColor(c) for c in colors]
+        self.update()
+
     def paint_cell(self, p, index, rect):
         p.setBrush(self.colors[index])
         p.setPen(QPen(self.theme.fg(60), 1))  # dünner Rand, damit dunkle Farben sichtbar bleiben

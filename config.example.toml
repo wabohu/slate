@@ -18,6 +18,16 @@ order = ["yellow", "magenta", "cyan", "green", "red", "blue", "white", "bright_b
 # Farbe beim Start (gleiche Namen wie oben)
 default = "yellow"
 
+# Whiteboard mit hellem Hintergrund (z. B. Papierweiß, Strg+B): Die Alacritty-Farben sind für
+# dunklen Hintergrund gemacht, darum zeigt das Tool sie dort automatisch abgedunkelt (gleicher
+# Farbton, Kontrast mindestens 3.0). Gespeichert wird die Grundfarbe; zurück auf dunklem
+# Hintergrund ist alles wieder wie vorher. Hier lassen sich einzelne helle Varianten
+# selbst festlegen: Name wie oben = "#rrggbb" (oder ein anderer Farbname).
+# Ansehen, was automatisch herauskommt: python colors.py
+[colors.light]
+# yellow = "#8f5e15"
+# foreground = "#343b58"
+
 [size]
 # Größe in 4 Stufen, Alt+A S D F wählt Stufe 1-4 (auch per Klick auf die Leiste).
 # Gilt als Strichstärke für Formen und als Schriftgröße für Text, Werte in Pixeln.
@@ -47,7 +57,7 @@ dialogs = "rofi"
 background = "background"
 # Hintergründe zum Durchblättern mit Strg+B / Strg+Shift+B (Undo-Schritt, wird mitgespeichert).
 # Namen wie oben. Steht der Start-Hintergrund nicht in der Liste, geht es beim ersten los.
-backgrounds = ["background", "#f8f6f0", "#e8e8e8"]   # Alacritty, Papierweiß, helles Grau
+backgrounds = ["background", "#f8f6f0"]   # Alacritty (dunkel), Papierweiß (hell)
 
 [rect]
 # Eckenradius neuer Rechtecke in Pixeln (0 = spitze Ecken, höchstens 200).
