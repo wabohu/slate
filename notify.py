@@ -46,8 +46,8 @@ def ask(question, choices, theme=None):
     """Auswahl per rofi -dmenu. Rückgabe: Index der Wahl, None bei Esc/Abbruch,
     NOT_AVAILABLE wenn rofi fehlt oder nicht startet (dann Qt-Dialog nehmen).
 
-    Wichtig: Ein Keyboard-Grab des eigenen Fensters muss vorher freigegeben sein,
-    sonst bekommt rofi keine Tasten (siehe Canvas.ask).
+    rofi holt sich die Tastatur selbst; ein eigener Keyboard-Grab müsste vorher
+    freigegeben sein (das Tool nutzt keinen mehr, siehe Canvas.show_overlay).
     """
     if _headless() or not shutil.which("rofi"):
         return NOT_AVAILABLE

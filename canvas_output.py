@@ -101,16 +101,12 @@ class OutputMixin:
     def ask(self, question, choices):
         """Auswahl per rofi, sonst None. NOT_AVAILABLE = rofi nicht benutzbar (Qt nehmen).
 
-        Im Screenshot-Modus hält das Fenster einen Keyboard-Grab; rofi bekäme sonst
-        keine Tasten. Darum vorher freigeben und danach wieder holen.
+        Im Screenshot-Modus holt sich das Overlay danach den Fokus zurück (rofi hatte ihn).
         """
         if not self.settings.use_rofi:
             return NOT_AVAILABLE
-        grabbed = not self.board
-        if grabbed:
-            self.releaseKeyboard()
         try:
             return ask(question, choices, self.settings.rofi_theme)
         finally:
-            if grabbed:
-                self.grabKeyboard()
+            if not self.board:
+                self.take_focus()

@@ -26,6 +26,8 @@ from tools import Tool
 class InputMixin:
     # --- Maus: zeichnen, auswählen, verschieben, Griffe ziehen ---
     def mousePressEvent(self, event):
+        if not self.board and not self.isActiveWindow():
+            self.take_focus()  # ein Hotkey hat den Fokus woanders hingelegt: per Klick zurück
         if event.button() == Qt.MiddleButton and self.board:
             self.panning = event.position()  # Ansicht verschieben beginnt
             self.viewport().setCursor(Qt.ClosedHandCursor)

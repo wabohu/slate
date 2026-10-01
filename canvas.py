@@ -19,6 +19,7 @@ from elements import ShapeElement, TextElement
 from settings import BOARD_EXTENT, HIT_TOLERANCE, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
 from ui import MainBar, PaletteBar, SizeBar, Toast, ToolBar
+from wm import restore_focus
 
 # Aktionen, die auch während der Texteingabe als Taste wirken (Präfixe der Aktionsnamen).
 # Nur Tasten, die beim Tippen kein Zeichen erzeugen sollen, sonst fehlen Buchstaben im Text
@@ -58,7 +59,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
             # Fenster: rahmenlos, exakt auf dem Monitor, am Window-Manager vorbei.
             # X11BypassWindowManagerHint = X11 "override-redirect": herbstluftwm verwaltet
             # das Fenster nicht. Sonst flackert beim Öffnen/Schließen eines Vollbildfensters
-            # kurz der Desktop-Hintergrund. Folge: kein showFullScreen(), Tastatur per Grab (show_overlay)
+            # kurz der Desktop-Hintergrund. Folge: kein showFullScreen(), Fokus von Hand (show_overlay)
             self.setWindowFlags(
                 Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.X11BypassWindowManagerHint
             )
@@ -264,14 +265,15 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         bar.move((self.width() - bar.width()) // 2, self.height() - bar.height() - 20)
 
     def show_overlay(self):
-        """Fenster zeigen und alle Tasten abfangen, ohne den X-Fokus zu verschieben.
+        """Fenster zeigen und den Tastaturfokus holen.
 
-        Kein activateWindow(): Das zuvor fokussierte Fenster behält den Fokus, und
-        herbstluftwm muss ihn nach dem Schließen nicht neu vergeben.
+        Kein Keyboard-Grab mehr: Der hätte alle Tasten abgefangen, auch die globalen
+        Hotkeys von sxhkd. Stattdessen normaler Fokus per activateWindow() (bei einem
+        Fenster am WM vorbei setzt Qt den X-Fokus direkt). Den Fokus gibt closeEvent
+        über wm.restore_focus() an herbstluftwm zurück.
         """
         self.show()
-        self.grabKeyboard()  # Keyboard-Grab: alle Tastendrücke kommen hier an
-        self.setFocus()
+        self.take_focus()
         # Die Szene wird normalerweise erst aktiv, wenn das Fenster aktiv ist. Ohne aktive
         # Szene bekommt ein Textobjekt keinen Tastaturfokus, darum hier von Hand aktivieren
         QApplication.sendEvent(self.scene_, QEvent(QEvent.WindowActivate))
@@ -318,6 +320,12 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.scale(factor, factor)
         self.centerOn(self.export_rect.center())
 
+    def take_focus(self):
+        """Screenshot-Modus: Tastaturfokus (wieder) holen, z. B. nach einem Klick, wenn ein
+        Hotkey zwischendurch ein anderes Fenster fokussiert hat."""
+        self.activateWindow()
+        self.setFocus()
+
     def show_window(self):
         """Whiteboard als normales Fenster zeigen, Ansicht auf die Elemente richten."""
         self.show()
@@ -336,7 +344,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         if self.history_path is not None:
             self.hide()  # erst verschwinden, dann speichern: wirkt schneller
             self.flush_history()
-        self.releaseKeyboard()
+        if not self.board:
+            restore_focus()  # Fokus an das Fenster, das herbstluftwm fokussiert hat
         # Beim Abbau löscht Qt die Szene vor dem Undo-Stack; der meldet dabei noch
         # Änderungen. Ohne Trennen liefe update_bars() gegen eine gelöschte Szene
         self.undo_stack.indexChanged.disconnect(self.on_undo_index_changed)
