@@ -1,6 +1,6 @@
 # Plan: `annotate.py` aufteilen, CLAUDE.md verschlanken
 
-Status: **entschieden** (2026-10-01): flache Dateien `canvas_…`, Schritt 6 (CLAUDE.md) zuerst
+Status: **in Arbeit**. Entschieden (2026-10-01): flache Dateien `canvas_…`, Schritt 6 (CLAUDE.md) zuerst. Erledigt: 6
 
 **Ziel:** `annotate.py` (1166 Zeilen, davon gut 1000 in der Klasse `Canvas`) in Dateien
 aufteilen, die je einen Bereich abdecken, wie es die Konvention in `CLAUDE.md` verlangt

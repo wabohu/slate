@@ -6,7 +6,7 @@ Status: **abgeschlossen** (Schritt 1: 1a, 1b, 1c; Schritt 2: Speichern/Laden)
 Farbe, Strichstärke, Position und Drehung. **An der Bedienung ändert sich nichts.**
 Nach dem Umbau verhält sich das Tool genau wie vorher. Der Umbau schafft das Fundament
 für Auswahl, Umfärben, Drehen, Speichern, Verbinder und Vorlagen (Roadmap 10–15, D1 und D5
-in `CLAUDE.md`).
+in `docs/roadmap.md`).
 
 ## Das Kernproblem
 

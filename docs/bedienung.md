@@ -1,0 +1,18 @@
+# Bedienung (aktueller Stand)
+
+Alle Tasten außer Esc sind in `[keys]` der Config änderbar, siehe `config.example.toml`.
+Grundsätze und geplante Belegung: `docs/plan-bedienung.md`.
+
+- W: Auswahl-Werkzeug. Element am Rand anklicken (bei ungefüllten Formen zählt nur der Rand, 6 px Toleranz), ziehen = verschieben, Griffe ziehen = Größe ändern (Ecken; bei Linie/Pfeil die Endpunkte; bei Text skaliert die Schrift), Entf/Backspace = löschen, Esc = abwählen, Doppelklick auf Text = bearbeiten, Doppelklick auf leere Stelle = neuer Text. h j k l verschieben die Auswahl (Standard 10 px, mit Shift 1 px, `[move]`), Schritte kurz hintereinander = ein Undo-Schritt. Farbe und Größe wirken auf die Auswahl
+- Tasten A S D F G T: Werkzeuge in der Reihenfolge der Config, auch per Klick auf die gemeinsame Leiste unten (Werkzeuge | Farben | Größe, `ui.MainBar`) (Standard: Freihand, Linie, Pfeil, Rechteck, Ellipse, Text)
+- Text: klicken und tippen, Esc oder Klick daneben beendet die Eingabe. Vorhandenen Text ziehen = verschieben, Doppelklick = bearbeiten
+- Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
+- Alt+A S D F: Größe in Stufen 1-4 (Strichstärke bzw. Schriftgröße, `[size]` in der Config)
+- Alt+Mausrad: Größe fein einstellen (Text ±2 px, Strich ±1 px pro Raste), für Auswahl oder gerade getippten Text. Rasten kurz hintereinander = ein Undo-Schritt (`PropertyCommand` mit `mergeWith`)
+- Enter: Bild in die Zwischenablage und beenden, Strg+C: nur kopieren
+- Shift+Enter: speichern wie Strg+S (bearbeitbares PNG, dieselbe Datei wie beim nächsten Strg+S), absoluten Pfad in die Zwischenablage, beenden (Whiteboard: bleibt offen)
+- Strg+S: bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten, erst neue Datei in `[output] dir`, danach dieselbe überschreiben), Strg+E: sauberes PNG exportieren
+- `python annotate.py bild.png`: gespeicherte Zeichnung wieder öffnen (alles bearbeitbar) oder beliebiges PNG als Hintergrund
+- `python annotate.py --board`: Whiteboard in einem normalen Fenster (Hintergrund `[board] background`). Esc und Enter schließen dort nicht, Strg+Q bzw. Fenster schließen fragt bei ungespeicherten Änderungen. Gespeicherte Whiteboards (`…_board.png`) öffnen sich automatisch wieder als Whiteboard. Mausrad = Ansicht verschieben (Shift/Kipprad/Touchpad: seitlich), mittlere Maustaste ziehen = verschieben, Strg+Mausrad = Zoom zur Maus (10–800 %, 7 % pro Raste), Strg+0 = 100 %, Strg+W = Übersicht (alles einpassen, höchstens 100 %), erneut Strg+W = zurück zur Ansicht davor, solange in der Übersicht nicht gezoomt/verschoben wurde. Strg+B / Strg+Shift+B = Hintergrund weiter/zurück aus `[board] backgrounds` (Undo-Schritt über `Canvas.set_board_color`, wird mitgespeichert)
+- Strg+Q: beenden
+- R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`
