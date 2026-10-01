@@ -151,12 +151,12 @@ class Settings:
         # Ausgabe: Zielordner für PNGs ([output] dir), ~ ist erlaubt
         self.output_dir = get_str(config, "output", "dir") or default_output_dir()
 
+        # Leiste beim Start: im Screenshot-Modus aus, im Whiteboard an ([ui], b schaltet um)
+        self.show_bar = self.config_bool(config, "ui", "show_bar_board", True) if board \
+            else self.config_bool(config, "ui", "show_bar", False)
+
         # Verlauf aus [history]: an/aus, Ordner, Anzahl
-        enabled = config.get("history", {}).get("enabled", True) if isinstance(config.get("history"), dict) else True
-        if not isinstance(enabled, bool):
-            print(f"[history] enabled={enabled!r} ist kein true/false, nehme true", file=sys.stderr)
-            enabled = True
-        self.history_enabled = enabled
+        self.history_enabled = self.config_bool(config, "history", "enabled", True)
         self.history_dir = Path(get_str(config, "history", "dir") or default_history_dir()).expanduser()
         self.history_keep = self.config_keep(config)
 
@@ -177,6 +177,15 @@ class Settings:
         low, high = RECT_RADIUS_RANGE
         if not low <= value <= high:
             print(f"[rect] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            return default
+        return value
+
+    def config_bool(self, config, section, key, default):
+        """config[section][key] als true/false; fehlt -> default, kein bool -> Hinweis, default."""
+        table = config.get(section)
+        value = table.get(key, default) if isinstance(table, dict) else default
+        if not isinstance(value, bool):
+            print(f"[{section}] {key}={value!r} ist kein true/false, nehme {str(default).lower()}", file=sys.stderr)
             return default
         return value
 

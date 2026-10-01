@@ -43,6 +43,8 @@ bar_foreground = "foreground"   # Symbole, Rahmen, Beschriftung
 bar_accent = "blue"             # Hervorhebungen, z. B. Tasten in der Übersicht (?)
 bar_heading = "magenta"         # Überschriften, z. B. WERKZEUGE in der Übersicht (?)
 bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
+show_bar = false                # Leiste beim Start im Screenshot-Modus zeigen? (b schaltet um)
+show_bar_board = true           # dasselbe im Whiteboard
 # Kurze Meldungen (Gespeichert, Kopiert, Fehler): "dunst" (notify-send) oder "toast"
 # (Einblendung im Fenster). Fehlt notify-send, wird automatisch "toast" genommen.
 messages = "dunst"

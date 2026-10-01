@@ -41,12 +41,14 @@ def main():
         time.sleep(0.4)
         check("Klick schließt die Übersicht", s.pixel(*CENTER) == closed and pid in s.annotate_pids())
 
-        # b: Leiste aus und wieder ein (Pixel mitten in der Leiste unten)
-        bar = s.pixel(960, 1037, name="03-leiste")
+        # Leiste: im Screenshot-Modus anfangs aus, b blendet ein und wieder aus
+        # (Pixel mitten in der Leiste unten)
+        empty = s.pixel(960, 1037, name="03-ohne-leiste")
         s.key("b")
-        check("b blendet die Leiste aus", wait(lambda: s.pixel(960, 1037, name="04-ohne-leiste") != bar, 3))
+        check("Screenshot: Leiste anfangs aus, b blendet sie ein",
+              wait(lambda: s.pixel(960, 1037, name="04-mit-leiste") != empty, 3))
         s.key("b")
-        check("b blendet sie wieder ein", wait(lambda: s.pixel(960, 1037) == bar, 3))
+        check("b blendet sie wieder aus", wait(lambda: s.pixel(960, 1037) == empty, 3))
 
         s.key("Escape")
         check("danach beendet Esc das Tool", wait(lambda: not s.annotate_pids(), 5))
@@ -57,6 +59,8 @@ def main():
         pid = s.annotate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.5)
+        check("Whiteboard: Leiste von Anfang an sichtbar",
+              s.pixel(960, 1027, name="05-whiteboard-start") != s.pixel(960, 900, name="05-whiteboard-start"))
         s.key("question")
         time.sleep(0.4)
         s.screenshot("02-whiteboard")

@@ -51,12 +51,19 @@ def main():
     from history import default_history_dir
     check("leer: Verlauf an, Standardordner, 100", s.history_enabled and s.history_dir == default_history_dir()
           and s.history_keep == st.DEFAULT_HISTORY_KEEP)
+    check("leer: Leiste im Screenshot-Modus aus", s.show_bar is False)
     check("Screenshot: Eckenradius, kein Whiteboard-Hintergrund",
           s.rect_radius == RECT_RADIUS and s.board_background is None and s.board_backgrounds is None)
 
     # Whiteboard: eigener Radius, Hintergründe aus der Standardliste
     b, _ = quiet(st.Settings, {}, True)
     check("Whiteboard: Eckenradius", b.rect_radius == st.DEFAULT_RECT_RADIUS_BOARD)
+    check("Whiteboard: Leiste an", b.show_bar is True)
+    flipped, _ = quiet(st.Settings, {"ui": {"show_bar": True, "show_bar_board": False}}, False)
+    flipped_b, _ = quiet(st.Settings, {"ui": {"show_bar": True, "show_bar_board": False}}, True)
+    broken, _ = quiet(st.Settings, {"ui": {"show_bar": "ja"}}, False)
+    check("Leiste aus [ui] show_bar / show_bar_board, kaputt -> Standard",
+          flipped.show_bar and not flipped_b.show_bar and broken.show_bar is False)
     check("Whiteboard: Hintergründe", len(b.board_backgrounds) == len(st.DEFAULT_BOARD_BACKGROUNDS)
           and b.board_background == b.board_backgrounds[0])
 

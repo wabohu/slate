@@ -29,6 +29,7 @@ os.environ["XDG_CONFIG_HOME"] = str(Path(_home) / ".config")
 (Path(_home) / ".config" / "annotate" / "config.toml").write_text(
     '[tools]\norder = ["freehand", "line", "arrow", "rect", "ellipse", "text"]\n'
     'default = "freehand"\n[colors]\ndefault = "red"\n'
+    '[ui]\nshow_bar = true\n'  # Leiste im Bild, damit die Referenz sie mit abdeckt
 )
 sys.path.insert(0, str(REPO))
 

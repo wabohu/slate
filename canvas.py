@@ -135,6 +135,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         # Leiste und Meldungen mit dem Bildschirm skalieren (4K = doppelt so groß wie 1080p)
         self.ui_scale = ui_scale(screen)
         self.main_bar.set_scale(self.ui_scale)
+        self.main_bar.setVisible(self.settings.show_bar)  # Startzustand aus [ui], b schaltet um
         self.place_bars()
 
         self.toast = Toast(self.settings.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
