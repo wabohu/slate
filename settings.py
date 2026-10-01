@@ -67,6 +67,11 @@ STROKE_WIDTH_RANGE = (1, 100)
 TEXT_SIZE_RANGE = (6, 300)
 
 
+def clamp(value, value_range):
+    low, high = value_range
+    return max(low, min(high, value))
+
+
 def size_values(values, default, value_range, name):
     """Genau SIZE_LEVELS Zahlen im erlaubten Bereich, sonst die Standardwerte."""
     if values is None:

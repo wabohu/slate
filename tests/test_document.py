@@ -41,6 +41,14 @@ def main():
     from document import load_document
     from export import default_output_dir
 
+    # Mixins der Canvas (docs/plan-aufteilung.md): Keine Methode darf in zwei Klassen
+    # stehen, sonst überdeckt die eine still die andere
+    parts = [c for c in annotate.Canvas.__mro__ if c.__module__ not in ("builtins",) and
+             not c.__module__.startswith(("PySide6", "Shiboken"))]
+    names = [{n for n in c.__dict__ if not n.startswith("__")} for c in parts]
+    clashes = {n for i, a in enumerate(names) for b in names[i + 1:] for n in a & b}
+    check(f"Canvas-Mixins ohne doppelte Methoden ({', '.join(c.__name__ for c in parts)})", not clashes)
+
     background = QPixmap(1100, 500)
     background.fill(QColor("#3b4261"))
     canvas = make_canvas(annotate, background)
