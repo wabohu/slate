@@ -36,7 +36,8 @@ from config import get_int, get_int_list, get_list, get_str, load_config
 from elements import ShapeElement, TextElement
 from keymap import KeyMap
 from tools import Tool, parse_tool, tool_icon, tool_order
-from ui import MainBar, PaletteBar, SizeBar, ToolBar
+from export import copy_to_clipboard, default_output_dir, render_scene, save_png
+from ui import MainBar, PaletteBar, SizeBar, Toast, ToolBar
 
 
 # --- Einstellungen -----------------------------------------------------------
@@ -85,7 +86,10 @@ class Canvas(QGraphicsView):
 
         # Szene mit dem Screenshot als Hintergrund
         self.scene_ = QGraphicsScene(self)
-        self.scene_.addPixmap(pixmap)
+        background = self.scene_.addPixmap(pixmap)
+        # Für den Export: Bereich des Screenshots in der Szene und seine Größe in Pixeln
+        self.export_rect = background.boundingRect()
+        self.export_size = pixmap.size()
         self.setScene(self.scene_)
 
         # Fenster: rahmenlos, exakt auf dem Monitor, am Window-Manager vorbei.
@@ -159,6 +163,11 @@ class Canvas(QGraphicsView):
         self.main_bar = MainBar([self.tool_bar, self.palette_bar, self.size_bar], self)
         self.place_bars()
 
+        self.toast = Toast(self)  # kurze Meldungen, z. B. nach dem Speichern
+
+        # Ausgabe: Zielordner für PNGs ([output] dir), ~ ist erlaubt
+        self.output_dir = get_str(config, "output", "dir") or default_output_dir()
+
         self.set_tool(self.tool)
         self.set_color(self.color_index)
         self.set_size(self.size_level)
@@ -167,6 +176,9 @@ class Canvas(QGraphicsView):
         self.actions = {
             "undo": self.undo_stack.undo,
             "redo": self.undo_stack.redo,
+            "copy_quit": self.copy_and_quit,
+            "copy_image": self.copy_image,
+            "save_png": self.save_image,
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
         }
@@ -238,6 +250,26 @@ class Canvas(QGraphicsView):
         super().resizeEvent(event)
         if hasattr(self, "main_bar"):  # kann schon im Konstruktor kommen
             self.place_bars()
+
+    # --- Ausgabe ---
+    def render_image(self):
+        """Screenshot plus Zeichnungen als QImage, ohne Leiste und ohne Textcursor."""
+        if self.editing_text:
+            self.finish_text()
+        return render_scene(self.scene_, self.export_rect, self.export_size)
+
+    def copy_image(self):
+        ok, message = copy_to_clipboard(self.render_image())
+        self.toast.show_message(message)
+        return ok
+
+    def copy_and_quit(self):
+        if self.copy_image():
+            self.close()
+
+    def save_image(self):
+        _, message = save_png(self.render_image(), self.output_dir)
+        self.toast.show_message(message)
 
     # --- Text ---
     def start_text(self, pos):

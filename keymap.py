@@ -39,6 +39,9 @@ DEFAULT_KEYS = {
     "redo": "shift+r",
     "color_next": "tab",
     "color_prev": "shift+tab",
+    "copy_quit": "return",     # Bild in die Zwischenablage und beenden
+    "copy_image": "ctrl+c",    # Bild in die Zwischenablage, offen bleiben
+    "save_png": "ctrl+s",
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
     **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),
@@ -63,6 +66,8 @@ def _normalize(combo):
     if key == Qt.Key_Backtab:  # Qt meldet Shift+Tab als eigene Taste "Backtab"
         key = Qt.Key_Tab
         mods |= Qt.ShiftModifier
+    elif key == Qt.Key_Enter:  # Enter am Ziffernblock wie die normale Enter-Taste
+        key = Qt.Key_Return
     return QKeyCombination(mods, key)
 
 

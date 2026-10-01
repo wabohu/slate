@@ -25,6 +25,10 @@ default = 2                  # Stufe beim Start
 stroke = [2, 4, 8, 12]       # Strichstärke, je 1-100
 text = [16, 28, 40, 64]      # Schriftgröße, je 6-300
 
+[output]
+# Ordner für Strg+S (PNG mit Zeitstempel). ~ ist erlaubt. Standard: ~/Pictures/annotate
+dir = "~/Pictures/annotate"
+
 [keys]
 # Aktion = Taste. Nur eintragen, was vom Standard abweichen soll; hier stehen alle Standardwerte.
 # Schreibweise wie in Qt-Menüs: "r", "shift+r", "ctrl+z", "alt+a", "tab", "f1".
@@ -34,6 +38,9 @@ undo = "r"
 redo = "shift+r"
 color_next = "tab"
 color_prev = "shift+tab"
+copy_quit = "return"       # Bild in die Zwischenablage und beenden
+copy_image = "ctrl+c"      # Bild in die Zwischenablage, offen bleiben
+save_png = "ctrl+s"        # als PNG in [output] dir speichern
 # Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order (tool_7-9 ohne Standard)
 tool_1 = "a"
 tool_2 = "s"

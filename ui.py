@@ -4,9 +4,9 @@ Aufbau (Variante A aus docs/plan-bedienung.md): eine MainBar mit gemeinsamem
 Hintergrund, darin nebeneinander die Gruppen (Werkzeuge | Farben | Größe),
 jede Gruppe eine CellBar.
 """
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QHBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 BAR_BACKGROUND = QColor(20, 20, 20, 190)
 SEPARATOR = QColor(255, 255, 255, 50)
@@ -176,3 +176,30 @@ class SizeBar(CellBar):
         diameter = 4 + index * 4  # 4, 8, 12, 16 px: zeigt die Stufe, nicht den Pixelwert
         p.setBrush(Qt.white)
         p.drawEllipse(rect.center(), diameter / 2, diameter / 2)
+
+
+class Toast(QLabel):
+    """Kurze Einblendung oben mittig (z. B. "Gespeichert: …"), verschwindet von selbst."""
+
+    DURATION_MS = 2500
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)  # Klicks gehen durch
+        self.setStyleSheet(
+            "background: rgba(20, 20, 20, 190); color: white;"
+            "padding: 8px 16px; border-radius: 8px; font-size: 14px;"
+        )
+        # Ein Timer statt vieler singleShot-Aufrufe: neue Meldung startet die Zeit neu
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide)
+        self.hide()
+
+    def show_message(self, text):
+        self.setText(text)
+        self.adjustSize()
+        self.move((self.parent().width() - self.width()) // 2, 20)
+        self.show()
+        self.raise_()  # über alle anderen Kind-Widgets
+        self.timer.start(self.DURATION_MS)
