@@ -77,6 +77,11 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 14. [ ] Vorlagen, vielleicht: kleine Bibliothek vorgefertigter Elemente wie in draw.io, aber viel einfacher. Symbole (Haken, Kreuz, Warnung …), Tabellen, zusammengesetzte Elemente. Idee: Eine Vorlage ist einfach eine gespeicherte Elementgruppe im selben Format wie D1, eigene Vorlagen entstehen durch „Auswahl als Vorlage speichern“. Symbole als Pfade statt Bilddateien, damit sie umfärbbar bleiben. Tabellen sind der aufwendigste Teil (Zellen bearbeiten, Zeilen/Spalten hinzufügen), darum zuletzt
 15. [ ] Diagramm-Grundlagen: Text in Formen (Doppelklick auf Form = beschriften), Verbinder-Pfeile, die an Formen andocken und mitwandern (siehe D5)
 16. [ ] Idee für später: weitere Schriften für das Text-Werkzeug, z. B. eine Monospace-Schrift (für Code, Befehle, Pfade). Naheliegend: die Schrift aus der Alacritty-Config (`[font.normal] family`) als Monospace-Standard. Datenmodell: `TextElement` bräuchte ein Feld `font` (in `to_dict`, fehlt es beim Laden = bisherige Schrift, also abwärtskompatibel). Offen: Umschalten per Taste oder Leiste, welche Schriften, fett/normal
+17. [ ] Meldungen und Nachfragen im eigenen Look prüfen. Vorhanden: rofi 2.0 (eigene Config/Themes in `~/.config/rofi/`), dunst läuft (`notify-send`/`dunstify`). Ideen:
+    - Nachfragen (z. B. „Speichern?“ beim Schließen) per `rofi -dmenu` statt Qt-Dialog, passend zum rofi-Theme
+    - Kurze Meldungen (Gespeichert, Kopiert …) per dunst statt `ui.Toast`, oder beides wählbar
+    - Alternative ohne externe Programme: Qt-Dialog per Stylesheet an `ui.Theme` anpassen (Farbe, Größe, Schrift)
+    - Zu beachten: Im Screenshot-Modus hält das Tool einen Keyboard-Grab; vor rofi freigeben und danach wieder holen, sonst bekommt rofi keine Tasten. Fehlt rofi/dunst, auf die Qt-Lösung zurückfallen (nie Absturz). Per Config wählbar machen ([ui] dialogs = "rofi" | "qt", messages = "dunst" | "toast")
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.
