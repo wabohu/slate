@@ -70,6 +70,15 @@ DEFAULT_TEXT_SIZES = (16, 28, 40, 64)
 STROKE_WIDTH_RANGE = (1, 100)
 TEXT_SIZE_RANGE = (6, 300)
 
+# Zeigen ([pointer]): Radien von Spotlight (e) und Lupe (Shift+E), für 1080 px Bildschirmhöhe
+DEFAULT_SPOTLIGHT_RADIUS = 90
+DEFAULT_LENS_RADIUS = 100
+POINTER_RADIUS_RANGE = (20, 600)
+DEFAULT_SPOTLIGHT_DIM = 45    # Abdunklung außerhalb des Spotlights in Prozent
+SPOTLIGHT_DIM_RANGE = (0, 100)
+DEFAULT_LENS_ZOOM = 2.0       # Vergrößerung der Lupe
+LENS_ZOOM_RANGE = (1.1, 10.0)
+
 # Verlauf ([history]): jeden Screenshot automatisch speichern, mit ← → blättern
 DEFAULT_HISTORY_KEEP = 100   # so viele Einträge bleiben, ältere werden beim Anlegen eines neuen gelöscht
 HISTORY_KEEP_RANGE = (1, 100_000)
@@ -155,6 +164,14 @@ class Settings:
         self.show_bar = self.config_bool(config, "ui", "show_bar_board", True) if board \
             else self.config_bool(config, "ui", "show_bar", False)
 
+        # Zeigen aus [pointer]: Radien von Spotlight und Lupe
+        self.spotlight_radius = self.config_int(config, "pointer", "spotlight_radius",
+                                                DEFAULT_SPOTLIGHT_RADIUS, POINTER_RADIUS_RANGE)
+        self.lens_radius = self.config_int(config, "pointer", "lens_radius", DEFAULT_LENS_RADIUS, POINTER_RADIUS_RANGE)
+        self.spotlight_dim = self.config_int(config, "pointer", "spotlight_dim", DEFAULT_SPOTLIGHT_DIM,
+                                             SPOTLIGHT_DIM_RANGE)
+        self.lens_zoom = self.config_float(config, "pointer", "lens_zoom", DEFAULT_LENS_ZOOM, LENS_ZOOM_RANGE)
+
         # Verlauf aus [history]: an/aus, Ordner, Anzahl
         self.history_enabled = self.config_bool(config, "history", "enabled", True)
         self.history_dir = Path(get_str(config, "history", "dir") or default_history_dir()).expanduser()
@@ -177,6 +194,33 @@ class Settings:
         low, high = RECT_RADIUS_RANGE
         if not low <= value <= high:
             print(f"[rect] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            return default
+        return value
+
+    def config_int(self, config, section, key, default, value_range):
+        """config[section][key] als ganze Zahl im Bereich; fehlt -> default, sonst Hinweis, default."""
+        value = get_int(config, section, key)
+        if value is None:
+            if isinstance(config.get(section), dict) and key in config[section]:
+                print(f"[{section}] {key}={config[section][key]!r} ist keine ganze Zahl, nehme {default}",
+                      file=sys.stderr)
+            return default
+        low, high = value_range
+        if not low <= value <= high:
+            print(f"[{section}] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            return default
+        return value
+
+    def config_float(self, config, section, key, default, value_range):
+        """config[section][key] als Zahl (auch ganze) im Bereich; fehlt -> default, sonst Hinweis, default."""
+        value = get_float(config, section, key)
+        if value is None:
+            if isinstance(config.get(section), dict) and key in config[section]:
+                print(f"[{section}] {key}={config[section][key]!r} ist keine Zahl, nehme {default}", file=sys.stderr)
+            return default
+        low, high = value_range
+        if not low <= value <= high:
+            print(f"[{section}] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
             return default
         return value
 

@@ -14,7 +14,7 @@ drawForeground (InputMixin) über paint_pointer().
 
 Mixin wie BoardMixin (canvas_board.py). Verwaltet (angelegt in Canvas.__init__):
 pointer_mode (None, "spotlight", "lens"), cursor_cache.
-Liest aus der Canvas: tool, board, pen_color, pen_width, ui_scale, scene_, zoom(),
+Liest aus der Canvas: tool, board, pen_color, pen_width, ui_scale, scene_, settings, zoom(),
 adapt_color().
 """
 import math
@@ -29,10 +29,6 @@ CURSOR_ARM = 8          # Länge der Fadenkreuz-Arme
 CURSOR_GAP = 3          # Abstand der Arme vom Kreis
 CURSOR_MARK = 8         # Größe der Werkzeugform unten rechts
 CURSOR_MIN_RADIUS = 2   # kleinster Kreis, auch bei sehr dünnem Strich
-SPOTLIGHT_RADIUS = 90   # Kreis, der hell bleibt
-SPOTLIGHT_DIM = 115     # Abdunklung außerhalb, 0-255
-LENS_RADIUS = 100       # Größe der Lupe
-LENS_ZOOM = 2.0         # Vergrößerung
 
 
 def round_pen(color, width):
@@ -157,19 +153,20 @@ class PointerMixin:
         painter.resetTransform()  # ab hier Bildschirmpixel statt Szenenkoordinaten
         painter.setRenderHint(QPainter.Antialiasing)
         if self.pointer_mode == "spotlight":
-            radius = SPOTLIGHT_RADIUS * s
+            radius = self.settings.spotlight_radius * s  # [pointer] spotlight_radius
             dark = QPainterPath()
             dark.addRect(view)
             hole = QPainterPath()
             hole.addEllipse(pos, radius, radius)
-            painter.fillPath(dark.subtracted(hole), QColor(0, 0, 0, SPOTLIGHT_DIM))
+            dim = round(self.settings.spotlight_dim * 2.55)  # Prozent -> Deckkraft 0-255
+            painter.fillPath(dark.subtracted(hole), QColor(0, 0, 0, dim))
             painter.setPen(QPen(QColor(255, 255, 255, 110), max(1.0, s)))
             painter.setBrush(Qt.NoBrush)
             painter.drawEllipse(pos, radius, radius)
         else:
-            radius = LENS_RADIUS * s
+            radius = self.settings.lens_radius * s  # [pointer] lens_radius
             target = QRectF(pos.x() - radius, pos.y() - radius, 2 * radius, 2 * radius)
-            half = radius / (self.zoom() * LENS_ZOOM)  # halbe Breite des Ausschnitts in der Szene
+            half = radius / (self.zoom() * self.settings.lens_zoom)  # halbe Breite des Ausschnitts in der Szene
             center = self.mapToScene(pos.toPoint())
             source = QRectF(center.x() - half, center.y() - half, 2 * half, 2 * half)
             circle = QPainterPath()

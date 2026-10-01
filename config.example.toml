@@ -80,6 +80,14 @@ step_fine = 1      # Shift+h j k l
 # Standard: ~/Pictures/annotate
 dir = "~/Pictures/annotate"
 
+[pointer]
+# Zeigen im Unterricht: e = Spotlight, Shift+E = Lupe. Radien in Pixeln für einen
+# 1080-px-Bildschirm, auf größeren Monitoren wachsen sie mit (4K = doppelt), je 20-600.
+spotlight_radius = 90   # Kreis, der beim Spotlight hell bleibt
+lens_radius = 100       # Größe der Lupe
+spotlight_dim = 45      # Abdunklung außerhalb des Spotlights in Prozent (0-100)
+lens_zoom = 2.0         # Vergrößerung der Lupe (1.1-10)
+
 [history]
 # Verlauf: Jeder Screenshot, auf dem du etwas änderst, wird automatisch als bearbeitbares
 # PNG gespeichert (kurz nach jeder Änderung und beim Beenden) und lässt sich mit ← / →

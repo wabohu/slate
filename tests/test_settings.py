@@ -52,6 +52,16 @@ def main():
     check("leer: Verlauf an, Standardordner, 100", s.history_enabled and s.history_dir == default_history_dir()
           and s.history_keep == st.DEFAULT_HISTORY_KEEP)
     check("leer: Leiste im Screenshot-Modus aus", s.show_bar is False)
+    check("leer: Spotlight 90 px / 45 %, Lupe 100 px / 2x", s.spotlight_radius == 90 and s.lens_radius == 100
+          and s.spotlight_dim == 45 and s.lens_zoom == 2.0)
+    tuned, hints2 = quiet(st.Settings, {"pointer": {"spotlight_dim": 30, "lens_zoom": 3, "lens_radius": 0.5}}, False)
+    check("Abdunklung und Vergrößerung aus [pointer], ganze Zahl als Zoom ok, Bruch als Radius nicht",
+          tuned.spotlight_dim == 30 and tuned.lens_zoom == 3.0 and tuned.lens_radius == 100 and "lens_radius" in hints2)
+    own, hints = quiet(st.Settings, {"pointer": {"spotlight_radius": 140, "lens_radius": "groß"}}, False)
+    wrong, _ = quiet(st.Settings, {"pointer": {"spotlight_radius": 5000}}, False)
+    check("Radien aus [pointer], ungültig -> Standard mit Hinweis",
+          own.spotlight_radius == 140 and own.lens_radius == 100 and "lens_radius" in hints
+          and wrong.spotlight_radius == 90)
     check("Screenshot: Eckenradius, kein Whiteboard-Hintergrund",
           s.rect_radius == RECT_RADIUS and s.board_background is None and s.board_backgrounds is None)
 
