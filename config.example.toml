@@ -3,11 +3,9 @@
 # Fehlt die Datei oder ein Wert, nimmt das Tool sinnvolle Standardwerte.
 
 [tools]
-# Reihenfolge der Werkzeuge; das Werkzeug an Position i bekommt die Taste an Position i von keys.
+# Reihenfolge der Werkzeuge; das Werkzeug an Position i bekommt die Taste von tool_i ([keys]).
 # Namen: freehand line arrow rect ellipse text
 order = ["freehand", "line", "arrow", "rect", "ellipse", "text"]
-# Einzelne Tasten ohne Modifier (Shift ist für die Farben reserviert)
-keys = ["a", "s", "d", "f", "g", "t"]
 # Werkzeug beim Start
 default = "freehand"
 
@@ -25,6 +23,29 @@ default = "yellow"
 size = 28
 
 [keys]
-# Undo/Redo, auch mit Modifiern möglich (z. B. "ctrl+z")
+# Aktion = Taste. Nur eintragen, was vom Standard abweichen soll; hier stehen alle Standardwerte.
+# Schreibweise wie in Qt-Menüs: "r", "shift+r", "ctrl+z", "alt+a", "tab", "f1".
+# "" = Aktion ohne Taste. Esc ist fest (Texteingabe beenden bzw. Tool beenden).
+# Doppelt belegt: Was hier steht, gewinnt; die andere Aktion verliert ihre Taste (Warnung im Terminal).
 undo = "r"
 redo = "shift+r"
+color_next = "tab"
+color_prev = "shift+tab"
+# Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order (tool_7-9 ohne Standard)
+tool_1 = "a"
+tool_2 = "s"
+tool_3 = "d"
+tool_4 = "f"
+tool_5 = "g"
+tool_6 = "t"
+# Farb-Plätze: color_i wählt Feld i der Farbleiste (color_11-17 ohne Standard)
+color_1 = "shift+a"
+color_2 = "shift+s"
+color_3 = "shift+d"
+color_4 = "shift+f"
+color_5 = "shift+g"
+color_6 = "shift+z"
+color_7 = "shift+x"
+color_8 = "shift+c"
+color_9 = "shift+v"
+color_10 = "shift+b"

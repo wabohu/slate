@@ -12,15 +12,16 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Der Screenshot wird per `QScreen.grabWindow(0)` aufgenommen, bevor das Fenster erscheint
 - Anzeige in einem rahmenlosen Fenster in Monitorgröße (`QGraphicsView`) mit `QGraphicsScene`, am Window-Manager vorbei (`Qt.X11BypassWindowManagerHint`). Tastatur per `grabKeyboard()` ohne `activateWindow()`, die Szene wird von Hand aktiviert (`Canvas.show_overlay()`)
 - Formen sind `ShapeElement` (`elements.py`, Unterklasse von `QGraphicsPathItem`): feste `id`, `tool`, `points` in lokalen Koordinaten, `color`, `width`. Lage nur über `pos()`/`rotation()`, Pfad per `rebuild()` aus den Werten. Text ist ein `TextElement` (Unterklasse von `QGraphicsTextItem`, bringt Cursor und Eingabe mit): `id`, `color`, `font_size`, `start_editing()`/`stop_editing()`. Beide Element-Arten haben `color` und `set_color()`
-- Werkzeuge in `tools.py`: `Tool`-Enum, Geometrie in `shape_path()`, Symbol für die Werkzeugleiste in `tool_icon()`. Welche Taste welches Werkzeug wählt, bestimmen `[tools] order` und `[tools] keys` in der Config (Fallback: Enum-Reihenfolge und `DEFAULT_TOOL_KEYS`). Neue Werkzeuge erscheinen nur dann automatisch, wenn die Config keine eigene Reihenfolge hat. Mehr Werkzeuge als Tasten sind per Tastatur nicht erreichbar
+- Werkzeuge in `tools.py`: `Tool`-Enum, Geometrie in `shape_path()`, Symbol für die Werkzeugleiste in `tool_icon()`. Welche Taste welches Werkzeug wählt, bestimmen `[tools] order` (Position i) und die Aktion `tool_i` in der Tastentabelle. Neue Werkzeuge erscheinen nur dann automatisch, wenn die Config keine eigene Reihenfolge hat. Mehr Werkzeuge als Tasten sind per Tastatur nicht erreichbar
 - Eigene Config: `~/.config/annotate/config.toml`, gelesen in `config.py`, Vorlage in `config.example.toml`. Farbwerte kommen aus Alacritty (`colors.py`), Auswahl, Reihenfolge und Startwert von Farben und Werkzeugen aus der eigenen Config
+- Tasten zentral in `keymap.py`: `DEFAULT_KEYS` (Aktion → Taste), Overrides aus `[keys]` der Config (alte Schreibweise `[tools] keys` gilt weiter), Handler in `Canvas.actions`. Neue Taste = genau diese zwei Stellen. Tasten passen exakt (Shift+T ist nicht T). Esc ist fest im Code
 - Undo/Redo über `QUndoStack`. Jede Änderung an der Szene ist ein `QUndoCommand` in `commands.py` und wird per `undo_stack.push()` abgelegt, nie direkt ausgeführt, sonst fehlt sie im Undo
 
 ## Bedienung (aktueller Stand)
 - Tasten A S D F G T: Werkzeuge in der Reihenfolge der Config, auch per Klick auf die Werkzeugleiste über der Farbleiste (Standard: Freihand, Linie, Pfeil, Rechteck, Ellipse, Text)
 - Text: klicken und tippen, Esc oder Klick daneben beendet die Eingabe. Vorhandenen Text ziehen = verschieben, Doppelklick = bearbeiten
 - Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
-- R: Undo, Shift+R: Redo (`[keys] undo/redo`), Esc: beenden
+- R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`
 
 ## Konventionen
 - Kleine, lauffähige Schritte. Nach jedem Schritt muss das Programm starten
@@ -65,7 +66,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.
-- **D1 Datenmodell:** Formen speichern bisher nur ihren fertigen `QPainterPath`, in Szenen-Koordinaten. Für Umfärben, Größe ändern, Drehen, Speichern/Laden und Vorlagen (Punkte 10, 11, 12, 14) muss jedes Element seine Parameter kennen (Art, Geometrie, Farbe, Strichstärke). Vorschlag: eigene Item-Klasse(n) mit diesen Werten plus JSON-Speicherformat. Dabei die Geometrie relativ zum Element speichern und die Lage über Position + Drehung (`setPos`, `setRotation`); dann kosten Verschieben und Drehen fast nichts. Gruppen (für Vorlagen) über `QGraphicsItemGroup`. Möglichst vor Punkt 12 umsetzen, damit nicht zweimal umgebaut wird
+- **D1 Datenmodell (Schritt 1 erledigt):** Formen (`ShapeElement`) und Text (`TextElement`) kennen ID, Art, Geometrie in lokalen Koordinaten, Farbe und Strichstärke bzw. Schriftgröße; Lage über `pos()`/`rotation()`. Offen: JSON-Speicherformat (Schritt 2), Gruppen über `QGraphicsItemGroup` für Vorlagen, Bezüge per ID für Verbinder. Plan in `docs/plan-datenmodell.md`
 - **D2 Treffer beim Anklicken:** Ein nicht gefülltes Rechteck gilt in Qt auch innen als getroffen. Für Diagramme besser nur der Rand (wie Excalidraw), außer die Form ist gefüllt
 - **D3 Leisten (entschieden):** Variante A, eine gemeinsame Leiste unten mittig (Werkzeuge | Farben | Stärke | Füllung), Position per Config, B blendet aus, Vorlagen als Popup. Details in `docs/plan-bedienung.md`
 - **D4 Tasten (entschieden):** Belegung und Grundsätze in `docs/plan-bedienung.md`. Wichtig: Eigenschaften (Farbe, Stärke, Füllung, Schriftgröße) wirken auf die Auswahl, sonst auf neue Elemente. Strichstärke Alt+A S D F. Nächster Schritt: zentrale Tabelle „Aktion → Taste“ mit Config

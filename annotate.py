@@ -20,7 +20,6 @@ from PySide6.QtGui import (
     QColor,
     QCursor,
     QGuiApplication,
-    QKeySequence,
     QPainter,
     QUndoStack,
 )
@@ -35,6 +34,7 @@ from colors import load_palette
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, RemoveItemCommand
 from config import get_int, get_list, get_str, load_config
 from elements import ShapeElement, TextElement
+from keymap import KeyMap
 from tools import Tool, parse_tool, tool_icon, tool_order
 from ui import PaletteBar, ToolBar
 
@@ -43,56 +43,10 @@ from ui import PaletteBar, ToolBar
 # Fallbacks, wenn die eigene Config fehlt oder unbrauchbare Werte enthält
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
-# Taste an Position i wählt das Werkzeug an Position i von [tools] order
-DEFAULT_TOOL_KEYS = ("a", "s", "d", "f", "g", "t")
-DEFAULT_UNDO_KEY = "r"
-DEFAULT_REDO_KEY = "shift+r"
 
 # Schriftgröße des Text-Werkzeugs in Pixeln ([text] size), plus erlaubter Bereich
 DEFAULT_TEXT_SIZE = 28
 TEXT_SIZE_RANGE = (6, 300)
-
-
-def parse_key(name):
-    """Einzelne Taste ohne Modifier aus der Config ('t', 'R', ';') -> Qt-Key; sonst None.
-
-    QKeySequence versteht die gleiche Schreibweise wie Qt-Menüs ("Ctrl+T").
-    Hier sind nur einzelne Tasten erlaubt, weil Shift schon für die Farben belegt ist.
-    """
-    seq = QKeySequence(name.strip())
-    if seq.count() != 1:
-        return None
-    combo = seq[0]
-    if combo.keyboardModifiers() != Qt.NoModifier or combo.key() == Qt.Key_unknown:
-        return None
-    return combo.key()
-
-
-def parse_shortcut(name):
-    """Taste mit optionalen Modifiern ('r', 'shift+r', 'ctrl+z') -> QKeyCombination; sonst None.
-
-    QKeyCombination ist Taste + Modifier in einem Wert, vergleichbar mit event.keyCombination().
-    """
-    seq = QKeySequence(name.strip())
-    if seq.count() != 1 or seq[0].key() == Qt.Key_unknown:
-        return None
-    return seq[0]
-
-
-def shortcut_or_default(name, default):
-    """Tastenkürzel aus der Config oder, wenn fehlend/ungültig, der Standardwert."""
-    combo = parse_shortcut(name) if name else None
-    if name and combo is None:
-        print(f"[keys] Ungültige Taste: {name!r}, nehme {default!r}", file=sys.stderr)
-    return combo if combo is not None else parse_shortcut(default)
-
-
-# Shift+Taste -> Feld der Farbleiste (Position in dieser Liste = Index in der Leiste).
-# Hat die Palette weniger Felder, sind die hinteren Kürzel einfach ohne Wirkung.
-COLOR_KEYS = (
-    Qt.Key_A, Qt.Key_S, Qt.Key_D, Qt.Key_F, Qt.Key_G,
-    Qt.Key_Z, Qt.Key_X, Qt.Key_C, Qt.Key_V, Qt.Key_B,
-)
 
 
 # --- Capture -----------------------------------------------------------------
@@ -131,15 +85,8 @@ class Canvas(QGraphicsView):
         # Werkzeuge: Reihenfolge, Tasten und Startwerkzeug aus der Config
         self.tools = tool_order(get_list(config, "tools", "order"))
         self.tool = parse_tool(get_str(config, "tools", "default") or "") or DEFAULT_TOOL
-        # Ungültige Einträge bleiben als None stehen, damit die Positionen zu order passen
-        self.tool_key_names = get_list(config, "tools", "keys") or list(DEFAULT_TOOL_KEYS)
-        self.tool_keys = [parse_key(name) for name in self.tool_key_names]
-        for name, key in zip(self.tool_key_names, self.tool_keys):
-            if key is None:
-                print(f"[keys] Ungültige Werkzeug-Taste: {name!r}", file=sys.stderr)
-        # Undo/Redo dürfen Modifier haben (Standard Redo: Shift+R); sie haben Vorrang vor allen anderen Tasten
-        self.undo_key = shortcut_or_default(get_str(config, "keys", "undo"), DEFAULT_UNDO_KEY)
-        self.redo_key = shortcut_or_default(get_str(config, "keys", "redo"), DEFAULT_REDO_KEY)
+        # Tastenbelegung zentral in keymap.py, Overrides aus [keys] der Config
+        self.keymap = KeyMap(config)
         self.pen_width = 4
 
         # Textgröße aus der Config, außerhalb des Bereichs -> Standard
@@ -175,11 +122,7 @@ class Canvas(QGraphicsView):
         self.palette_bar.selected.connect(self.set_color)
 
         # Werkzeugleiste darüber, in Config-Reihenfolge; Klick wählt das Werkzeug
-        labels = [
-            name.upper() if i < len(self.tool_keys) and self.tool_keys[i] is not None else ""
-            for i, name in enumerate(self.tool_key_names[:len(self.tools)])
-        ]
-        labels += [""] * (len(self.tools) - len(labels))  # Werkzeuge ohne Taste
+        labels = [self.keymap.label(f"tool_{i}") for i in range(1, len(self.tools) + 1)]
         self.tool_bar = ToolBar([tool_icon(t) for t in self.tools], labels, self)
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
         self.tool_bar.selected.connect(lambda i: self.set_tool(self.tools[i]))
@@ -187,6 +130,19 @@ class Canvas(QGraphicsView):
 
         self.set_tool(self.tool)
         self.set_color(self.color_index)
+
+        # Aktion (Name aus keymap.py) -> Funktion. Neue Taste = Eintrag dort + Handler hier
+        self.actions = {
+            "undo": self.undo_stack.undo,
+            "redo": self.undo_stack.redo,
+            "color_next": lambda: self.set_color(self.color_index + 1),
+            "color_prev": lambda: self.set_color(self.color_index - 1),
+        }
+        for i in range(len(self.tools)):
+            # Default-Argument i=i: sonst sähen alle Lambdas am Ende dasselbe (letzte) i
+            self.actions[f"tool_{i + 1}"] = lambda i=i: self.set_tool(self.tools[i])
+        for i in range(len(self.colors)):
+            self.actions[f"color_{i + 1}"] = lambda i=i: self.set_color(i)
 
     def index_of(self, hex_color):
         """Position einer Farbe in der Leiste; fehlt sie, das erste Feld."""
@@ -377,7 +333,6 @@ class Canvas(QGraphicsView):
 
     def keyPressEvent(self, event):
         key = event.key()
-        mods = event.modifiers()
         if self.editing_text:
             # Während der Texteingabe gehen alle Tasten an den Text, nur Esc beendet
             if key == Qt.Key_Escape:
@@ -385,27 +340,12 @@ class Canvas(QGraphicsView):
             else:
                 super().keyPressEvent(event)  # QGraphicsView reicht die Taste an die Szene weiter
             return
-        combo = event.keyCombination()
-        if key == Qt.Key_Escape:
+        if key == Qt.Key_Escape:  # fest, damit man das Tool immer verlassen kann
             self.close()
-        elif combo == self.undo_key:
-            self.undo_stack.undo()
-        elif combo == self.redo_key:
-            self.undo_stack.redo()
-        elif mods & Qt.ShiftModifier and key in COLOR_KEYS:
-            # Muss vor TOOL_KEYS stehen, sonst würde Shift+A auch das Werkzeug wechseln
-            index = COLOR_KEYS.index(key)
-            if index < len(self.colors):
-                self.set_color(index)
-        elif key == Qt.Key_Backtab or (key == Qt.Key_Tab and mods & Qt.ShiftModifier):
-            self.set_color(self.color_index - 1)
-        elif key == Qt.Key_Tab:
-            self.set_color(self.color_index + 1)
-        elif key in self.tool_keys and not mods & Qt.ControlModifier:
-            # Ohne Strg, damit z. B. ein späteres Strg+S nicht das Werkzeug wechselt
-            index = self.tool_keys.index(key)
-            if index < len(self.tools):
-                self.set_tool(self.tools[index])
+            return
+        action = self.keymap.action_for(event)
+        if action in self.actions:  # Plätze ohne Werkzeug/Farbe haben keinen Handler
+            self.actions[action]()
 
 
 # --- Start -------------------------------------------------------------------

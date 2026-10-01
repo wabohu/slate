@@ -112,5 +112,4 @@ jeder neuen Eigenschaft höher.
    **Alt + A S D F** statt 1–4
 3. Leisten: **Variante A**, eine gemeinsame Leiste, Standard unten mittig,
    Position per Config
-4. Zentrale Tastentabelle mit Config: **ja, als nächster Umbau-Schritt**, vor der
-   Strichstärke
+4. Zentrale Tastentabelle mit Config: **ja**, umgesetzt in `keymap.py`
