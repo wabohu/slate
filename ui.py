@@ -1,7 +1,51 @@
-"""UI-Elemente, die über der Zeichenfläche liegen."""
-from PySide6.QtCore import QRectF, QSize, Qt, Signal
+"""UI-Elemente, die über der Zeichenfläche liegen.
+
+Aufbau (Variante A aus docs/plan-bedienung.md): eine MainBar mit gemeinsamem
+Hintergrund, darin nebeneinander die Gruppen (Werkzeuge | Farben | Größe),
+jede Gruppe eine CellBar.
+"""
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QHBoxLayout, QWidget
+
+BAR_BACKGROUND = QColor(20, 20, 20, 190)
+SEPARATOR = QColor(255, 255, 255, 50)
+
+
+class MainBar(QWidget):
+    """Gemeinsame Leiste: halbtransparenter Hintergrund, Gruppen mit Trennstrichen.
+
+    Qt-Konzept Layout: QHBoxLayout ordnet die Kind-Widgets automatisch
+    nebeneinander an und berechnet daraus die Größe der Leiste. Wir müssen also
+    keine Positionen von Hand ausrechnen, wenn eine Gruppe dazukommt.
+    """
+
+    SPACING = 14  # Abstand zwischen den Gruppen, in der Mitte liegt der Trennstrich
+
+    def __init__(self, groups, parent=None):
+        super().__init__(parent)
+        self.groups = groups
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(self.SPACING)
+        for group in groups:
+            layout.addWidget(group, 0, Qt.AlignVCenter)  # addWidget macht group zum Kind dieser Leiste
+        self.resize(self.sizeHint())
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(BAR_BACKGROUND)
+        p.drawRoundedRect(QRectF(self.rect()), 8, 8)
+        p.setPen(QPen(SEPARATOR, 1))
+        for left, right in zip(self.groups, self.groups[1:]):
+            x = (left.geometry().right() + right.geometry().left()) / 2 + 0.5
+            p.drawLine(QPointF(x, 10), QPointF(x, self.height() - 10))
+
+    def mousePressEvent(self, event):
+        # Klicks auf Hintergrund/Trennstriche nicht an die Zeichenfläche durchreichen
+        event.accept()
 
 
 class CellBar(QWidget):
@@ -25,7 +69,7 @@ class CellBar(QWidget):
         self.count = count
         self.active = 0
         self.setCursor(Qt.PointingHandCursor)
-        self.resize(self.sizeHint())
+        self.setFixedSize(self.sizeHint())  # feste Größe, damit das Layout sie nicht streckt
 
     def sizeHint(self):
         n = self.count
@@ -47,11 +91,7 @@ class CellBar(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        # Halbtransparenter Hintergrund wie beim Werkzeug-Label
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(20, 20, 20, 190))
-        p.drawRoundedRect(QRectF(self.rect()), 8, 8)
-
+        # Kein eigener Hintergrund: den zeichnet die MainBar für alle Gruppen
         for i in range(self.count):
             rect = self.cell_rect(i)
             p.save()  # Pinsel/Stift merken, damit paint_cell frei ändern darf
@@ -121,3 +161,18 @@ class ToolBar(CellBar):
             p.setPen(QColor(255, 255, 255, 150))
             p.drawText(QRectF(0, 0, self.CELL - 2, self.CELL - 1),
                        Qt.AlignRight | Qt.AlignBottom, self.labels[index])
+
+
+class SizeBar(CellBar):
+    """Größen-Stufen: Punkte wachsender Größe (Strichstärke bzw. Schriftgröße)."""
+
+    def __init__(self, levels, parent=None):
+        super().__init__(levels, parent)
+
+    def paint_cell(self, p, index, rect):
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 25))
+        p.drawRoundedRect(rect, 4, 4)
+        diameter = 4 + index * 4  # 4, 8, 12, 16 px: zeigt die Stufe, nicht den Pixelwert
+        p.setBrush(Qt.white)
+        p.drawEllipse(rect.center(), diameter / 2, diameter / 2)

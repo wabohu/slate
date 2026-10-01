@@ -60,18 +60,19 @@ class MoveItemCommand(QUndoCommand):
 
 
 class EditTextCommand(QUndoCommand):
-    """Inhalt und Farbe eines Textobjekts geändert."""
+    """Inhalt, Farbe und Schriftgröße eines Textobjekts geändert."""
 
     def __init__(self, item, old, new, text="Text bearbeiten"):
         super().__init__(text)
         self.item = item
-        self.old = old  # (Text, QColor)
+        self.old = old  # (Text, QColor, Schriftgröße)
         self.new = new
 
     def apply(self, state):
-        text, color = state
+        text, color, size = state
         self.item.setPlainText(text)
         self.item.set_color(color)
+        self.item.set_font_size(size)
 
     def redo(self):
         self.apply(self.new)

@@ -32,11 +32,11 @@ from PySide6.QtWidgets import (
 
 from colors import load_palette
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, RemoveItemCommand
-from config import get_int, get_list, get_str, load_config
+from config import get_int, get_int_list, get_list, get_str, load_config
 from elements import ShapeElement, TextElement
 from keymap import KeyMap
 from tools import Tool, parse_tool, tool_icon, tool_order
-from ui import PaletteBar, ToolBar
+from ui import MainBar, PaletteBar, SizeBar, ToolBar
 
 
 # --- Einstellungen -----------------------------------------------------------
@@ -44,9 +44,31 @@ from ui import PaletteBar, ToolBar
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
 
-# Schriftgröße des Text-Werkzeugs in Pixeln ([text] size), plus erlaubter Bereich
-DEFAULT_TEXT_SIZE = 28
+# Größe in Stufen ([size]): Alt+A S D F wählt Stufe 1-4, gilt als Strichstärke
+# für Formen und als Schriftgröße für Text (Werte in Pixeln)
+SIZE_LEVELS = 4
+DEFAULT_SIZE_LEVEL = 2  # 1-basiert wie in der Config
+DEFAULT_STROKE_WIDTHS = (2, 4, 8, 12)
+DEFAULT_TEXT_SIZES = (16, 28, 40, 64)
+STROKE_WIDTH_RANGE = (1, 100)
 TEXT_SIZE_RANGE = (6, 300)
+
+
+# Aktionen, die auch während der Texteingabe als Taste wirken (Präfixe der Aktionsnamen).
+# Nur Tasten, die beim Tippen kein Zeichen erzeugen sollen, sonst fehlen Buchstaben im Text
+ACTIONS_WHILE_TYPING = ("size_",)
+
+
+def size_values(values, default, value_range, name):
+    """Genau SIZE_LEVELS Zahlen im erlaubten Bereich, sonst die Standardwerte."""
+    if values is None:
+        return list(default)
+    low, high = value_range
+    if len(values) != SIZE_LEVELS or not all(low <= v <= high for v in values):
+        print(f"[size] {name} braucht {SIZE_LEVELS} Werte zwischen {low} und {high}, "
+              f"nehme {list(default)}", file=sys.stderr)
+        return list(default)
+    return list(values)
 
 
 # --- Capture -----------------------------------------------------------------
@@ -87,15 +109,23 @@ class Canvas(QGraphicsView):
         self.tool = parse_tool(get_str(config, "tools", "default") or "") or DEFAULT_TOOL
         # Tastenbelegung zentral in keymap.py, Overrides aus [keys] der Config
         self.keymap = KeyMap(config)
-        self.pen_width = 4
 
-        # Textgröße aus der Config, außerhalb des Bereichs -> Standard
-        size = get_int(config, "text", "size")
-        low, high = TEXT_SIZE_RANGE
-        if size is not None and not low <= size <= high:
-            print(f"[text] size={size} außerhalb {low}-{high}, nehme {DEFAULT_TEXT_SIZE}", file=sys.stderr)
-            size = None
-        self.text_size = size or DEFAULT_TEXT_SIZE
+        # Größen-Stufen aus [size]; pen_width und text_size ergeben sich aus der Stufe
+        self.stroke_widths = size_values(
+            get_int_list(config, "size", "stroke"), DEFAULT_STROKE_WIDTHS, STROKE_WIDTH_RANGE, "stroke")
+        self.text_sizes = size_values(
+            get_int_list(config, "size", "text"), DEFAULT_TEXT_SIZES, TEXT_SIZE_RANGE, "text")
+        level = get_int(config, "size", "default") or DEFAULT_SIZE_LEVEL
+        if not 1 <= level <= SIZE_LEVELS:
+            print(f"[size] default={level} außerhalb 1-{SIZE_LEVELS}, nehme {DEFAULT_SIZE_LEVEL}", file=sys.stderr)
+            level = DEFAULT_SIZE_LEVEL
+        self.size_level = level - 1  # intern 0-basiert
+        # Alte Schreibweise [text] size: gilt als Schriftgröße der Startstufe
+        legacy = get_int(config, "text", "size")
+        if legacy is not None and get_int_list(config, "size", "text") is None:
+            low, high = TEXT_SIZE_RANGE
+            if low <= legacy <= high:
+                self.text_sizes[self.size_level] = legacy
 
         # Farbwerte aus der Alacritty-Config (Fallback: Standardpalette),
         # Auswahl, Reihenfolge und Startfarbe aus der eigenen Config
@@ -111,25 +141,27 @@ class Canvas(QGraphicsView):
         self.current_item = None  # ShapeElement, das gerade aufgezogen wird
         self.start_pos = None
         self.editing_text = None  # TextElement, solange getippt wird
-        self.editing_old = None   # (Text, Farbe) vor dem Bearbeiten; None = neuer Text
+        self.editing_old = None   # (Text, Farbe, Größe) vor dem Bearbeiten; None = neuer Text
         self.dragging = None      # Textobjekt, das gerade verschoben wird
         self.drag_offset = None   # Abstand Mauspunkt -> Item-Position beim Anfassen
         self.drag_start = None    # Item-Position vor dem Verschieben
         self.passthrough = False  # Maus-Events gehen an den Text-Editor (Cursor setzen, markieren)
 
-        # Farbleiste unten; Klick darauf ruft set_color() auf
-        self.palette_bar = PaletteBar(self.swatches, self)
-        self.palette_bar.selected.connect(self.set_color)
-
-        # Werkzeugleiste darüber, in Config-Reihenfolge; Klick wählt das Werkzeug
+        # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus)
         labels = [self.keymap.label(f"tool_{i}") for i in range(1, len(self.tools) + 1)]
-        self.tool_bar = ToolBar([tool_icon(t) for t in self.tools], labels, self)
+        self.tool_bar = ToolBar([tool_icon(t) for t in self.tools], labels)
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
         self.tool_bar.selected.connect(lambda i: self.set_tool(self.tools[i]))
+        self.palette_bar = PaletteBar(self.swatches)
+        self.palette_bar.selected.connect(self.set_color)
+        self.size_bar = SizeBar(SIZE_LEVELS)
+        self.size_bar.selected.connect(self.set_size)
+        self.main_bar = MainBar([self.tool_bar, self.palette_bar, self.size_bar], self)
         self.place_bars()
 
         self.set_tool(self.tool)
         self.set_color(self.color_index)
+        self.set_size(self.size_level)
 
         # Aktion (Name aus keymap.py) -> Funktion. Neue Taste = Eintrag dort + Handler hier
         self.actions = {
@@ -143,6 +175,8 @@ class Canvas(QGraphicsView):
             self.actions[f"tool_{i + 1}"] = lambda i=i: self.set_tool(self.tools[i])
         for i in range(len(self.colors)):
             self.actions[f"color_{i + 1}"] = lambda i=i: self.set_color(i)
+        for i in range(SIZE_LEVELS):
+            self.actions[f"size_{i + 1}"] = lambda i=i: self.set_size(i)
 
     def index_of(self, hex_color):
         """Position einer Farbe in der Leiste; fehlt sie, das erste Feld."""
@@ -153,6 +187,22 @@ class Canvas(QGraphicsView):
         # Startwerkzeug kann fehlen, wenn es nicht in [tools] order steht -> nichts markieren
         self.tool_bar.set_active(self.tools.index(tool) if tool in self.tools else -1)
 
+    # Aktuelle Größe, abgeleitet aus der Stufe
+    @property
+    def pen_width(self):
+        return self.stroke_widths[self.size_level]
+
+    @property
+    def text_size(self):
+        return self.text_sizes[self.size_level]
+
+    def set_size(self, level):
+        """Größen-Stufe (0-basiert) für neue Objekte bzw. den gerade getippten Text."""
+        self.size_level = level
+        self.size_bar.set_active(level)
+        if self.editing_text:
+            self.editing_text.set_font_size(self.text_size)
+
     def set_color(self, index):
         """Farbe für neue Objekte; bereits gezeichnete behalten ihre Farbe."""
         self.color_index = index % len(self.colors)
@@ -162,10 +212,9 @@ class Canvas(QGraphicsView):
             self.editing_text.set_color(self.pen_color)
 
     def place_bars(self):
-        """Farbleiste unten mittig, Werkzeugleiste mittig direkt darüber."""
-        colors, tools = self.palette_bar, self.tool_bar
-        colors.move((self.width() - colors.width()) // 2, self.height() - colors.height() - 20)
-        tools.move((self.width() - tools.width()) // 2, colors.y() - tools.height() - 8)
+        """Gemeinsame Leiste unten mittig."""
+        bar = self.main_bar
+        bar.move((self.width() - bar.width()) // 2, self.height() - bar.height() - 20)
 
     def show_overlay(self):
         """Fenster zeigen und alle Tasten abfangen, ohne den X-Fokus zu verschieben.
@@ -187,7 +236,7 @@ class Canvas(QGraphicsView):
     def resizeEvent(self, event):
         # Die endgültige Größe kann erst nach __init__ kommen, darum hier neu platzieren
         super().resizeEvent(event)
-        if hasattr(self, "tool_bar"):  # kann schon im Konstruktor kommen
+        if hasattr(self, "main_bar"):  # kann schon im Konstruktor kommen
             self.place_bars()
 
     # --- Text ---
@@ -210,7 +259,7 @@ class Canvas(QGraphicsView):
         item, old = self.editing_text, self.editing_old
         self.editing_text = self.editing_old = None
         item.stop_editing()
-        new = (item.toPlainText(), item.color)
+        new = (item.toPlainText(), item.color, item.font_size)
         empty = not new[0].strip()
 
         if old is None:  # neuer Text
@@ -224,7 +273,7 @@ class Canvas(QGraphicsView):
             self.undo_stack.push(EditTextCommand(item, old, new))
             self.undo_stack.push(RemoveItemCommand(self.scene_, item))
             self.undo_stack.endMacro()
-        elif new[0] != old[0] or new[1] != old[1]:
+        elif new != old:
             self.undo_stack.push(EditTextCommand(item, old, new))
 
     def text_at(self, pos):
@@ -278,7 +327,7 @@ class Canvas(QGraphicsView):
         item = self.text_at(pos) if self.tool == Tool.TEXT else None
         if item and event.button() == Qt.LeftButton:
             self.dragging = None
-            self.edit_text(item, old=(item.toPlainText(), item.color))
+            self.edit_text(item, old=(item.toPlainText(), item.color, item.font_size))
         else:
             self.mousePressEvent(event)  # sonst wie ein normaler Klick behandeln
 
@@ -334,9 +383,13 @@ class Canvas(QGraphicsView):
     def keyPressEvent(self, event):
         key = event.key()
         if self.editing_text:
-            # Während der Texteingabe gehen alle Tasten an den Text, nur Esc beendet
+            # Während der Texteingabe gehen die Tasten an den Text. Ausnahmen: Esc beendet,
+            # Größen-Tasten (Alt+…) ändern die Schriftgröße, statt einen Buchstaben zu tippen
+            action = self.keymap.action_for(event)
             if key == Qt.Key_Escape:
                 self.finish_text()
+            elif action and action.startswith(ACTIONS_WHILE_TYPING) and action in self.actions:
+                self.actions[action]()
             else:
                 super().keyPressEvent(event)  # QGraphicsView reicht die Taste an die Szene weiter
             return

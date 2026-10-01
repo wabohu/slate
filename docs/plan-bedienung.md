@@ -12,7 +12,8 @@ später Tasten umbelegen oder Leisten umbauen müssen.
    (Q–T, A–G, Z–B, 1–5, Tab, Shift, Strg, Leertaste). Seltene Aktionen dürfen
    Standardkürzel mit Strg/Alt oder Tasten rechts nutzen.
 2. **Eine Taste = eine Bedeutung.** Keine Modi, in denen dieselbe Taste etwas völlig
-   anderes tut. Ausnahme: während der Texteingabe gehen alle Tasten in den Text.
+   anderes tut. Ausnahme: während der Texteingabe gehen alle Tasten in den Text, außer Esc und den
+   Größen-Tasten Alt+A S D F (`ACTIONS_WHILE_TYPING` in `annotate.py`).
 3. **Eigenschaften wirken auf die Auswahl, sonst auf neue Elemente** (wie Excalidraw).
    Farbe, Strichstärke, Füllung und Schriftgröße setzen: Ist etwas ausgewählt, ändert es
    sich. Sonst gilt der Wert für das nächste Element. Damit ist „nachträglich umfärben“

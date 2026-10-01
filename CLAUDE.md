@@ -18,9 +18,10 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Undo/Redo über `QUndoStack`. Jede Änderung an der Szene ist ein `QUndoCommand` in `commands.py` und wird per `undo_stack.push()` abgelegt, nie direkt ausgeführt, sonst fehlt sie im Undo
 
 ## Bedienung (aktueller Stand)
-- Tasten A S D F G T: Werkzeuge in der Reihenfolge der Config, auch per Klick auf die Werkzeugleiste über der Farbleiste (Standard: Freihand, Linie, Pfeil, Rechteck, Ellipse, Text)
+- Tasten A S D F G T: Werkzeuge in der Reihenfolge der Config, auch per Klick auf die gemeinsame Leiste unten (Werkzeuge | Farben | Größe, `ui.MainBar`) (Standard: Freihand, Linie, Pfeil, Rechteck, Ellipse, Text)
 - Text: klicken und tippen, Esc oder Klick daneben beendet die Eingabe. Vorhandenen Text ziehen = verschieben, Doppelklick = bearbeiten
 - Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
+- Alt+A S D F: Größe in Stufen 1-4 (Strichstärke bzw. Schriftgröße, `[size]` in der Config)
 - R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`
 
 ## Konventionen
@@ -47,7 +48,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 3. [x] Werkzeugwechsel: Linie, Pfeil, Rechteck, Ellipse
 4. [x] Farbauswahl mit Farben aus meiner Alacritty-Config
 5. [x] Text-Werkzeug
-6. [ ] Strichstärke (Redo ist erledigt)
+6. [x] Strichstärke und Redo (Strichstärke als Größen-Stufen, gilt auch für Text)
 7. [ ] Ausgabe: Zwischenablage und PNG speichern
 8. [ ] Globaler Hotkey / Autostart
 9. [ ] Extras: nummerierte Marker, Unschärfe, Bereichsauswahl, Tray-Icon

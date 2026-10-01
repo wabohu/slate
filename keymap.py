@@ -25,6 +25,8 @@ TOOL_SLOTS = 9    # tool_7 … tool_9 haben keine Standardtaste, sind aber per C
 # Farb-Plätze: color_i wählt Feld i der Farbleiste
 COLOR_SLOT_KEYS = ("a", "s", "d", "f", "g", "z", "x", "c", "v", "b")
 COLOR_SLOTS = 17  # so viele Felder kann die Leiste höchstens haben (8 + 8 + Vordergrund)
+# Größen-Stufen: size_i = Strichstärke bzw. Schriftgröße Stufe i
+SIZE_SLOT_KEYS = ("a", "s", "d", "f")
 
 
 def _slots(prefix, count, keys, modifier=""):
@@ -39,6 +41,7 @@ DEFAULT_KEYS = {
     "color_prev": "shift+tab",
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
+    **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),
 }
 
 # Nur diese Modifier zählen; z. B. KeypadModifier (Ziffernblock) wird ignoriert

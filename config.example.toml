@@ -18,9 +18,12 @@ order = ["yellow", "magenta", "cyan", "green", "red", "blue", "white", "bright_b
 # Farbe beim Start (gleiche Namen wie oben)
 default = "yellow"
 
-[text]
-# Schriftgröße in Pixeln (6-300)
-size = 28
+[size]
+# Größe in 4 Stufen, Alt+A S D F wählt Stufe 1-4 (auch per Klick auf die Leiste).
+# Gilt als Strichstärke für Formen und als Schriftgröße für Text, Werte in Pixeln.
+default = 2                  # Stufe beim Start
+stroke = [2, 4, 8, 12]       # Strichstärke, je 1-100
+text = [16, 28, 40, 64]      # Schriftgröße, je 6-300
 
 [keys]
 # Aktion = Taste. Nur eintragen, was vom Standard abweichen soll; hier stehen alle Standardwerte.
@@ -49,3 +52,8 @@ color_7 = "shift+x"
 color_8 = "shift+c"
 color_9 = "shift+v"
 color_10 = "shift+b"
+# Größen-Stufen ([size])
+size_1 = "alt+a"
+size_2 = "alt+s"
+size_3 = "alt+d"
+size_4 = "alt+f"

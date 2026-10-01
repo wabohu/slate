@@ -4,7 +4,7 @@
     python tests/regress.py            # vergleichen mit tests/regress_reference.png
     python tests/regress.py --update   # Referenz neu schreiben (nach gewollter Optikänderung)
 
-Die Szene deckt alle Formen, Farben per Taste, eine verworfene Mini-Form, Text,
+Die Szene deckt alle Formen, Farben und Größen per Taste, eine verworfene Mini-Form, Text,
 Verschieben von Text sowie Undo/Redo ab. Läuft über Qts Offscreen-Plattform und
 mit leerem HOME/XDG_CONFIG_HOME: Weder die eigene Config noch das Alacritty-Theme
 beeinflussen das Ergebnis (es gilt die Standardpalette).
@@ -50,7 +50,9 @@ def draw_scene(canvas, view):
     key(Qt.Key_A); drag((30, 40), (200, 60))                                        # Freihand
     key(Qt.Key_S); key(Qt.Key_G, Qt.ShiftModifier); drag((30, 120), (200, 170))     # Linie
     key(Qt.Key_D); key(Qt.Key_D, Qt.ShiftModifier); drag((250, 170), (400, 60))     # Pfeil
-    key(Qt.Key_F); key(Qt.Key_F, Qt.ShiftModifier); drag((450, 40), (600, 160))     # Rechteck
+    key(Qt.Key_F); key(Qt.Key_F, Qt.ShiftModifier); key(Qt.Key_D, Qt.AltModifier)  # Rechteck, Stufe 3
+    drag((450, 40), (600, 160))
+    key(Qt.Key_S, Qt.AltModifier)                                                   # zurück auf Stufe 2
     key(Qt.Key_G); key(Qt.Key_Z, Qt.ShiftModifier); drag((620, 40), (780, 160))     # Ellipse
     key(Qt.Key_F); drag((50, 250), (51, 251))                                       # zu klein
     key(Qt.Key_T)                                                                   # Text
@@ -71,10 +73,10 @@ def main():
     app = QApplication(sys.argv)  # noqa: F841  (muss existieren)
     import annotate
 
-    background = QPixmap(800, 500)
+    background = QPixmap(1100, 500)
     background.fill(QColor("#3b4261"))
     canvas = annotate.Canvas(QGuiApplication.primaryScreen(), background)
-    canvas.resize(800, 500)
+    canvas.resize(1100, 500)
     canvas.show_overlay()
     QApplication.processEvents()
     draw_scene(canvas, canvas.viewport())

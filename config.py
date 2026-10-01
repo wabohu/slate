@@ -54,10 +54,21 @@ def get_int(config, section, key):
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def get_int_list(config, section, key):
+    """config[section][key] als Liste von ints; fehlt/falsch/leer -> None."""
+    table = config.get(section)
+    value = table.get(key) if isinstance(table, dict) else None
+    if not isinstance(value, list) or not value:
+        return None
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in value):
+        return None
+    return value
+
+
 if __name__ == "__main__":
     print(f"Datei: {config_path()}")
     cfg = load_config()
     print(f"Inhalt: {cfg}")
     print(f"Farben:     order={get_list(cfg, 'colors', 'order')}  default={get_str(cfg, 'colors', 'default')}")
     print(f"Werkzeuge:  order={get_list(cfg, 'tools', 'order')}  default={get_str(cfg, 'tools', 'default')}")
-    print(f"Text:       size={get_int(cfg, 'text', 'size')}")
+    print(f"Größe:      default={get_int(cfg, 'size', 'default')}  stroke={get_int_list(cfg, 'size', 'stroke')}  text={get_int_list(cfg, 'size', 'text')}")
