@@ -150,6 +150,26 @@ def main():
     check("Theme: Überschrift aus [ui] bar_heading, unbekannter Akzent -> Standard",
           own.theme.heading == QColor(own.palette.lookup("yellow")) and own.theme.accent == plain.theme.accent)
 
+    # scripts/sync_config.py: neue Einträge übernehmen, eigene Werte behalten
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import tomllib
+
+    import sync_config
+    template = (
+        '# Vorlage\n\n[ui]\nbar = "background"   # Kommentar mit "#" drin\ncolor = "#f8f6f0"  # hell\n'
+        'neu = true\n\n[colors.light]\n# yellow = "#8f5e15"\n\n[keys]\nundo = "r"\n')
+    user = ('# Meine Config\n[ui]\nbar = "#112233"\ncolor = "#f8f6f0"\nalt = 3\n'
+            '[colors.light]\nyellow = "#000000"\n[keys]\nundo = ["u", "ctrl+z"]\n[eigen]\nx = "a # b"\n')
+    text, added, own = sync_config.merge(template, user)
+    merged = tomllib.loads(text)
+    check("sync_config: neue Schlüssel dazu, eigene Werte behalten",
+          added == [("ui", "neu")] and merged["ui"] == {"bar": "#112233", "color": "#f8f6f0", "neu": True, "alt": 3}
+          and merged["keys"]["undo"] == ["u", "ctrl+z"] and merged["eigen"] == {"x": "a # b"})
+    check("sync_config: Kommentare der Vorlage, eigene Kopfzeile, Beispiel ersetzt",
+          text.startswith("# Meine Config\n") and '# Kommentar mit "#" drin' in text
+          and 'yellow = "#000000"' in text and '# yellow' not in text)
+    check("sync_config: zweiter Lauf ändert nichts", sync_config.merge(template, text)[0] == text)
+
     print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
     return 1 if failures else 0
 
