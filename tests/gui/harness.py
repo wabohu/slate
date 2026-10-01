@@ -181,6 +181,14 @@ class Session:
         ids = [int(w) for w in result.stdout.split()]
         return ids[0] if ids else None
 
+    def window_name(self, win):
+        result = self.run(["xdotool", "getwindowname", str(win)])
+        return result.stdout.strip() if result.returncode == 0 else None
+
+    def rofi_open(self):
+        """Ist gerade ein rofi-Fenster sichtbar?"""
+        return bool(self.run(["xdotool", "search", "--onlyvisible", "--class", "rofi"]).stdout.strip())
+
     def focus_id(self):
         result = self.run(["xdotool", "getwindowfocus"])
         return int(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
@@ -206,6 +214,10 @@ class Session:
         self.run(["import", "-window", "root", str(path)])
         return path
 
+    def pixel(self, x, y, name="pixel"):
+        """Farbe eines Bildschirmpunkts als "#rrggbb" (über ein Bildschirmfoto)."""
+        return _qt_image(self.screenshot(name)).pixelColor(x, y).name()
+
     def history_entries(self):
         directory = Path(self.env["XDG_DATA_HOME"]) / "annotate" / "history"
         return sorted(directory.glob("annotate_*.png")) if directory.exists() else []
@@ -219,13 +231,31 @@ class Session:
         return out
 
 
-def load_elements(path):
-    """Elemente einer gespeicherten Zeichnung (im Test-Prozess, ohne Bildschirm)."""
+def _qt():
+    """Qt im Test-Prozess selbst, ohne Bildschirm (zum Lesen von Bildern und Dateien)."""
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
-    sys.path.insert(0, str(REPO))
+    if str(REPO) not in sys.path:
+        sys.path.insert(0, str(REPO))
     from PySide6.QtGui import QGuiApplication
     global _app
     _app = QGuiApplication.instance() or QGuiApplication([])
+
+
+def _qt_image(path):
+    _qt()
+    from PySide6.QtGui import QImage
+    return QImage(str(path))
+
+
+def load_drawing(path):
+    """Gespeicherte Zeichnung lesen: (Hintergrund, Elemente). Hintergrund ist ein QImage
+    (Screenshot) oder eine QColor (Whiteboard)."""
+    _qt()
     from document import load_document
-    _, elements, _, _ = load_document(path)
-    return elements
+    background, elements, _, _ = load_document(path)
+    return background, elements
+
+
+def load_elements(path):
+    """Elemente einer gespeicherten Zeichnung."""
+    return load_drawing(path)[1]
