@@ -98,6 +98,33 @@ def main():
     match = [e for e in again if e.id == moved.id]
     check("Verschiebung gespeichert", match and match[0].pos() == moved.pos())
 
+    # Mauszeiger: Fadenkreuz ohne Mittelpunkt, Kreis = Strichbreite, Stiftfarbe; Auswahl/Zeigen: Pfeil
+    from tools import Tool
+    cur = make_canvas(QPixmap(800, 400))
+    cur.set_tool(Tool.FREEHAND)
+    cur.set_size(0)
+    small_cursor = cur.viewport().cursor().pixmap().toImage()
+    cur.set_size(3)
+    big_cursor = cur.viewport().cursor().pixmap().toImage()
+    center = big_cursor.pixelColor(big_cursor.width() // 2, big_cursor.height() // 2)
+    pen = cur.pen_color
+    has_pen = any(abs(big_cursor.pixelColor(x, y).red() - pen.red()) < 8
+                  and abs(big_cursor.pixelColor(x, y).green() - pen.green()) < 8
+                  and abs(big_cursor.pixelColor(x, y).blue() - pen.blue()) < 8 and big_cursor.pixelColor(x, y).alpha() > 200
+                  for x in range(big_cursor.width()) for y in range(big_cursor.height()))
+    check("Mauszeiger: wächst mit der Strichstärke, Mitte frei, Stiftfarbe",
+          big_cursor.width() > small_cursor.width() and center.alpha() == 0 and has_pen)
+    cur.set_tool(Tool.SELECT)
+    arrow_select = cur.viewport().cursor().shape() == Qt.ArrowCursor
+    cur.set_tool(Tool.RECT)
+    cur.toggle_pointer("spotlight")
+    hidden_pointer = cur.viewport().cursor().shape() == Qt.BlankCursor
+    cur.set_tool(Tool.LINE)
+    check("Mauszeiger: Pfeil im Auswahl-Werkzeug, beim Zeigen ausgeblendet, Werkzeugwechsel beendet Zeigen",
+          arrow_select and hidden_pointer and cur.pointer_mode is None
+          and cur.viewport().cursor().shape() == Qt.BitmapCursor)
+    cur.close()
+
     # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
     # gezeichnet und exportiert wird in voller Auflösung
     big = QPixmap(2200, 1000)

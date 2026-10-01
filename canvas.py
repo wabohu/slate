@@ -13,6 +13,7 @@ from canvas_board import BoardMixin
 from canvas_history import HistoryMixin
 from canvas_input import InputMixin
 from canvas_output import OutputMixin
+from canvas_pointer import PointerMixin
 from commands import PropertyCommand
 from config import load_config
 from elements import ShapeElement, TextElement
@@ -31,11 +32,12 @@ FOCUS_RETRY_MS = 50
 ACTIONS_WHILE_TYPING = ("size_",)
 
 
-class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
+class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QGraphicsView):
     """Zeichenfläche für Screenshot und Whiteboard. Weitere Methoden in den Mixins:
     canvas_input.py (Maus, Text, Griffe, Mausrad), canvas_board.py (Whiteboard-Ansicht
     und -Hintergrund), canvas_output.py (Kopieren, Speichern, Meldungen),
-    canvas_history.py (Verlauf); siehe docs/plan-aufteilung.md."""
+    canvas_history.py (Verlauf), canvas_pointer.py (Mauszeiger, Spotlight, Lupe);
+    siehe docs/plan-aufteilung.md."""
 
     def __init__(self, screen, pixmap, elements=(), document_path=None, board=False, board_color=None):
         """pixmap: Hintergrund (Screenshot oder geladenes Bild), im Whiteboard None;
@@ -73,7 +75,6 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setRenderHint(QPainter.Antialiasing)
-        self.setCursor(Qt.CrossCursor)
 
         # Werte aus der Config (ändern sich während der Sitzung nicht), siehe settings.py
         self.settings = Settings(load_config(), board)
@@ -108,6 +109,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.panning = None       # letzte Mausposition beim Verschieben mit der mittleren Taste
         self.zoom_rest = 0        # angefangene Raste beim Zoomen
         self.overview_return = None  # (Ansicht vorher, Ansicht in der Übersicht) für Strg+W zurück
+        self.pointer_mode = None  # Zeigen: None, "spotlight" oder "lens" (canvas_pointer.py)
+        self.cursor_cache = {}    # fertige Mauszeiger je Werkzeug/Farbe/Breite
         self.asking = False  # rofi-Nachfrage offen: Fokus nicht zurückholen (canvas_output.ask)
         self.history_path = None  # Verlaufseintrag dieser Sitzung (canvas_history.py), None = aus
         self.history_timer = QTimer(self)
@@ -169,6 +172,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
             "history_next": lambda: self.history_step(+1),
             "help": self.show_help,
             "toggle_bar": lambda: self.main_bar.setVisible(not self.main_bar.isVisible()),
+            "spotlight": lambda: self.toggle_pointer("spotlight"),
+            "magnifier": lambda: self.toggle_pointer("lens"),
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
         }
@@ -189,7 +194,9 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
             self.scene_.clearSelection()  # Zeichnen wirkt nie auf eine Auswahl
         # Startwerkzeug kann fehlen, wenn es nicht in [tools] order steht -> nichts markieren
         self.tool_bar.set_active(self.bar_tools.index(tool) if tool in self.bar_tools else -1)
-        self.viewport().setCursor(Qt.ArrowCursor if tool == Tool.SELECT else Qt.CrossCursor)
+        self.pointer_mode = None  # Werkzeugwechsel beendet Spotlight/Lupe
+        self.viewport().update()
+        self.refresh_cursor()
         self.update_bars()
 
     # --- Auswahl ---
@@ -258,6 +265,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         elif isinstance(item, TextElement) and item.font_size != self.text_size:
             self.undo_stack.push(
                 PropertyCommand(item.set_font_size, item.font_size, self.text_size, "Schriftgröße ändern"))
+        self.refresh_cursor()  # Kreis bzw. Farbe im Mauszeiger
         self.update_bars()
 
     def set_color(self, index):
@@ -271,6 +279,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
             # Kopien von QColor, damit spätere Änderungen die gemerkten Werte nicht verändern
             self.undo_stack.push(
                 PropertyCommand(item.set_color, QColor(item.color), QColor(self.pen_color), "Farbe ändern"))
+        self.refresh_cursor()  # Kreis bzw. Farbe im Mauszeiger
         self.update_bars()
 
     def place_bars(self):
@@ -333,6 +342,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.resetTransform()
         self.scale(factor, factor)
         self.centerOn(self.export_rect.center())
+        self.refresh_cursor()  # Kreis im Mauszeiger = Strichbreite auf dem Bildschirm
 
     def show_help(self):
         """?: Übersicht der Tastenkürzel, so wie sie gerade belegt sind."""
@@ -432,7 +442,9 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
                 super().keyPressEvent(event)  # QGraphicsView reicht die Taste an die Szene weiter
             return
         if key == Qt.Key_Escape:  # fest, damit man das Tool immer verlassen kann
-            if self.selected_element():  # erst die Auswahl aufheben, dann beenden
+            if self.pointer_mode:  # erst Spotlight/Lupe beenden
+                self.stop_pointer()
+            elif self.selected_element():  # erst die Auswahl aufheben, dann beenden
                 self.scene_.clearSelection()
                 self.update_bars()
             elif not self.board:  # Whiteboard schließt nur mit Strg+Q / Fenster schließen

@@ -17,5 +17,7 @@ Grundsätze und geplante Belegung: `docs/plan-bedienung.md`.
 - ← / →: Verlauf. Jeder Screenshot, auf dem du etwas änderst, wird automatisch gespeichert (kurz nach jeder Änderung und beim Beenden; ohne Änderung nicht, `[history]`, Standard die letzten 100 in `~/.local/share/annotate/history/`). ← lädt den älteren, → den neueren Eintrag in dasselbe Fenster; Änderungen landen wieder in diesem Eintrag, Undo beginnt dort neu. Nur im Screenshot-Modus. Einen Eintrag direkt öffnen (`python annotate.py ~/.local/share/annotate/history/….png`) geht auch, Strg+S legt dann eine eigene Datei im Ausgabeordner an
 - ?: Übersicht aller Tastenkürzel (so wie sie gerade belegt sind, nur was im Modus gilt); jede Taste oder ein Klick schließt sie
 - b: Leiste ein-/ausblenden (gilt bis zum Beenden). Beim Start im Screenshot-Modus ausgeblendet, im Whiteboard sichtbar (`[ui] show_bar`, `show_bar_board`)
+- e: Spotlight (alles abgedunkelt außer einem Kreis um die Maus), Shift+E: Lupe (vergrößert um die Maus, 2×). Zum Zeigen im Unterricht; Klicks zeichnen dabei nichts. Dieselbe Taste, Esc oder ein Werkzeugwechsel beendet
+- Mauszeiger beim Zeichnen: Fadenkreuz in der Stiftfarbe, der feine Kreis in der Mitte ist so breit wie der Strich (inkl. Zoom), unten rechts die Form des Werkzeugs. Im Auswahl-Werkzeug normaler Pfeil, beim Zeigen ausgeblendet
 - Strg+Q: beenden
 - R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`

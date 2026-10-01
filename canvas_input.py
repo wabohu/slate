@@ -31,6 +31,8 @@ class InputMixin:
         if self.help_panel.isVisible():  # Klick neben die Tastenübersicht schließt nur sie
             self.help_panel.hide()
             return
+        if self.pointer_mode and event.button() == Qt.LeftButton:
+            return  # Spotlight/Lupe: Klicks zeichnen nichts (mittlere Taste verschiebt weiter)
         if event.button() == Qt.MiddleButton and self.board:
             self.panning = event.position()  # Ansicht verschieben beginnt
             self.viewport().setCursor(Qt.ClosedHandCursor)
@@ -113,6 +115,9 @@ class InputMixin:
             self.panning = event.position()
             self.pan_by(delta.x(), delta.y())
             return
+        if self.pointer_mode:
+            self.viewport().update()  # Spotlight/Lupe folgen der Maus
+            return
         if self.passthrough:
             super().mouseMoveEvent(event)
             return
@@ -141,7 +146,7 @@ class InputMixin:
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MiddleButton and self.panning is not None:
             self.panning = None
-            self.viewport().setCursor(Qt.ArrowCursor if self.tool == Tool.SELECT else Qt.CrossCursor)
+            self.refresh_cursor()
             return
         if event.button() != Qt.LeftButton:
             return
@@ -254,6 +259,11 @@ class InputMixin:
         Qt-Konzept: drawForeground gehört zur Ansicht, nicht zur Szene. Was hier
         gezeichnet wird, landet darum nie im exportierten Bild (scene.render).
         """
+        self.paint_selection(painter)
+        self.paint_pointer(painter)  # Spotlight/Lupe über allem (canvas_pointer.py)
+
+    def paint_selection(self, painter):
+        """Rahmen und Griffe der Auswahl (nur im Auswahl-Werkzeug)."""
         item = self.selected_element()
         if item is None or self.tool != Tool.SELECT or self.editing_text:
             return

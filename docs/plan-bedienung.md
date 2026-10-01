@@ -39,7 +39,8 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Taste | Aktion | Roadmap |
 |---|---|---|
 | W | Auswahl-Werkzeug | 12 |
-| Q / E | Auswahl drehen −15° / +15° (Shift: in 1°-Schritten?) | 12 |
+| Q / ? | Auswahl drehen −15° / +15° (Shift: in 1°-Schritten?); E ist inzwischen Zeigen, zweite Taste offen | 12 |
+| E / Shift+E | Zeigen: Spotlight / Lupe an/aus (umgesetzt) | – |
 | Entf / Backspace | Auswahl löschen | 12 |
 | Alt + A S D F | Größe in Stufen: Strichstärke, bei Text die Schriftgröße | 6 |
 | Alt + Mausrad | Größe fein einstellen (Auswahl bzw. getippter Text) | 6 |

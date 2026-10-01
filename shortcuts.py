@@ -33,6 +33,8 @@ DESCRIPTIONS = {
     "quit": ("Allgemein", "beenden", BOTH),
     "help": ("Allgemein", "diese Übersicht", BOTH),
     "toggle_bar": ("Allgemein", "Leiste ein/aus", BOTH),
+    "spotlight": ("Zeigen", "Spotlight an/aus", BOTH),
+    "magnifier": ("Zeigen", "Lupe an/aus", BOTH),
     "zoom_reset": ("Ansicht", "Zoom 100 %", (BOARD,)),
     "overview": ("Ansicht", "Übersicht / zurück", (BOARD,)),
     "background_next": ("Ansicht", "Hintergrund hell/dunkel", (BOARD,)),
@@ -45,8 +47,8 @@ GROUPED = re.compile(r"^(tool|color|size)_\d+$|^move_(left|down|up|right)(_fine)
 
 # Feste Bedienung ohne Eintrag in der Tastentabelle: (Gruppe, Taste/Maus, Beschreibung, Modi)
 FIXED = [
-    ("Allgemein", "Esc", "Auswahl aufheben, sonst beenden", (SCREENSHOT,)),
-    ("Allgemein", "Esc", "Auswahl aufheben", (BOARD,)),
+    ("Allgemein", "Esc", "Zeigen aus, Auswahl aufheben, sonst beenden", (SCREENSHOT,)),
+    ("Allgemein", "Esc", "Zeigen aus, Auswahl aufheben", (BOARD,)),
     ("Maus", "Ziehen", "zeichnen mit dem Werkzeug", BOTH),
     ("Maus", "Klick (Auswahl)", "auswählen, ziehen = verschieben", BOTH),
     ("Maus", "Griffe ziehen", "Größe ändern", BOTH),
@@ -60,7 +62,8 @@ FIXED = [
 KEY_NAMES = {"Ctrl": "Strg", "Return": "Enter", "Del": "Entf", "Left": "←", "Right": "→",
              "Up": "↑", "Down": "↓", "Shift+?": "?", "Meta": "Super"}
 
-GROUP_ORDER = ["Werkzeuge", "Farbe und Größe", "Auswahl", "Ausgabe", "Ansicht", "Verlauf", "Allgemein", "Maus"]
+GROUP_ORDER = ["Werkzeuge", "Farbe und Größe", "Auswahl", "Zeigen", "Ausgabe", "Ansicht", "Verlauf", "Allgemein",
+               "Maus"]
 
 
 def display(label):

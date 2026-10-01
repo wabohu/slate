@@ -125,6 +125,8 @@ history_prev = "left"      # Verlauf: älterer Screenshot
 history_next = "right"     # Verlauf: neuerer Screenshot
 help = "shift+?"           # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
 toggle_bar = "b"           # Leiste ein-/ausblenden
+spotlight = "e"            # Zeigen: Spotlight an/aus (alles abgedunkelt außer um die Maus)
+magnifier = "shift+e"      # Zeigen: Lupe an/aus
 # Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order (tool_7-9 ohne Standard)
 tool_1 = "a"
 tool_2 = "s"

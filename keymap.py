@@ -60,6 +60,8 @@ DEFAULT_KEYS = {
     "history_next": "right",   # Verlauf: neuerer Screenshot
     "help": "shift+?",         # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
     "toggle_bar": "b",         # Leiste ein-/ausblenden
+    "spotlight": "e",          # Zeigen: Spotlight an/aus (alles abgedunkelt außer um die Maus)
+    "magnifier": "shift+e",    # Zeigen: Lupe an/aus
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
     **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),

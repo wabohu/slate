@@ -59,6 +59,7 @@ class BoardMixin:
         self.scale(factor, factor)
         drift = self.mapFromScene(anchor) - mouse.toPoint()  # wohin er durchs Skalieren gewandert ist
         self.pan_by(-drift.x(), -drift.y())
+        self.refresh_cursor()  # Kreis im Mauszeiger = Strichbreite bei diesem Zoom
         self.toast.show_message(f"Zoom {round(self.zoom() * 100)} %")
 
     def view_state(self):
@@ -84,6 +85,7 @@ class BoardMixin:
             transform, center = self.view_state()
             if transform == during[0] and (center - during[1]).manhattanLength() < 1:
                 self.set_view_state(before)
+                self.refresh_cursor()
                 self.toast.show_message(f"Zurück ({round(self.zoom() * 100)} %)")
                 return
         before = self.view_state()
@@ -99,11 +101,13 @@ class BoardMixin:
             self.scale(factor, factor)
             self.centerOn(rect.center())
         self.overview_return = (before, self.view_state())
+        self.refresh_cursor()
         self.toast.show_message(f"Übersicht ({round(self.zoom() * 100)} %)")
 
     def zoom_reset(self):
         if self.board:
             self.resetTransform()  # zurück auf 100 %, ohne Drehung/Verzerrung
+            self.refresh_cursor()
             self.toast.show_message("Zoom 100 %")
 
     # --- Hintergrund ---
@@ -112,6 +116,7 @@ class BoardMixin:
         self.board_color = QColor(color)
         self.scene_.setBackgroundBrush(self.board_color)
         self.refresh_colors()
+        self.refresh_cursor()  # Stiftfarbe im Mauszeiger an den Hintergrund anpassen
 
     def adapt_color(self, color):
         """Gezeigte Farbe zur Grundfarbe color: auf hellem Whiteboard abgedunkelt
