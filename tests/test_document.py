@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Test Speichern/Laden: Szene zeichnen, Strg+S, neu laden, pixelgenau vergleichen.
+"""Test Speichern/Laden: Szene zeichnen, Strg+S, neu laden, pixelgenau vergleichen;
+dazu das Whiteboard (speichern, als Whiteboard laden, Export des benutzten Bereichs).
 
     python tests/test_document.py
 
@@ -85,6 +86,34 @@ def main():
     _, again, _, _ = load_document(path)
     match = [e for e in again if e.id == moved.id]
     check("Verschiebung gespeichert", match and match[0].pos() == moved.pos())
+
+    # Whiteboard: leere Fläche, speichern, als Whiteboard wieder laden
+    import export
+    export.shutil.which = lambda name: None  # nie die echte Zwischenablage anfassen
+    board = annotate.Canvas(QGuiApplication.primaryScreen(), None, board=True)
+    board.resize(900, 500)
+    board.show_window()
+    QApplication.processEvents()
+    bview = board.viewport()
+    QTest.keyClick(board, Qt.Key_F)
+    QTest.mousePress(bview, Qt.LeftButton, pos=QPoint(100, 100))
+    QTest.mouseMove(bview, QPoint(300, 200))
+    QTest.mouseRelease(bview, Qt.LeftButton, pos=QPoint(300, 200))
+    QTest.keyClick(board, Qt.Key_Escape)
+    QTest.keyClick(board, Qt.Key_Return)
+    check("Whiteboard: Esc und Enter schließen nicht", board.isVisible())
+    check("Whiteboard: ungespeichert erkannt", not board.undo_stack.isClean())
+    board_image = board.render_image()
+    check("Whiteboard-Export = benutzter Bereich", board_image.width() < 400 and board_image.height() < 300)
+    QTest.keyClick(board, Qt.Key_S, Qt.ControlModifier)
+    check("Whiteboard gespeichert (_board)", board.document_path and board.document_path.stem.endswith("_board"))
+    check("nach dem Speichern sauber", board.undo_stack.isClean())
+    bbg, belems, _, _ = load_document(board.document_path)
+    check("als Whiteboard geladen", isinstance(bbg, QColor) and bbg == board.board_color and len(belems) == 1)
+    board2 = annotate.Canvas(QGuiApplication.primaryScreen(), None, belems, board.document_path,
+                             board=True, board_color=bbg)
+    board2.show_window()
+    check("Whiteboard neu geladen = gleicher Export", board2.render_image() == board_image)
 
     print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
     return 1 if failures else 0

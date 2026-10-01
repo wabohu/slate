@@ -6,7 +6,8 @@ ein JSON-Dokument:
 
     {
       "format": "annotate", "version": 1,
-      "background": {"type": "image", "png": "<Base64 des rohen Screenshots>"},
+      "background": {"type": "image", "png": "<Base64 des rohen Screenshots>"}
+                 oder {"type": "color", "color": "#24283b"}   (Whiteboard),
       "elements": [ {"type": "shape", ...}, {"type": "text", ...} ]   # von unten nach oben
     }
 
@@ -23,7 +24,7 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtGui import QImage, QImageReader
+from PySide6.QtGui import QColor, QImage, QImageReader
 
 from elements import ShapeElement, TextElement
 from export import png_bytes, short_path
@@ -38,11 +39,18 @@ QImageReader.setAllocationLimit(1024)
 
 
 def build_document(background, elements):
-    """Dokument-Daten aus rohem Hintergrund (QImage) und Elementen (unten -> oben)."""
+    """Dokument-Daten aus Hintergrund und Elementen (unten -> oben).
+
+    background: QImage (roher Screenshot) oder QColor (Whiteboard).
+    """
+    if isinstance(background, QColor):
+        background_data = {"type": "color", "color": background.name()}
+    else:
+        background_data = {"type": "image", "png": base64.b64encode(png_bytes(background)).decode("ascii")}
     return {
         "format": FORMAT,
         "version": VERSION,
-        "background": {"type": "image", "png": base64.b64encode(png_bytes(background)).decode("ascii")},
+        "background": background_data,
         "elements": [item.to_dict() for item in elements],
     }
 
@@ -68,7 +76,9 @@ def save_document(path, rendered, document):
 
 
 def load_document(path):
-    """PNG laden. Rückgabe: (Hintergrund-QImage oder None, Elemente, ist_zeichnung, Meldung).
+    """PNG laden. Rückgabe: (Hintergrund oder None, Elemente, ist_zeichnung, Meldung).
+
+    Hintergrund ist ein QImage (Screenshot) oder eine QColor (Whiteboard).
 
     ist_zeichnung = True: eigene Zeichnung mit Bearbeitungsdaten, Strg+S darf sie
     überschreiben. Sonst ist es ein fremdes Bild (Hintergrund, Speichern als neue Datei).
@@ -86,9 +96,15 @@ def load_document(path):
         if document.get("version", 0) > VERSION:
             print(f"[document] Version {document['version']} ist neuer als dieses Tool ({VERSION}), "
                   "versuche es trotzdem", file=sys.stderr)
-        background = QImage.fromData(base64.b64decode(document["background"]["png"]))
-        if background.isNull():
-            raise ValueError("eingebetteter Hintergrund unlesbar")
+        spec = document["background"]
+        if spec.get("type") == "color":
+            background = QColor(spec["color"])
+            if not background.isValid():
+                raise ValueError(f"ungültige Hintergrundfarbe {spec['color']!r}")
+        else:
+            background = QImage.fromData(base64.b64decode(spec["png"]))
+            if background.isNull():
+                raise ValueError("eingebetteter Hintergrund unlesbar")
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         print(f"[document] Bearbeitungsdaten unbrauchbar ({e}), öffne als Bild", file=sys.stderr)
         return image, [], False, "Bearbeitungsdaten fehlerhaft, als Bild geöffnet"

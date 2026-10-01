@@ -44,6 +44,7 @@ DEFAULT_KEYS = {
     "color_prev": "shift+tab",
     "copy_quit": "return",     # Bild in die Zwischenablage und beenden
     "copy_image": "ctrl+c",    # Bild in die Zwischenablage, offen bleiben
+    "quit": "ctrl+q",          # beenden (im Whiteboard die einzige Taste dafür, Esc schließt dort nicht)
     "save": "ctrl+s",          # bearbeitbare Zeichnung (PNG mit eingebetteten Daten)
     "export_png": "ctrl+e",    # sauberes PNG ohne Bearbeitungsdaten
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),

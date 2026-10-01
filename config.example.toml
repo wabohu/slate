@@ -32,6 +32,11 @@ bar_background = "background"
 bar_foreground = "foreground"   # Symbole, Rahmen, Beschriftung
 bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
 
+[board]
+# Whiteboard (python annotate.py --board): Hintergrundfarbe. Name wie in [colors],
+# "background" (Alacritty-Hintergrund) oder "#rrggbb"
+background = "background"
+
 [output]
 # Ordner für Strg+S (Zeichnung) und Strg+E (Export), PNG mit Zeitstempel. ~ ist erlaubt.
 # Standard: ~/Pictures/annotate
@@ -49,7 +54,8 @@ undo = "r"
 redo = "shift+r"
 color_next = "tab"
 color_prev = "shift+tab"
-copy_quit = "return"       # Bild in die Zwischenablage und beenden
+copy_quit = "return"       # Bild in die Zwischenablage und beenden (Whiteboard: nur kopieren)
+quit = "ctrl+q"            # beenden; im Whiteboard die einzige Taste dafür
 copy_image = "ctrl+c"      # Bild in die Zwischenablage, offen bleiben
 save = "ctrl+s"            # bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten)
 export_png = "ctrl+e"      # sauberes PNG ohne Bearbeitungsdaten

@@ -15,6 +15,7 @@
 """
 import argparse
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt
 from PySide6.QtGui import (
@@ -33,6 +34,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsScene,
     QGraphicsView,
+    QMessageBox,
 )
 
 from colors import load_palette
@@ -54,6 +56,11 @@ DEFAULT_COLOR = "red"
 # Griffe am Auswahlrahmen: Kantenlänge beim Zeichnen und Fangradius beim Anklicken (Pixel)
 HANDLE_SIZE = 8
 HANDLE_GRAB = 7
+
+# Whiteboard: halbe Kantenlänge der "unendlichen" Fläche, Rand um den Export ([board] background)
+BOARD_EXTENT = 1_000_000
+BOARD_EXPORT_MARGIN = 32
+DEFAULT_BOARD_BACKGROUND = "background"
 
 # Feineinstellung per Alt+Mausrad: Pixel pro Raste
 WHEEL_TEXT_STEP = 2
@@ -105,31 +112,43 @@ def grab_screen():
 
 # --- Zeichenfläche -----------------------------------------------------------
 class Canvas(QGraphicsView):
-    def __init__(self, screen, pixmap, elements=(), document_path=None):
-        """pixmap: Hintergrund (Screenshot oder geladenes Bild); elements: geladene
-        Elemente (unten -> oben); document_path: Datei, in die Strg+S speichert."""
+    def __init__(self, screen, pixmap, elements=(), document_path=None, board=False, board_color=None):
+        """pixmap: Hintergrund (Screenshot oder geladenes Bild), im Whiteboard None;
+        elements: geladene Elemente (unten -> oben); document_path: Datei, in die Strg+S
+        speichert; board: Whiteboard statt Screenshot; board_color: Hintergrund des
+        Whiteboards (None = aus der Config)."""
         super().__init__()
+        self.board = board
 
-        # Szene mit dem Screenshot als Hintergrund
         self.scene_ = QGraphicsScene(self)
-        background = self.scene_.addPixmap(pixmap)
-        # Für den Export: Bereich des Screenshots in der Szene und seine Größe in Pixeln
-        self.export_rect = background.boundingRect()
-        self.export_size = pixmap.size()
-        self.background_image = pixmap.toImage()  # roh, wird beim Speichern eingebettet
+        if board:
+            # "Unendliche" Fläche: ein sehr großes Szenen-Rechteck, in dem man frei scrollt
+            self.scene_.setSceneRect(-BOARD_EXTENT, -BOARD_EXTENT, 2 * BOARD_EXTENT, 2 * BOARD_EXTENT)
+            self.background_image = None
+        else:
+            # Szene mit dem Screenshot als Hintergrund
+            background = self.scene_.addPixmap(pixmap)
+            # Für den Export: Bereich des Screenshots in der Szene und seine Größe in Pixeln
+            self.export_rect = background.boundingRect()
+            self.export_size = pixmap.size()
+            self.background_image = pixmap.toImage()  # roh, wird beim Speichern eingebettet
         for item in elements:  # Ausgangszustand, darum nicht im Undo
             self.scene_.addItem(item)
         self.document_path = document_path
         self.setScene(self.scene_)
 
-        # Fenster: rahmenlos, exakt auf dem Monitor, am Window-Manager vorbei.
-        # X11BypassWindowManagerHint = X11 "override-redirect": herbstluftwm verwaltet
-        # das Fenster nicht. Sonst flackert beim Öffnen/Schließen eines Vollbildfensters
-        # kurz der Desktop-Hintergrund. Folge: kein showFullScreen(), Tastatur per Grab (show_overlay)
-        self.setWindowFlags(
-            Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.X11BypassWindowManagerHint
-        )
-        self.setGeometry(screen.geometry())
+        if board:
+            # Normales Fenster: herbstluftwm kachelt es, Tastatur über den normalen Fokus
+            self.resize(screen.availableGeometry().size() * 0.8)
+        else:
+            # Fenster: rahmenlos, exakt auf dem Monitor, am Window-Manager vorbei.
+            # X11BypassWindowManagerHint = X11 "override-redirect": herbstluftwm verwaltet
+            # das Fenster nicht. Sonst flackert beim Öffnen/Schließen eines Vollbildfensters
+            # kurz der Desktop-Hintergrund. Folge: kein showFullScreen(), Tastatur per Grab (show_overlay)
+            self.setWindowFlags(
+                Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.X11BypassWindowManagerHint
+            )
+            self.setGeometry(screen.geometry())
         self.setFrameShape(QFrame.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -170,6 +189,12 @@ class Canvas(QGraphicsView):
         self.color_index = self.index_of(self.palette_.lookup(default_color))
         self.pen_color = self.colors[self.color_index]
         self.theme = self.load_theme(config)
+        if board:
+            # Der Szenen-Hintergrund wird mitgerendert, landet also auch im Export
+            self.board_color = QColor(board_color) if board_color else \
+                self.config_color(config, "board", "background", DEFAULT_BOARD_BACKGROUND)
+            self.scene_.setBackgroundBrush(self.board_color)
+            self.update_title()
 
         # Zustand
         self.undo_stack = QUndoStack(self)  # alle Änderungen, für Undo/Redo (siehe commands.py)
@@ -220,6 +245,7 @@ class Canvas(QGraphicsView):
             "copy_quit": self.copy_and_quit,
             "copy_image": self.copy_image,
             "save": self.save_drawing,
+            "quit": self.close,
             "export_png": self.export_image,
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
@@ -232,15 +258,19 @@ class Canvas(QGraphicsView):
         for i in range(SIZE_LEVELS):
             self.actions[f"size_{i + 1}"] = lambda i=i: self.set_size(i)
 
+    def config_color(self, config, section, key, default):
+        """Farbe aus der Config: Name aus der Palette, "background" oder "#rrggbb"."""
+        name = get_str(config, section, key) or default
+        value = self.palette_.lookup(name)
+        if value is None:
+            print(f"[{section}] {key}: unbekannte Farbe {name!r}, nehme {default!r}", file=sys.stderr)
+            value = self.palette_.lookup(default)
+        return QColor(value)
+
     def load_theme(self, config):
         """Leistenfarben aus [ui]; unbekannte Namen oder Werte -> Alacritty-Farben."""
         def color(key, default):
-            name = get_str(config, "ui", key) or default
-            value = self.palette_.lookup(name)
-            if value is None:
-                print(f"[ui] {key}: unbekannte Farbe {name!r}, nehme {default!r}", file=sys.stderr)
-                value = self.palette_.lookup(default)
-            return QColor(value)
+            return self.config_color(config, "ui", key, default)
 
         opacity = get_float(config, "ui", "bar_opacity")
         if opacity is None or not 0 <= opacity <= 1:
@@ -361,7 +391,35 @@ class Canvas(QGraphicsView):
         # Szene bekommt ein Textobjekt keinen Tastaturfokus, darum hier von Hand aktivieren
         QApplication.sendEvent(self.scene_, QEvent(QEvent.WindowActivate))
 
+    def show_window(self):
+        """Whiteboard als normales Fenster zeigen, Ansicht auf die Elemente richten."""
+        self.show()
+        items = self.elements()
+        if items:
+            self.centerOn(self.used_rect().center())
+        else:
+            self.centerOn(0, 0)
+
+    def update_title(self):
+        name = Path(self.document_path).name if self.document_path else "neu"
+        self.setWindowTitle(f"annotate – Whiteboard – {name}")
+
+    def confirm_close(self):
+        """Ungespeicherte Änderungen? Fragen: Speichern, Verwerfen oder Abbrechen."""
+        answer = QMessageBox.question(
+            self, "annotate", "Das Whiteboard hat ungespeicherte Änderungen. Speichern?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
+        if answer == QMessageBox.Save:
+            self.save_drawing()
+            return self.undo_stack.isClean()  # nur schließen, wenn das Speichern geklappt hat
+        return answer == QMessageBox.Discard
+
     def closeEvent(self, event):
+        # QUndoStack merkt sich den "sauberen" Stand (setClean beim Speichern);
+        # jede Änderung danach macht ihn "unsauber"
+        if self.board and not self.undo_stack.isClean() and not self.confirm_close():
+            event.ignore()  # Fenster bleibt offen
+            return
         self.releaseKeyboard()
         # Beim Abbau löscht Qt die Szene vor dem Undo-Stack; der meldet dabei noch
         # Änderungen. Ohne Trennen liefe update_bars() gegen eine gelöschte Szene
@@ -381,7 +439,22 @@ class Canvas(QGraphicsView):
             self.finish_text()
         self.scene_.clearSelection()  # sonst wäre der gestrichelte Auswahlrahmen im Bild
         self.update_bars()
+        if self.board:  # nur der benutzte Bereich, Maßstab 1:1
+            rect = self.used_rect()
+            return render_scene(self.scene_, rect, rect.size().toSize())
         return render_scene(self.scene_, self.export_rect, self.export_size)
+
+    def used_rect(self):
+        """Whiteboard: Bereich aller Elemente plus Rand; leer = sichtbarer Ausschnitt."""
+        items = self.elements()
+        if not items:
+            return QRectF(self.mapToScene(self.viewport().rect()).boundingRect().toAlignedRect())
+        rect = items[0].sceneBoundingRect()
+        for item in items[1:]:
+            rect = rect.united(item.sceneBoundingRect())
+        rect = rect.adjusted(-BOARD_EXPORT_MARGIN, -BOARD_EXPORT_MARGIN,
+                             BOARD_EXPORT_MARGIN, BOARD_EXPORT_MARGIN)
+        return QRectF(rect.toAlignedRect())  # auf ganze Pixel, damit das Bild nicht verschwimmt
 
     def copy_image(self):
         ok, message = copy_to_clipboard(self.render_image())
@@ -389,7 +462,8 @@ class Canvas(QGraphicsView):
         return ok
 
     def copy_and_quit(self):
-        if self.copy_image():
+        """Enter: kopieren und beenden; im Whiteboard nur kopieren (Fenster bleibt)."""
+        if self.copy_image() and not self.board:
             self.close()
 
     def export_image(self):
@@ -406,13 +480,17 @@ class Canvas(QGraphicsView):
         """Bearbeitbare Zeichnung: beim ersten Mal neue Datei, danach dieselbe überschreiben."""
         rendered = self.render_image()
         try:
-            path = self.document_path or new_file_path(self.output_dir)
+            path = self.document_path or new_file_path(self.output_dir, "_board" if self.board else "")
         except OSError as e:
             self.toast.show_message(f"Speichern fehlgeschlagen: {e}")
             return
-        ok, message = save_document(path, rendered, build_document(self.background_image, self.elements()))
+        background = self.board_color if self.board else self.background_image
+        ok, message = save_document(path, rendered, build_document(background, self.elements()))
         if ok:
             self.document_path = path
+            self.undo_stack.setClean()  # Stand merken: ab hier "nichts ungespeichert"
+            if self.board:
+                self.update_title()
         self.toast.show_message(message)
 
     # --- Text ---
@@ -694,7 +772,7 @@ class Canvas(QGraphicsView):
             if self.selected_element():  # erst die Auswahl aufheben, dann beenden
                 self.scene_.clearSelection()
                 self.update_bars()
-            else:
+            elif not self.board:  # Whiteboard schließt nur mit Strg+Q / Fenster schließen
                 self.close()
             return
         action = self.keymap.action_for(event)
@@ -707,6 +785,8 @@ def main():
     parser = argparse.ArgumentParser(description="Screenshot-Annotationstool")
     parser.add_argument("file", nargs="?",
                         help="gespeicherte Zeichnung oder beliebiges PNG öffnen statt Screenshot")
+    parser.add_argument("--board", action="store_true",
+                        help="leeres Whiteboard in einem normalen Fenster statt Screenshot")
     args, qt_args = parser.parse_known_args()  # Rest (z. B. Qt-Optionen) an Qt weiterreichen
     app = QApplication(sys.argv[:1] + qt_args)
 
@@ -716,11 +796,20 @@ def main():
             print(message, file=sys.stderr)
             sys.exit(1)
         screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
-        # Eigene Zeichnung: Strg+S überschreibt sie. Fremdes Bild: Strg+S legt eine neue Datei an
-        canvas = Canvas(screen, QPixmap.fromImage(background), elements,
-                        document_path=args.file if is_drawing else None)
-        canvas.show_overlay()
+        if isinstance(background, QColor):  # gespeichertes Whiteboard
+            canvas = Canvas(screen, None, elements, document_path=args.file,
+                            board=True, board_color=background)
+            canvas.show_window()
+        else:
+            # Eigene Zeichnung: Strg+S überschreibt sie. Fremdes Bild: Strg+S legt eine neue Datei an
+            canvas = Canvas(screen, QPixmap.fromImage(background), elements,
+                            document_path=args.file if is_drawing else None)
+            canvas.show_overlay()
         canvas.toast.show_message(message)
+    elif args.board:
+        screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+        canvas = Canvas(screen, None, board=True)
+        canvas.show_window()
     else:
         screen, pixmap = grab_screen()  # erst grabben, dann Fenster zeigen!
         canvas = Canvas(screen, pixmap)

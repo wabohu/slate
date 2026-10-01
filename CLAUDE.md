@@ -18,6 +18,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Eigene Config: `~/.config/annotate/config.toml`, gelesen in `config.py`, Vorlage in `config.example.toml`. Farbwerte kommen aus Alacritty (`colors.py`), Auswahl, Reihenfolge und Startwert von Farben und Werkzeugen aus der eigenen Config
 - Tasten zentral in `keymap.py`: `DEFAULT_KEYS` (Aktion → Taste), Overrides aus `[keys]` der Config (alte Schreibweise `[tools] keys` gilt weiter), Handler in `Canvas.actions`. Neue Taste = genau diese zwei Stellen. Tasten passen exakt (Shift+T ist nicht T). Esc ist fest im Code
 - Export in `export.py`: Szene ohne Leiste rendern (Ausschnitt = Screenshot-Rechteck), Zwischenablage über `xclip` (hält das Bild auch nach dem Beenden), Fallback Qt-Zwischenablage
+- Zwei Modi in einer `Canvas`: Screenshot-Overlay (`show_overlay`, Bypass-Fenster, Keyboard-Grab) und Whiteboard (`board=True`, `show_window`, normales Fenster, sehr große Szene, Szenen-Hintergrund = Farbe, Export = Bereich aller Elemente). Ungespeichert-Erkennung über `QUndoStack.isClean()`/`setClean()`
 - Speichern/Laden in `document.py`: normales PNG mit den Markierungen, Bearbeitungsdaten als JSON im PNG-Text-Chunk `annotate` (Format/Version, roher Hintergrund als Base64-PNG, Elemente von unten nach oben). Elemente liefern `to_dict()`/`from_dict()`, Farben als `#rrggbb`. Fehlerhafte Daten nie Absturz: Bild als Hintergrund bzw. Element überspringen
 - Undo/Redo über `QUndoStack`. Jede Änderung an der Szene ist ein `QUndoCommand` in `commands.py` und wird per `undo_stack.push()` abgelegt, nie direkt ausgeführt, sonst fehlt sie im Undo
 
@@ -31,6 +32,8 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Enter: Bild in die Zwischenablage und beenden, Strg+C: nur kopieren
 - Strg+S: bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten, erst neue Datei in `[output] dir`, danach dieselbe überschreiben), Strg+E: sauberes PNG exportieren
 - `python annotate.py bild.png`: gespeicherte Zeichnung wieder öffnen (alles bearbeitbar) oder beliebiges PNG als Hintergrund
+- `python annotate.py --board`: Whiteboard in einem normalen Fenster (Hintergrund `[board] background`). Esc und Enter schließen dort nicht, Strg+Q bzw. Fenster schließen fragt bei ungespeicherten Änderungen. Gespeicherte Whiteboards (`…_board.png`) öffnen sich automatisch wieder als Whiteboard
+- Strg+Q: beenden
 - R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`
 
 ## Konventionen
@@ -68,11 +71,12 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
     - Zeitpunkt: Start + Beenden, nach jeder Änderung (absturzsicher) oder nur beim Beenden? Leere Sessions ohne Annotationen speichern?
     - Speicherort: z. B. `~/.local/share/annotate/` (XDG), in der Config änderbar?
     - Teilweise geklärt: Speicherformat ist das bearbeitbare PNG aus `document.py` (Strg+S). Offen: automatisch bei jedem Screenshot speichern, Aufruf, Aufbewahrung
-11. [ ] Leere Zeichenfläche für Diagramme (Ersatz für Excalidraw): Start ohne Screenshot, einfarbiger Hintergrund. Offen: Start per Kommandozeilen-Option und/oder Taste? Feste Bildschirmgröße oder unendliche Fläche mit Verschieben/Zoom? Vollbild oder normales (gekacheltes) Fenster? Speichern und wieder öffnen (siehe D1)
+11. [ ] Leere Zeichenfläche für Diagramme (Ersatz für Excalidraw). Entschieden: Start mit `--board`, unendliche Fläche mit Verschieben/Zoom, normales gekacheltes Fenster, Hintergrund aus Alacritty. 11a (Grundgerüst, Speichern/Laden) erledigt; 11b (Leertaste+Ziehen, mittlere Maustaste, Strg+Mausrad-Zoom, Griffe zoomunabhängig) offen
 12. [ ] (Schritt 1 erledigt: auswählen, verschieben, löschen, umfärben, Größe; Schritt 2 erledigt: Griffe zum Größe ändern) Auswahl-Werkzeug für alle Elemente: anklicken, verschieben, löschen (Entf), Farbe nachträglich ändern (Element auswählen, Farbe wählen). Später: Mehrfachauswahl, Größe ändern, Drehen, Strichstärke nachträglich ändern, Kopieren/Einfügen, Vorder-/Hintergrund. Das Verschieben von Text im Text-Werkzeug geht dann darin auf. Drehen nur, wenn die Bedienung übersichtlich bleibt (z. B. Tasten in festen Schritten oder ein Griff an der Auswahl)
 13. [ ] Leisten-Layout: Platz für weitere Leisten (Strichstärke, Füllung, Modi …), siehe D3
 14. [ ] Vorlagen, vielleicht: kleine Bibliothek vorgefertigter Elemente wie in draw.io, aber viel einfacher. Symbole (Haken, Kreuz, Warnung …), Tabellen, zusammengesetzte Elemente. Idee: Eine Vorlage ist einfach eine gespeicherte Elementgruppe im selben Format wie D1, eigene Vorlagen entstehen durch „Auswahl als Vorlage speichern“. Symbole als Pfade statt Bilddateien, damit sie umfärbbar bleiben. Tabellen sind der aufwendigste Teil (Zellen bearbeiten, Zeilen/Spalten hinzufügen), darum zuletzt
 15. [ ] Diagramm-Grundlagen: Text in Formen (Doppelklick auf Form = beschriften), Verbinder-Pfeile, die an Formen andocken und mitwandern (siehe D5)
+16. [ ] Idee für später: weitere Schriften für das Text-Werkzeug, z. B. eine Monospace-Schrift (für Code, Befehle, Pfade). Naheliegend: die Schrift aus der Alacritty-Config (`[font.normal] family`) als Monospace-Standard. Datenmodell: `TextElement` bräuchte ein Feld `font` (in `to_dict`, fehlt es beim Laden = bisherige Schrift, also abwärtskompatibel). Offen: Umschalten per Taste oder Leiste, welche Schriften, fett/normal
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.
