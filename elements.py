@@ -12,7 +12,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem, QStyle, QStyleOptionGraphicsItem
 
-from tools import Tool, shape_path
+from tools import RECT_RADIUS, Tool, shape_path
 
 
 
@@ -51,9 +51,10 @@ class ShapeElement(QGraphicsPathItem):
     points (lokal, relativ zu pos):
       Freihand: alle Punkte des Strichs
       sonst:    [Start, Ende]
+    radius: Eckenradius, nur für Rechtecke
     """
 
-    def __init__(self, tool, origin, color, width, element_id=None):
+    def __init__(self, tool, origin, color, width, element_id=None, radius=RECT_RADIUS):
         super().__init__()
         self._hit_shape = None  # Zwischenspeicher für shape(), siehe unten
         self.setFlag(QGraphicsPathItem.ItemIsSelectable)  # Qt verwaltet Auswahl + Markierung
@@ -61,6 +62,7 @@ class ShapeElement(QGraphicsPathItem):
         self.tool = tool
         self.color = QColor(color)
         self.width = width
+        self.radius = radius
         self.setPos(origin)  # Startpunkt = Ursprung des Elements
         start = QPointF(0, 0)
         self.points = [start] if tool == Tool.FREEHAND else [start, start]
@@ -79,13 +81,19 @@ class ShapeElement(QGraphicsPathItem):
             "points": [[p.x(), p.y()] for p in self.points],
             "color": self.color.name(),
             "width": self.width,
+            **({"radius": self.radius} if self.tool == Tool.RECT else {}),
         }
 
     @classmethod
     def from_dict(cls, data):
         """Gegenstück zu to_dict. Fehlerhafte Daten lösen KeyError/ValueError/TypeError aus."""
         tool = Tool[data["tool"].upper()]
-        item = cls(tool, QPointF(*data["pos"]), data["color"], data["width"], element_id=data.get("id"))
+        # Ältere Dateien ohne "radius": bisheriger Standard, sieht also aus wie damals
+        radius = data.get("radius", RECT_RADIUS)
+        if isinstance(radius, bool) or not isinstance(radius, (int, float)) or radius < 0:
+            raise ValueError(f"radius {radius!r} ungültig")
+        item = cls(tool, QPointF(*data["pos"]), data["color"], data["width"],
+                   element_id=data.get("id"), radius=radius)
         item.points = [QPointF(x, y) for x, y in data["points"]]
         expected = None if tool == Tool.FREEHAND else 2
         if not item.points or (expected and len(item.points) != expected):
@@ -207,7 +215,7 @@ class ShapeElement(QGraphicsPathItem):
             for point in self.points[1:]:
                 path.lineTo(point)
         else:
-            path = shape_path(self.tool, self.points[0], self.points[1], self.width)
+            path = shape_path(self.tool, self.points[0], self.points[1], self.width, self.radius)
         self.setPath(path)
 
 

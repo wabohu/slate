@@ -43,7 +43,7 @@ from config import get_float, get_int, get_int_list, get_list, get_str, load_con
 from elements import ShapeElement, TextElement
 from keymap import KeyMap
 from notify import NOT_AVAILABLE, ask, notify
-from tools import Tool, parse_tool, tool_icon, tool_order
+from tools import RECT_RADIUS, Tool, parse_tool, tool_icon, tool_order
 from document import build_document, load_document, save_document
 from export import copy_to_clipboard, default_output_dir, new_file_path, render_scene, save_png
 from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
@@ -74,6 +74,10 @@ DEFAULT_BOARD_BACKGROUND = "background"
 DEFAULT_MOVE_STEP = 10
 DEFAULT_MOVE_STEP_FINE = 1
 MOVE_STEP_RANGE = (1, 500)
+
+# Eckenradius neuer Rechtecke ([rect] in der Config): Screenshot bzw. Whiteboard
+DEFAULT_RECT_RADIUS_BOARD = 20
+RECT_RADIUS_RANGE = (0, 200)
 
 # Feineinstellung per Alt+Mausrad: Pixel pro Raste
 WHEEL_TEXT_STEP = 2
@@ -249,6 +253,10 @@ class Canvas(QGraphicsView):
         self.rofi_theme = get_str(config, "ui", "rofi_theme")  # None = rofi/annotate.rasi im Projekt
 
         # Schrittweiten für hjkl aus [move]
+        # Eckenradius neuer Rechtecke aus [rect], im Whiteboard eigener Wert
+        self.rect_radius = self.config_radius(config, "radius_board", DEFAULT_RECT_RADIUS_BOARD) \
+            if board else self.config_radius(config, "radius", RECT_RADIUS)
+
         self.move_steps = {
             False: self.config_step(config, "step", DEFAULT_MOVE_STEP),
             True: self.config_step(config, "step_fine", DEFAULT_MOVE_STEP_FINE),
@@ -320,6 +328,17 @@ class Canvas(QGraphicsView):
         finally:
             if grabbed:
                 self.grabKeyboard()
+
+    def config_radius(self, config, key, default):
+        """Eckenradius aus [rect]; außerhalb RECT_RADIUS_RANGE -> Standard."""
+        value = get_int(config, "rect", key)
+        if value is None:
+            return default
+        low, high = RECT_RADIUS_RANGE
+        if not low <= value <= high:
+            print(f"[rect] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            return default
+        return value
 
     def config_step(self, config, key, default):
         """Schrittweite aus [move]; außerhalb MOVE_STEP_RANGE -> Standard."""
@@ -731,7 +750,8 @@ class Canvas(QGraphicsView):
         if self.current_item is not None:  # vorige Form ohne Loslassen (z. B. Doppelklick)
             self.finish_shape(pos)
         self.start_pos = pos
-        self.current_item = ShapeElement(self.tool, pos, self.pen_color, self.pen_width)
+        self.current_item = ShapeElement(self.tool, pos, self.pen_color, self.pen_width,
+                                         radius=self.rect_radius)
         self.scene_.addItem(self.current_item)
 
     def mouseDoubleClickEvent(self, event):

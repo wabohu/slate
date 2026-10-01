@@ -21,7 +21,8 @@ class Tool(Enum):
     SELECT = "Auswahl"  # kein Zeichenwerkzeug, steht in der Leiste immer vorne (Taste W)
 
 
-# Eckenradius des Rechtecks in Pixeln
+# Eckenradius des Rechtecks in Pixeln (Standard; je Element in ShapeElement.radius,
+# für neue Rechtecke aus [rect] in der Config)
 RECT_RADIUS = 8
 
 
@@ -46,7 +47,7 @@ def tool_order(names):
     return result or [t for t in Tool if t != Tool.SELECT]
 
 
-def shape_path(tool, start, end, pen_width):
+def shape_path(tool, start, end, pen_width, radius=RECT_RADIUS):
     """Baut den Pfad einer Form aus Start- und Endpunkt (alles außer Freihand)."""
     path = QPainterPath()
     if tool == Tool.LINE:
@@ -67,7 +68,7 @@ def shape_path(tool, start, end, pen_width):
             path.lineTo(tip)
     elif tool == Tool.RECT:
         # Qt verkleinert den Radius selbst, wenn das Rechteck dafür zu klein ist
-        path.addRoundedRect(QRectF(start, end).normalized(), RECT_RADIUS, RECT_RADIUS)
+        path.addRoundedRect(QRectF(start, end).normalized(), radius, radius)
     elif tool == Tool.ELLIPSE:
         path.addEllipse(QRectF(start, end).normalized())
     return path

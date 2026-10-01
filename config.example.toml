@@ -46,6 +46,13 @@ dialogs = "rofi"
 # "background" (Alacritty-Hintergrund) oder "#rrggbb"
 background = "background"
 
+[rect]
+# Eckenradius neuer Rechtecke in Pixeln (0 = spitze Ecken, höchstens 200).
+# Bei kleinen Rechtecken verkleinert sich die Rundung von selbst. Jedes Rechteck
+# speichert seinen Radius; eine Änderung hier gilt nur für neu gezeichnete.
+radius = 8          # Screenshot-Modus
+radius_board = 20   # Whiteboard
+
 [move]
 # Ausgewähltes Element mit h j k l verschieben: Bildschirm-Pixel pro Tastendruck (1-500)
 step = 10          # h j k l
