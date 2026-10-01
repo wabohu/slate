@@ -37,37 +37,57 @@ class Theme:
         return f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()})"
 
 
+def ui_scale(screen):
+    """Maßstab für Leiste, Meldungen und Übersicht: alle Maße gelten für 1080 px
+    Bildschirmhöhe, größere Bildschirme (z. B. 4K) bekommen alles entsprechend größer."""
+    return max(1.0, screen.geometry().height() / 1080) if screen else 1.0
+
+
 class MainBar(QWidget):
-    """Gemeinsame Leiste: halbtransparenter Hintergrund, Gruppen mit Trennstrichen.
+    """Gemeinsame Leiste: Hintergrund mit feinem Rand, Gruppen mit Trennstrichen.
 
     Qt-Konzept Layout: QHBoxLayout ordnet die Kind-Widgets automatisch
     nebeneinander an und berechnet daraus die Größe der Leiste. Wir müssen also
     keine Positionen von Hand ausrechnen, wenn eine Gruppe dazukommt.
     """
 
-    SPACING = 14  # Abstand zwischen den Gruppen, in der Mitte liegt der Trennstrich
+    SIZE = 0.9    # Gesamtgröße der Leiste (1.0 = Maße wie angegeben, für 1080 px Bildschirmhöhe)
+    SPACING = 18  # Abstand zwischen den Gruppen, in der Mitte liegt der Trennstrich
+    RADIUS = 12
 
     def __init__(self, groups, theme, parent=None):
         super().__init__(parent)
         self.groups = groups
         self.theme = theme
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(self.SPACING)
+        self.scale = 1.0
+        self.box = QHBoxLayout(self)
+        self.box.setContentsMargins(0, 0, 0, 0)
         for group in groups:
-            layout.addWidget(group, 0, Qt.AlignVCenter)  # addWidget macht group zum Kind dieser Leiste
+            self.box.addWidget(group, 0, Qt.AlignVCenter)  # addWidget macht group zum Kind dieser Leiste
+        self.set_scale(1.0)
+
+    def set_scale(self, scale):
+        """Alle Maße mit scale vervielfachen (siehe ui_scale), dazu SIZE."""
+        scale *= self.SIZE
+        self.scale = scale
+        self.box.setSpacing(round(self.SPACING * scale))
+        for group in self.groups:
+            group.set_scale(scale)
+        self.box.activate()  # Layout sofort neu berechnen, nicht erst beim nächsten Zeichnen
         self.resize(self.sizeHint())
 
     def paintEvent(self, event):
+        s = self.scale
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.setPen(Qt.NoPen)
+        p.setPen(QPen(self.theme.fg(45), max(1.0, s)))
         p.setBrush(self.theme.background)
-        p.drawRoundedRect(QRectF(self.rect()), 8, 8)
-        p.setPen(QPen(self.theme.fg(50), 1))
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), self.RADIUS * s, self.RADIUS * s)
+        p.setPen(QPen(self.theme.fg(40), max(1.0, s)))
+        inset = self.height() * 0.28
         for left, right in zip(self.groups, self.groups[1:]):
             x = (left.geometry().right() + right.geometry().left()) / 2 + 0.5
-            p.drawLine(QPointF(x, 10), QPointF(x, self.height() - 10))
+            p.drawLine(QPointF(x, inset), QPointF(x, self.height() - inset))
 
     def mousePressEvent(self, event):
         # Klicks auf Hintergrund/Trennstriche nicht an die Zeichenfläche durchreichen
@@ -77,8 +97,10 @@ class MainBar(QWidget):
 class CellBar(QWidget):
     """Gemeinsame Basis für Leisten aus gleich großen Feldern.
 
-    Klick auf ein Feld sendet selected(index), das aktive Feld bekommt einen
-    weißen Rahmen. Unterklassen zeichnen nur den Inhalt eines Felds (paint_cell).
+    Klick auf ein Feld sendet selected(index). Das aktive Feld ist hell markiert (Farbfelder:
+    Ring, Werkzeug und Größe: invertiert wie eine gedrückte Taste), das Feld unter der Maus
+    bekommt eine feine Umrandung. Unterklassen zeichnen nur den
+    Inhalt eines Felds (paint_cell). Alle Maße gelten bei scale 1 (1080 px Bildschirmhöhe).
 
     Weil die Leiste ein eigenes Kind-Widget ist, landen Klicks darauf hier und
     nicht im mousePressEvent der Zeichenfläche. Es entsteht also kein Strich.
@@ -86,22 +108,34 @@ class CellBar(QWidget):
 
     selected = Signal(int)
 
-    CELL = 26      # Kantenlänge eines Felds
+    CELL = 28      # Kantenlänge eines Felds
     GAP = 6        # Abstand zwischen den Feldern
-    PADDING = 8    # Rand um alle Felder
+    PADDING = 10   # Rand um alle Felder
+    RADIUS = 6     # Ecken eines Felds
 
     def __init__(self, count, theme, parent=None):
         super().__init__(parent)
         self.count = count
         self.theme = theme
         self.active = 0
+        self.hover = -1
+        self.scale = 1.0
         self.setCursor(Qt.PointingHandCursor)
+        self.setMouseTracking(True)  # Mausbewegung auch ohne Taste (für das Aufhellen)
+        self.set_scale(1.0)
+
+    def set_scale(self, scale):
+        self.scale = scale
         self.setFixedSize(self.sizeHint())  # feste Größe, damit das Layout sie nicht streckt
+        self.update()
+
+    def px(self, value):
+        return value * self.scale
 
     def sizeHint(self):
         n = self.count
         width = 2 * self.PADDING + n * self.CELL + max(0, n - 1) * self.GAP
-        return QSize(width, 2 * self.PADDING + self.CELL)
+        return QSize(round(self.px(width)), round(self.px(2 * self.PADDING + self.CELL)))
 
     def set_active(self, index):
         """index = -1: kein Feld markieren."""
@@ -110,10 +144,24 @@ class CellBar(QWidget):
 
     def cell_rect(self, index):
         x = self.PADDING + index * (self.CELL + self.GAP)
-        return QRectF(x, self.PADDING, self.CELL, self.CELL)
+        return QRectF(self.px(x), self.px(self.PADDING), self.px(self.CELL), self.px(self.CELL))
+
+    def cell_at(self, pos):
+        for i in range(self.count):
+            if self.cell_rect(i).adjusted(-self.px(self.GAP / 2), -self.px(self.PADDING),
+                                          self.px(self.GAP / 2), self.px(self.PADDING)).contains(pos):
+                return i
+        return -1
 
     def paint_cell(self, p, index, rect):
         raise NotImplementedError
+
+    def paint_active(self, p, rect):
+        """Markierung des aktiven Felds; Standard: heller Ring mit kleinem Abstand."""
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(self.theme.foreground, self.px(2)))
+        grow = self.px(3)
+        p.drawRoundedRect(rect.adjusted(-grow, -grow, grow, grow), self.px(self.RADIUS + 2), self.px(self.RADIUS + 2))
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -124,25 +172,41 @@ class CellBar(QWidget):
             p.save()  # Pinsel/Stift merken, damit paint_cell frei ändern darf
             self.paint_cell(p, i, rect)
             p.restore()
-            if i == self.active:
+            if i == self.hover and i != self.active:  # feine Umrandung, auch auf bunten Feldern sichtbar
+                p.setPen(QPen(self.theme.fg(170), self.px(1.5)))
                 p.setBrush(Qt.NoBrush)
-                p.setPen(QPen(self.theme.foreground, 2))
-                p.drawRoundedRect(rect.adjusted(-3, -3, 3, 3), 6, 6)
+                p.drawRoundedRect(rect.adjusted(-self.px(1.5), -self.px(1.5), self.px(1.5), self.px(1.5)),
+                                  self.px(self.RADIUS + 1), self.px(self.RADIUS + 1))
+            if i == self.active:
+                p.save()
+                self.paint_active(p, rect)
+                p.restore()
+
+    def mouseMoveEvent(self, event):
+        index = self.cell_at(event.position())
+        if index != self.hover:
+            self.hover = index
+            self.update()
+
+    def leaveEvent(self, event):
+        self.hover = -1
+        self.update()
 
     def mousePressEvent(self, event):
         # Event immer hier "verbrauchen", auch in den Lücken zwischen Feldern
         event.accept()
         if event.button() != Qt.LeftButton:
             return
-        pos = event.position()
-        for i in range(self.count):
-            if self.cell_rect(i).adjusted(-self.GAP / 2, -self.PADDING, self.GAP / 2, self.PADDING).contains(pos):
-                self.selected.emit(i)
-                return
+        index = self.cell_at(event.position())
+        if index >= 0:
+            self.selected.emit(index)
 
 
 class PaletteBar(CellBar):
     """Farbleiste: ein Farbfeld pro Farbe."""
+
+    CELL = 26
+    GAP = 7
 
     def __init__(self, colors, theme, parent=None):
         self.colors = [QColor(c) for c in colors]
@@ -155,44 +219,54 @@ class PaletteBar(CellBar):
 
     def paint_cell(self, p, index, rect):
         p.setBrush(self.colors[index])
-        p.setPen(QPen(self.theme.fg(60), 1))  # dünner Rand, damit dunkle Farben sichtbar bleiben
-        p.drawRoundedRect(rect, 4, 4)
+        p.setPen(QPen(self.theme.fg(55), max(1.0, self.px(1))))  # dünner Rand, damit dunkle Farben sichtbar bleiben
+        p.drawRoundedRect(rect, self.px(self.RADIUS), self.px(self.RADIUS))
 
 
 class ToolBar(CellBar):
     """Werkzeugleiste: ein Symbol pro Werkzeug, Tastenkürzel klein unten rechts.
 
-    icons: QPainterPaths in Feld-Koordinaten (0 … CELL), labels: Tastennamen oder "".
+    icons: QPainterPaths in Feld-Koordinaten (0 … 30), labels: Tastennamen oder "".
+    Das aktive Werkzeug ist invertiert: helle Fläche, Symbol in der Hintergrundfarbe.
     """
 
-    CELL = 30
+    CELL = 32
 
     def __init__(self, icons, labels, theme, parent=None):
         self.icons = icons
-        self.labels = labels
+        self.labels = [label.lower() for label in labels]  # klein wie in der Übersicht
         super().__init__(len(icons), theme, parent)
 
     def paint_cell(self, p, index, rect):
+        active = index == self.active
+        dark = QColor(self.theme.background)
+        dark.setAlpha(255)
         p.setPen(Qt.NoPen)
-        p.setBrush(self.theme.fg(25))
-        p.drawRoundedRect(rect, 4, 4)
+        p.setBrush(self.theme.fg(235) if active else self.theme.fg(18))
+        p.drawRoundedRect(rect, self.px(self.RADIUS), self.px(self.RADIUS))
 
-        pen = QPen(self.theme.foreground, 2)
+        pen = QPen(dark if active else self.theme.foreground, 2)
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
         p.setPen(pen)
         p.setBrush(Qt.NoBrush)
-        p.translate(rect.topLeft())  # Symbol ist relativ zur Feldecke gebaut
+        p.save()
+        p.translate(rect.topLeft())  # Symbol ist relativ zur Feldecke gebaut (0 … 30)
+        p.scale(rect.width() / 30, rect.height() / 30)
         p.drawPath(self.icons[index])
+        p.restore()
 
         if self.labels[index]:
             font = QFont()
-            font.setPixelSize(9)
+            font.setPixelSize(max(1, round(self.px(9))))
             font.setBold(True)
             p.setFont(font)
-            p.setPen(self.theme.fg(150))
-            p.drawText(QRectF(0, 0, self.CELL - 2, self.CELL - 1),
-                       Qt.AlignRight | Qt.AlignBottom, self.labels[index])
+            p.setPen(dark if active else self.theme.fg(140))
+            p.drawText(rect.adjusted(0, 0, -self.px(3), -self.px(1)), Qt.AlignRight | Qt.AlignBottom,
+                       self.labels[index])
+
+    def paint_active(self, p, rect):
+        pass  # die invertierte Fläche zeichnet paint_cell
 
 
 class SizeBar(CellBar):
@@ -202,12 +276,18 @@ class SizeBar(CellBar):
         super().__init__(levels, theme, parent)
 
     def paint_cell(self, p, index, rect):
+        active = index == self.active
+        dark = QColor(self.theme.background)
+        dark.setAlpha(255)
         p.setPen(Qt.NoPen)
-        p.setBrush(self.theme.fg(25))
-        p.drawRoundedRect(rect, 4, 4)
-        diameter = 4 + index * 4  # 4, 8, 12, 16 px: zeigt die Stufe, nicht den Pixelwert
-        p.setBrush(self.theme.foreground)
+        p.setBrush(self.theme.fg(235) if active else self.theme.fg(18))
+        p.drawRoundedRect(rect, self.px(self.RADIUS), self.px(self.RADIUS))
+        diameter = self.px(4 + index * 4)  # 4, 8, 12, 16: zeigt die Stufe, nicht den Pixelwert
+        p.setBrush(dark if active else self.theme.foreground)
         p.drawEllipse(rect.center(), diameter / 2, diameter / 2)
+
+    def paint_active(self, p, rect):
+        pass  # invertiert, siehe paint_cell
 
 
 class Toast(QLabel):
@@ -217,21 +297,29 @@ class Toast(QLabel):
 
     def __init__(self, theme, parent):
         super().__init__(parent)
+        self.theme = theme
         self.setAttribute(Qt.WA_TransparentForMouseEvents)  # Klicks gehen durch
-        self.setStyleSheet(
-            f"background: {theme.css(theme.background)}; color: {theme.css(theme.foreground)};"
-            "padding: 8px 16px; border-radius: 8px; font-size: 14px;"
-        )
+        self.set_scale(1.0)
         # Ein Timer statt vieler singleShot-Aufrufe: neue Meldung startet die Zeit neu
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.hide)
         self.hide()
 
+    def set_scale(self, scale):
+        theme = self.theme
+        self.top = round(20 * scale)
+        self.setStyleSheet(
+            f"background: {theme.css(theme.background)}; color: {theme.css(theme.foreground)};"
+            f"border: {max(1, round(scale))}px solid {theme.css(theme.fg(45))};"
+            f"padding: {round(8 * scale)}px {round(16 * scale)}px; border-radius: {round(10 * scale)}px;"
+            f"font-size: {round(14 * scale)}px;"
+        )
+
     def show_message(self, text):
         self.setText(text)
         self.adjustSize()
-        self.move((self.parent().width() - self.width()) // 2, 20)
+        self.move((self.parent().width() - self.width()) // 2, self.top)
         self.show()
         self.raise_()  # über alle anderen Kind-Widgets
         self.timer.start(self.DURATION_MS)
@@ -264,8 +352,7 @@ class HelpPanel(QWidget):
     def set_content(self, data, colors):
         """data aus shortcuts.overview(); colors: Farbfelder, wie die Farbleiste sie zeigt."""
         self.data, self.colors = data, [QColor(c) for c in colors]
-        screen = self.window().screen()
-        self.scale = self.SIZE * (max(1.0, screen.geometry().height() / 1080) if screen else 1.0)
+        self.scale = self.SIZE * ui_scale(self.window().screen())
         size = self.arrange(None)
         parent = self.parent()
         fit = min(1.0, parent.width() * 0.96 / size.width(), parent.height() * 0.96 / size.height())

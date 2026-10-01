@@ -19,7 +19,7 @@ from elements import ShapeElement, TextElement
 from settings import BOARD_EXTENT, HIT_TOLERANCE, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
 from shortcuts import overview
-from ui import HelpPanel, MainBar, PaletteBar, SizeBar, Toast, ToolBar
+from ui import HelpPanel, MainBar, PaletteBar, SizeBar, Toast, ToolBar, ui_scale
 from wm import restore_focus
 
 # Screenshot-Modus: so lange nach einem Fokusverlust warten, bevor das Overlay ihn
@@ -132,9 +132,13 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.size_bar = SizeBar(SIZE_LEVELS, self.settings.theme)
         self.size_bar.selected.connect(self.set_size)
         self.main_bar = MainBar([self.tool_bar, self.palette_bar, self.size_bar], self.settings.theme, self)
+        # Leiste und Meldungen mit dem Bildschirm skalieren (4K = doppelt so groß wie 1080p)
+        self.ui_scale = ui_scale(screen)
+        self.main_bar.set_scale(self.ui_scale)
         self.place_bars()
 
         self.toast = Toast(self.settings.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
+        self.toast.set_scale(self.ui_scale)
         self.help_panel = HelpPanel(self.settings.theme, self)  # Tastenübersicht (?)
 
         self.set_tool(self.tool)
@@ -270,7 +274,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
     def place_bars(self):
         """Gemeinsame Leiste unten mittig."""
         bar = self.main_bar
-        bar.move((self.width() - bar.width()) // 2, self.height() - bar.height() - 20)
+        bar.move((self.width() - bar.width()) // 2, self.height() - bar.height() - round(20 * self.ui_scale))
 
     def show_overlay(self):
         """Fenster zeigen und den Tastaturfokus holen.
