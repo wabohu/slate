@@ -26,6 +26,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Text: klicken und tippen, Esc oder Klick daneben beendet die Eingabe. Vorhandenen Text ziehen = verschieben, Doppelklick = bearbeiten
 - Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
 - Alt+A S D F: Größe in Stufen 1-4 (Strichstärke bzw. Schriftgröße, `[size]` in der Config)
+- Alt+Mausrad: Größe fein einstellen (Text ±2 px, Strich ±1 px pro Raste), für Auswahl oder gerade getippten Text. Rasten kurz hintereinander = ein Undo-Schritt (`PropertyCommand` mit `mergeWith`)
 - Enter: Bild in die Zwischenablage und beenden, Strg+C: nur kopieren, Strg+S: PNG in `[output] dir` (Standard `~/Pictures/annotate`)
 - R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`
 

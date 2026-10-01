@@ -45,6 +45,10 @@ from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
 
+# Feineinstellung per Alt+Mausrad: Pixel pro Raste
+WHEEL_TEXT_STEP = 2
+WHEEL_STROKE_STEP = 1
+
 # Farben der Leiste ([ui]): Namen wie in [colors] plus "background", oder "#rrggbb"
 DEFAULT_BAR_BACKGROUND = "background"  # Hintergrund aus Alacritty colors.primary
 DEFAULT_BAR_FOREGROUND = "foreground"
@@ -63,6 +67,11 @@ TEXT_SIZE_RANGE = (6, 300)
 # Aktionen, die auch während der Texteingabe als Taste wirken (Präfixe der Aktionsnamen).
 # Nur Tasten, die beim Tippen kein Zeichen erzeugen sollen, sonst fehlen Buchstaben im Text
 ACTIONS_WHILE_TYPING = ("size_",)
+
+
+def clamp(value, value_range):
+    low, high = value_range
+    return max(low, min(high, value))
 
 
 def size_values(values, default, value_range, name):
@@ -156,6 +165,7 @@ class Canvas(QGraphicsView):
         self.drag_offset = None   # Abstand Mauspunkt -> Item-Position beim Anfassen
         self.drag_start = None    # Item-Position vor dem Verschieben
         self.passthrough = False  # Maus-Events gehen an den Text-Editor (Cursor setzen, markieren)
+        self.wheel_rest = 0       # angefangene Mausrad-Raste (Touchpads liefern kleine Schritte)
 
         # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
         # Auswahl-Werkzeug fest vorne, dann die Zeichenwerkzeuge in Config-Reihenfolge
@@ -511,6 +521,42 @@ class Canvas(QGraphicsView):
             self.undo_stack.push(AddItemCommand(self.scene_, self.current_item))
         self.current_item = None
         self.start_pos = None
+
+    # --- Mausrad ---
+    def wheelEvent(self, event):
+        """Alt+Mausrad: Größe fein einstellen (Auswahl oder gerade getippter Text)."""
+        if not event.modifiers() & Qt.AltModifier:
+            super().wheelEvent(event)
+            return
+        event.accept()
+        # Mit Alt meldet Qt das Mausrad unter Linux als waagerecht, darum beide Achsen
+        delta = event.angleDelta()
+        self.wheel_rest += delta.y() or delta.x()
+        steps = int(self.wheel_rest / 120)  # 120 = eine Raste
+        if steps == 0:
+            return
+        self.wheel_rest -= steps * 120
+        self.adjust_size(steps)
+
+    def adjust_size(self, steps):
+        """Größe um steps Rasten ändern, unabhängig von den Stufen."""
+        if self.editing_text:  # Undo-Schritt entsteht beim Beenden der Eingabe
+            item = self.editing_text
+            item.set_font_size(clamp(item.font_size + steps * WHEEL_TEXT_STEP, TEXT_SIZE_RANGE))
+            return
+        item = self.selected_element()
+        if isinstance(item, TextElement):
+            setter, old = item.set_font_size, item.font_size
+            new = clamp(old + steps * WHEEL_TEXT_STEP, TEXT_SIZE_RANGE)
+        elif isinstance(item, ShapeElement):
+            setter, old = item.set_width, item.width
+            new = clamp(old + steps * WHEEL_STROKE_STEP, STROKE_WIDTH_RANGE)
+        else:
+            self.toast.show_message("Alt+Mausrad: erst ein Element auswählen (W)")
+            return
+        if new != old:
+            self.undo_stack.push(PropertyCommand(setter, old, new, "Größe ändern", mergeable=True))
+            self.update_bars()  # beim Zusammenfassen meldet der Stack keine Änderung
 
     # --- Tastatur ---
     def event(self, event):

@@ -42,6 +42,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Q / E | Auswahl drehen −15° / +15° (Shift: in 1°-Schritten?) | 12 |
 | Entf / Backspace | Auswahl löschen | 12 |
 | Alt + A S D F | Größe in Stufen: Strichstärke, bei Text die Schriftgröße | 6 |
+| Alt + Mausrad | Größe fein einstellen (Auswahl bzw. getippter Text) | 6 |
 | X | Füllung an/aus (Rechteck, Ellipse) | 13, 15 |
 | C | Werkzeug nummerierter Marker | 9 |
 | Z | Werkzeug Unschärfe | 9 |

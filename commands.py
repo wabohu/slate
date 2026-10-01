@@ -8,6 +8,8 @@ Wer nach einem Undo etwas Neues macht, verwirft damit die Redo-Schritte.
 Die Befehle müssen darum so geschrieben sein, dass redo() auch dann stimmt,
 wenn die Änderung schon passiert ist (z. B. Item liegt schon in der Szene).
 """
+import time
+
 from PySide6.QtGui import QUndoCommand
 
 
@@ -85,13 +87,35 @@ class PropertyCommand(QUndoCommand):
     """Eine Eigenschaft geändert, z. B. Farbe oder Größe eines ausgewählten Elements.
 
     setter ist die Methode, die den Wert setzt (z. B. item.set_color).
+
+    mergeable=True (z. B. beim Mausrad): Folgen kurz hintereinander Änderungen
+    derselben Eigenschaft, fasst der Undo-Stack sie zu einem Schritt zusammen.
+    Qt-Konzept: push() ruft mergeWith() des obersten Befehls auf, wenn beide
+    dieselbe id() >= 0 haben; gibt mergeWith True zurück, wird der neue Befehl
+    nicht einzeln abgelegt.
     """
 
-    def __init__(self, setter, old, new, text="Eigenschaft ändern"):
+    MERGE_ID = 1
+    MERGE_WINDOW = 1.0  # Sekunden; längere Pause = neuer Undo-Schritt
+
+    def __init__(self, setter, old, new, text="Eigenschaft ändern", mergeable=False):
         super().__init__(text)
         self.setter = setter
         self.old = old
         self.new = new
+        self.mergeable = mergeable
+        self.time = time.monotonic()
+
+    def id(self):
+        return self.MERGE_ID if self.mergeable else -1  # -1 = nie zusammenfassen
+
+    def mergeWith(self, other):
+        # Gleiche Methode am gleichen Objekt (gebundene Methoden vergleichen beides)
+        if other.setter != self.setter or other.time - self.time > self.MERGE_WINDOW:
+            return False
+        self.new = other.new   # alter Wert bleibt, neuer Wert wird übernommen
+        self.time = other.time
+        return True
 
     def redo(self):
         self.setter(self.new)
