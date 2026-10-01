@@ -115,6 +115,18 @@ def main():
     board2.show_window()
     check("Whiteboard neu geladen = gleicher Export", board2.render_image() == board_image)
 
+    # Hintergrund wechseln (Strg+B): Undo-Schritt, wird mitgespeichert
+    old_bg = QColor(board2.board_color)
+    QTest.keyClick(board2, Qt.Key_B, Qt.ControlModifier)
+    new_bg = QColor(board2.board_color)
+    check("Strg+B wechselt den Hintergrund", new_bg != old_bg and not board2.undo_stack.isClean())
+    QTest.keyClick(board2, Qt.Key_R)
+    check("Hintergrund: Undo", board2.board_color == old_bg and board2.undo_stack.isClean())
+    QTest.keyClick(board2, Qt.Key_B, Qt.ControlModifier | Qt.ShiftModifier)
+    QTest.keyClick(board2, Qt.Key_S, Qt.ControlModifier)
+    bbg2, _, _, _ = load_document(board2.document_path)
+    check("Hintergrund gespeichert", bbg2 == board2.board_color != old_bg)
+
     print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
     return 1 if failures else 0
 

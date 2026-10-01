@@ -46,6 +46,8 @@ DEFAULT_KEYS = {
     "copy_image": "ctrl+c",    # Bild in die Zwischenablage, offen bleiben
     "zoom_reset": "ctrl+0",    # Whiteboard: Zoom auf 100 %
     "overview": "ctrl+w",      # Whiteboard: ganzes Dokument ins Fenster einpassen
+    "background_next": "ctrl+b",        # Whiteboard: nächster Hintergrund aus [board] backgrounds
+    "background_prev": "ctrl+shift+b",  # Whiteboard: voriger Hintergrund
     # Auswahl verschieben (Schrittweiten in [move]); Shift = feine Schritte
     "move_left": "h", "move_down": "j", "move_up": "k", "move_right": "l",
     "move_left_fine": "shift+h", "move_down_fine": "shift+j",

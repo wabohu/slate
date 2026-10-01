@@ -58,6 +58,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Mausrad, mittlere Maustaste ziehen | Whiteboard: Fläche verschieben (beide Achsen) | 11 |
 | Strg+Mausrad, Strg+0 | Whiteboard: zoomen, Zoom zurücksetzen | 11 |
 | Strg+W | Whiteboard: Übersicht, ganzes Dokument einpassen; erneut = zurück | 11 |
+| Strg+B / Strg+Shift+B | Whiteboard: Hintergrund weiter / zurück (`[board] backgrounds`) | 18 |
 | h j k l, Shift+h j k l | Auswahl verschieben (normal / fein) | 12 |
 | Strg+↑ / Strg+↓ | Nach vorne / nach hinten | 12 |
 

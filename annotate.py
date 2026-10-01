@@ -69,6 +69,8 @@ WHEEL_PAN_STEP = 80
 BOARD_EXTENT = 1_000_000
 BOARD_EXPORT_MARGIN = 32
 DEFAULT_BOARD_BACKGROUND = "background"
+# Hintergründe zum Durchblättern (Strg+B): Alacritty-Hintergrund, Papierweiß, helles Grau
+DEFAULT_BOARD_BACKGROUNDS = ("background", "#f8f6f0", "#e8e8e8")
 
 # Auswahl mit hjkl verschieben ([move]): Bildschirm-Pixel pro Tastendruck, normal und fein (Shift)
 DEFAULT_MOVE_STEP = 10
@@ -211,6 +213,7 @@ class Canvas(QGraphicsView):
             self.board_color = QColor(board_color) if board_color else \
                 self.config_color(config, "board", "background", DEFAULT_BOARD_BACKGROUND)
             self.scene_.setBackgroundBrush(self.board_color)
+            self.board_backgrounds = self.load_board_backgrounds(config)
             self.update_title()
 
         # Zustand
@@ -283,6 +286,8 @@ class Canvas(QGraphicsView):
             "quit": self.close,
             "zoom_reset": self.zoom_reset,
             "overview": self.overview,
+            "background_next": lambda: self.cycle_board_color(+1),
+            "background_prev": lambda: self.cycle_board_color(-1),
             "export_png": self.export_image,
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
@@ -359,6 +364,21 @@ class Canvas(QGraphicsView):
             print(f"[{section}] {key}: unbekannte Farbe {name!r}, nehme {default!r}", file=sys.stderr)
             value = self.palette_.lookup(default)
         return QColor(value)
+
+    def load_board_backgrounds(self, config):
+        """Liste aus [board] backgrounds (Namen wie in [colors], "background", "#rrggbb");
+        unbekannte Einträge überspringen, nichts Gültiges -> DEFAULT_BOARD_BACKGROUNDS."""
+        names = get_list(config, "board", "backgrounds") or []
+        colors = []
+        for name in names:
+            value = self.palette_.lookup(name)
+            if value is None:
+                print(f"[board] backgrounds: unbekannte Farbe {name!r}", file=sys.stderr)
+            else:
+                colors.append(QColor(value))
+        if not colors:
+            colors = [QColor(self.palette_.lookup(name)) for name in DEFAULT_BOARD_BACKGROUNDS]
+        return colors
 
     def load_theme(self, config):
         """Leistenfarben aus [ui]; unbekannte Namen oder Werte -> Alacritty-Farben."""
@@ -499,6 +519,29 @@ class Canvas(QGraphicsView):
             self.centerOn(self.used_rect().center())
         else:
             self.centerOn(0, 0)
+
+    # --- Whiteboard-Hintergrund ---
+    def set_board_color(self, color):
+        """Setter für PropertyCommand: Hintergrund des Whiteboards (wird mitgespeichert)."""
+        self.board_color = QColor(color)
+        self.scene_.setBackgroundBrush(self.board_color)
+
+    def cycle_board_color(self, step):
+        """Strg+B / Strg+Shift+B: nächster bzw. voriger Hintergrund aus der Liste.
+        Ist der aktuelle nicht in der Liste (z. B. aus einer Datei), geht es beim ersten
+        bzw. letzten los. Nur im Whiteboard."""
+        if not self.board:
+            return
+        colors = self.board_backgrounds
+        current = next((i for i, c in enumerate(colors) if c == self.board_color), None)
+        if current is None:
+            new = colors[0] if step > 0 else colors[-1]
+        else:
+            new = colors[(current + step) % len(colors)]
+        if new == self.board_color:
+            return  # nur ein Eintrag: nichts zu tun, kein leerer Undo-Schritt
+        self.undo_stack.push(PropertyCommand(
+            self.set_board_color, QColor(self.board_color), QColor(new), "Hintergrund ändern"))
 
     def update_title(self):
         name = Path(self.document_path).name if self.document_path else "neu"

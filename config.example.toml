@@ -45,6 +45,9 @@ dialogs = "rofi"
 # Whiteboard (python annotate.py --board): Hintergrundfarbe. Name wie in [colors],
 # "background" (Alacritty-Hintergrund) oder "#rrggbb"
 background = "background"
+# Hintergründe zum Durchblättern mit Strg+B / Strg+Shift+B (Undo-Schritt, wird mitgespeichert).
+# Namen wie oben. Steht der Start-Hintergrund nicht in der Liste, geht es beim ersten los.
+backgrounds = ["background", "#f8f6f0", "#e8e8e8"]   # Alacritty, Papierweiß, helles Grau
 
 [rect]
 # Eckenradius neuer Rechtecke in Pixeln (0 = spitze Ecken, höchstens 200).
@@ -79,6 +82,8 @@ copy_quit = "return"       # Bild in die Zwischenablage und beenden (Whiteboard:
 quit = "ctrl+q"            # beenden; im Whiteboard die einzige Taste dafür
 zoom_reset = "ctrl+0"      # Whiteboard: Zoom zurück auf 100 %
 overview = "ctrl+w"        # Whiteboard: Übersicht (alles einpassen), erneut = zurück
+background_next = "ctrl+b"        # Whiteboard: nächster Hintergrund aus [board] backgrounds
+background_prev = "ctrl+shift+b"  # Whiteboard: voriger Hintergrund
 # Auswahl verschieben (Schrittweiten in [move]), Shift = fein
 move_left = "h"
 move_down = "j"
