@@ -37,69 +37,19 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from colors import adapt_color, contrast, load_palette
+from colors import adapt_color, contrast
 from commands import AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand
-from config import get_float, get_int, get_int_list, get_list, get_str, load_config
+from config import load_config
 from elements import ShapeElement, TextElement
-from keymap import KeyMap
 from notify import NOT_AVAILABLE, ask, notify
-from tools import RECT_RADIUS, Tool, parse_tool, tool_icon, tool_order
+from tools import Tool, tool_icon
 from document import build_document, load_document, save_document
-from export import (copy_text_to_clipboard, copy_to_clipboard, default_output_dir, new_file_path,
-                    render_scene, save_png, short_path)
-from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
-
-
-# --- Einstellungen -----------------------------------------------------------
-# Fallbacks, wenn die eigene Config fehlt oder unbrauchbare Werte enthält
-DEFAULT_TOOL = Tool.FREEHAND
-DEFAULT_COLOR = "red"
-
-# Griffe am Auswahlrahmen: Kantenlänge beim Zeichnen und Fangradius beim Anklicken.
-# Alle drei Werte in Bildschirm-Pixeln, unabhängig vom Zoom
-HANDLE_SIZE = 8
-HANDLE_GRAB = 7
-HIT_TOLERANCE = 6  # so weit neben einem Strich zählt ein Klick noch als Treffer (D2)
-
-# Whiteboard-Ansicht: Zoomgrenzen, Faktor pro Mausrad-Raste, Pixel pro Raste beim Verschieben
-ZOOM_RANGE = (0.1, 8.0)
-ZOOM_STEP = 1.07
-WHEEL_PAN_STEP = 80
-
-# Whiteboard: halbe Kantenlänge der "unendlichen" Fläche, Rand um den Export ([board] background)
-BOARD_EXTENT = 1_000_000
-BOARD_EXPORT_MARGIN = 32
-DEFAULT_BOARD_BACKGROUND = "background"
-# Hintergründe zum Durchblättern (Strg+B): Alacritty-Hintergrund (dunkel), Papierweiß (hell)
-DEFAULT_BOARD_BACKGROUNDS = ("background", "#f8f6f0")
-
-# Auswahl mit hjkl verschieben ([move]): Bildschirm-Pixel pro Tastendruck, normal und fein (Shift)
-DEFAULT_MOVE_STEP = 10
-DEFAULT_MOVE_STEP_FINE = 1
-MOVE_STEP_RANGE = (1, 500)
-
-# Eckenradius neuer Rechtecke ([rect] in der Config): Screenshot bzw. Whiteboard
-DEFAULT_RECT_RADIUS_BOARD = 20
-RECT_RADIUS_RANGE = (0, 200)
-
-# Feineinstellung per Alt+Mausrad: Pixel pro Raste
-WHEEL_TEXT_STEP = 2
-WHEEL_STROKE_STEP = 1
-
-# Farben der Leiste ([ui]): Namen wie in [colors] plus "background", oder "#rrggbb"
-DEFAULT_BAR_BACKGROUND = "background"  # Hintergrund aus Alacritty colors.primary
-DEFAULT_BAR_FOREGROUND = "foreground"
-DEFAULT_BAR_OPACITY = 0.9
-
-# Größe in Stufen ([size]): Alt+A S D F wählt Stufe 1-4, gilt als Strichstärke
-# für Formen und als Schriftgröße für Text (Werte in Pixeln)
-SIZE_LEVELS = 4
-DEFAULT_SIZE_LEVEL = 2  # 1-basiert wie in der Config
-DEFAULT_STROKE_WIDTHS = (2, 4, 8, 12)
-DEFAULT_TEXT_SIZES = (16, 28, 40, 64)
-STROKE_WIDTH_RANGE = (1, 100)
-TEXT_SIZE_RANGE = (6, 300)
-
+from export import (copy_text_to_clipboard, copy_to_clipboard, new_file_path, render_scene, save_png,
+                    short_path)
+from settings import (BOARD_EXPORT_MARGIN, BOARD_EXTENT, HANDLE_GRAB, HANDLE_SIZE, HIT_TOLERANCE,
+                      SIZE_LEVELS, STROKE_WIDTH_RANGE, TEXT_SIZE_RANGE, WHEEL_PAN_STEP,
+                      WHEEL_STROKE_STEP, WHEEL_TEXT_STEP, ZOOM_RANGE, ZOOM_STEP, Settings)
+from ui import MainBar, PaletteBar, SizeBar, Toast, ToolBar
 
 # Aktionen, die auch während der Texteingabe als Taste wirken (Präfixe der Aktionsnamen).
 # Nur Tasten, die beim Tippen kein Zeichen erzeugen sollen, sonst fehlen Buchstaben im Text
@@ -109,18 +59,6 @@ ACTIONS_WHILE_TYPING = ("size_",)
 def clamp(value, value_range):
     low, high = value_range
     return max(low, min(high, value))
-
-
-def size_values(values, default, value_range, name):
-    """Genau SIZE_LEVELS Zahlen im erlaubten Bereich, sonst die Standardwerte."""
-    if values is None:
-        return list(default)
-    low, high = value_range
-    if len(values) != SIZE_LEVELS or not all(low <= v <= high for v in values):
-        print(f"[size] {name} braucht {SIZE_LEVELS} Werte zwischen {low} und {high}, "
-              f"nehme {list(default)}", file=sys.stderr)
-        return list(default)
-    return list(values)
 
 
 # --- Capture -----------------------------------------------------------------
@@ -175,47 +113,16 @@ class Canvas(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing)
         self.setCursor(Qt.CrossCursor)
 
-        config = load_config()
-
-        # Werkzeuge: Reihenfolge, Tasten und Startwerkzeug aus der Config
-        self.tools = tool_order(get_list(config, "tools", "order"))
-        self.tool = parse_tool(get_str(config, "tools", "default") or "") or DEFAULT_TOOL
-        # Tastenbelegung zentral in keymap.py, Overrides aus [keys] der Config
-        self.keymap = KeyMap(config)
-
-        # Größen-Stufen aus [size]; pen_width und text_size ergeben sich aus der Stufe
-        self.stroke_widths = size_values(
-            get_int_list(config, "size", "stroke"), DEFAULT_STROKE_WIDTHS, STROKE_WIDTH_RANGE, "stroke")
-        self.text_sizes = size_values(
-            get_int_list(config, "size", "text"), DEFAULT_TEXT_SIZES, TEXT_SIZE_RANGE, "text")
-        level = get_int(config, "size", "default") or DEFAULT_SIZE_LEVEL
-        if not 1 <= level <= SIZE_LEVELS:
-            print(f"[size] default={level} außerhalb 1-{SIZE_LEVELS}, nehme {DEFAULT_SIZE_LEVEL}", file=sys.stderr)
-            level = DEFAULT_SIZE_LEVEL
-        self.size_level = level - 1  # intern 0-basiert
-        # Alte Schreibweise [text] size: gilt als Schriftgröße der Startstufe
-        legacy = get_int(config, "text", "size")
-        if legacy is not None and get_int_list(config, "size", "text") is None:
-            low, high = TEXT_SIZE_RANGE
-            if low <= legacy <= high:
-                self.text_sizes[self.size_level] = legacy
-
-        # Farbwerte aus der Alacritty-Config (Fallback: Standardpalette),
-        # Auswahl, Reihenfolge und Startfarbe aus der eigenen Config
-        self.palette_ = load_palette()
-        self.swatches = self.palette_.swatches(get_list(config, "colors", "order"))
-        self.colors = [QColor(c) for c in self.swatches]
-        default_color = get_str(config, "colors", "default") or DEFAULT_COLOR
-        self.color_index = self.index_of(self.palette_.lookup(default_color))
-        self.pen_color = self.colors[self.color_index]
-        self.theme = self.load_theme(config)
-        self.light_overrides = self.load_light_overrides(config)
+        # Werte aus der Config (ändern sich während der Sitzung nicht), siehe settings.py
+        self.settings = Settings(load_config(), board)
+        self.tool = self.settings.default_tool
+        self.size_level = self.settings.default_size_level
+        self.color_index = self.settings.default_color_index
+        self.pen_color = self.settings.colors[self.color_index]
         if board:
             # Der Szenen-Hintergrund wird mitgerendert, landet also auch im Export
-            self.board_color = QColor(board_color) if board_color else \
-                self.config_color(config, "board", "background", DEFAULT_BOARD_BACKGROUND)
+            self.board_color = QColor(board_color or self.settings.board_background)
             self.scene_.setBackgroundBrush(self.board_color)
-            self.board_backgrounds = self.load_board_backgrounds(config)
             self.update_title()
 
         # Zustand
@@ -237,42 +144,24 @@ class Canvas(QGraphicsView):
 
         # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
         # Auswahl-Werkzeug fest vorne, dann die Zeichenwerkzeuge in Config-Reihenfolge
-        self.bar_tools = [Tool.SELECT] + self.tools
-        labels = [self.keymap.label("tool_select")]
-        labels += [self.keymap.label(f"tool_{i}") for i in range(1, len(self.tools) + 1)]
-        self.tool_bar = ToolBar([tool_icon(t) for t in self.bar_tools], labels, self.theme)
+        self.bar_tools = [Tool.SELECT] + self.settings.tools
+        labels = [self.settings.keymap.label("tool_select")]
+        labels += [self.settings.keymap.label(f"tool_{i}") for i in range(1, len(self.settings.tools) + 1)]
+        self.tool_bar = ToolBar([tool_icon(t) for t in self.bar_tools], labels, self.settings.theme)
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
         self.tool_bar.selected.connect(lambda i: self.set_tool(self.bar_tools[i]))
-        self.palette_bar = PaletteBar(self.swatches, self.theme)
+        self.palette_bar = PaletteBar(self.settings.swatches, self.settings.theme)
         if board:
             # Elemente fragen ihre Szene, wie ihre Farbe gezeigt wird (elements.shown_color)
             self.scene_.adapt_color = self.adapt_color
             self.refresh_colors()
         self.palette_bar.selected.connect(self.set_color)
-        self.size_bar = SizeBar(SIZE_LEVELS, self.theme)
+        self.size_bar = SizeBar(SIZE_LEVELS, self.settings.theme)
         self.size_bar.selected.connect(self.set_size)
-        self.main_bar = MainBar([self.tool_bar, self.palette_bar, self.size_bar], self.theme, self)
+        self.main_bar = MainBar([self.tool_bar, self.palette_bar, self.size_bar], self.settings.theme, self)
         self.place_bars()
 
-        self.toast = Toast(self.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
-
-        # Meldungen und Nachfragen: dunst/rofi oder Qt ([ui] messages, dialogs)
-        self.use_dunst = self.config_choice(config, "messages", ("dunst", "toast"))
-        self.use_rofi = self.config_choice(config, "dialogs", ("rofi", "qt"))
-        self.rofi_theme = get_str(config, "ui", "rofi_theme")  # None = rofi/annotate.rasi im Projekt
-
-        # Schrittweiten für hjkl aus [move]
-        # Eckenradius neuer Rechtecke aus [rect], im Whiteboard eigener Wert
-        self.rect_radius = self.config_radius(config, "radius_board", DEFAULT_RECT_RADIUS_BOARD) \
-            if board else self.config_radius(config, "radius", RECT_RADIUS)
-
-        self.move_steps = {
-            False: self.config_step(config, "step", DEFAULT_MOVE_STEP),
-            True: self.config_step(config, "step_fine", DEFAULT_MOVE_STEP_FINE),
-        }
-
-        # Ausgabe: Zielordner für PNGs ([output] dir), ~ ist erlaubt
-        self.output_dir = get_str(config, "output", "dir") or default_output_dir()
+        self.toast = Toast(self.settings.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
 
         self.set_tool(self.tool)
         self.set_color(self.color_index)
@@ -299,10 +188,10 @@ class Canvas(QGraphicsView):
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
         }
-        for i in range(len(self.tools)):
+        for i in range(len(self.settings.tools)):
             # Default-Argument i=i: sonst sähen alle Lambdas am Ende dasselbe (letzte) i
-            self.actions[f"tool_{i + 1}"] = lambda i=i: self.set_tool(self.tools[i])
-        for i in range(len(self.colors)):
+            self.actions[f"tool_{i + 1}"] = lambda i=i: self.set_tool(self.settings.tools[i])
+        for i in range(len(self.settings.colors)):
             self.actions[f"color_{i + 1}"] = lambda i=i: self.set_color(i)
         for i in range(SIZE_LEVELS):
             self.actions[f"size_{i + 1}"] = lambda i=i: self.set_size(i)
@@ -310,18 +199,9 @@ class Canvas(QGraphicsView):
             self.actions[f"move_{name}"] = lambda dx=dx, dy=dy: self.move_selected(dx, dy, fine=False)
             self.actions[f"move_{name}_fine"] = lambda dx=dx, dy=dy: self.move_selected(dx, dy, fine=True)
 
-    def config_choice(self, config, key, choices):
-        """[ui] key muss einer der choices sein; True = die erste (externe) Variante."""
-        value = get_str(config, "ui", key) or choices[0]
-        if value not in choices:
-            print(f"[ui] {key}={value!r} unbekannt, erlaubt: {', '.join(choices)}; nehme {choices[0]!r}",
-                  file=sys.stderr)
-            value = choices[0]
-        return value == choices[0]
-
     def report(self, text, error=False):
         """Ergebnis-Meldung (Gespeichert, Kopiert, Fehler …): per dunst, sonst Einblendung."""
-        if not (self.use_dunst and notify(text, error=error)):
+        if not (self.settings.use_dunst and notify(text, error=error)):
             self.toast.show_message(text)
 
     def ask(self, question, choices):
@@ -330,96 +210,16 @@ class Canvas(QGraphicsView):
         Im Screenshot-Modus hält das Fenster einen Keyboard-Grab; rofi bekäme sonst
         keine Tasten. Darum vorher freigeben und danach wieder holen.
         """
-        if not self.use_rofi:
+        if not self.settings.use_rofi:
             return NOT_AVAILABLE
         grabbed = not self.board
         if grabbed:
             self.releaseKeyboard()
         try:
-            return ask(question, choices, self.rofi_theme)
+            return ask(question, choices, self.settings.rofi_theme)
         finally:
             if grabbed:
                 self.grabKeyboard()
-
-    def config_radius(self, config, key, default):
-        """Eckenradius aus [rect]; außerhalb RECT_RADIUS_RANGE -> Standard."""
-        value = get_int(config, "rect", key)
-        if value is None:
-            return default
-        low, high = RECT_RADIUS_RANGE
-        if not low <= value <= high:
-            print(f"[rect] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
-            return default
-        return value
-
-    def config_step(self, config, key, default):
-        """Schrittweite aus [move]; außerhalb MOVE_STEP_RANGE -> Standard."""
-        value = get_int(config, "move", key)
-        if value is None:
-            return default
-        low, high = MOVE_STEP_RANGE
-        if not low <= value <= high:
-            print(f"[move] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
-            return default
-        return value
-
-    def config_color(self, config, section, key, default):
-        """Farbe aus der Config: Name aus der Palette, "background" oder "#rrggbb"."""
-        name = get_str(config, section, key) or default
-        value = self.palette_.lookup(name)
-        if value is None:
-            print(f"[{section}] {key}: unbekannte Farbe {name!r}, nehme {default!r}", file=sys.stderr)
-            value = self.palette_.lookup(default)
-        return QColor(value)
-
-    def load_board_backgrounds(self, config):
-        """Liste aus [board] backgrounds (Namen wie in [colors], "background", "#rrggbb");
-        unbekannte Einträge überspringen, nichts Gültiges -> DEFAULT_BOARD_BACKGROUNDS."""
-        names = get_list(config, "board", "backgrounds") or []
-        colors = []
-        for name in names:
-            value = self.palette_.lookup(name)
-            if value is None:
-                print(f"[board] backgrounds: unbekannte Farbe {name!r}", file=sys.stderr)
-            else:
-                colors.append(QColor(value))
-        if not colors:
-            colors = [QColor(self.palette_.lookup(name)) for name in DEFAULT_BOARD_BACKGROUNDS]
-        return colors
-
-    def load_light_overrides(self, config):
-        """[colors.light]: eigene helle Varianten, z. B. yellow = "#8f5e15".
-        Ergebnis: Grundfarbe -> helle Variante (beides "#rrggbb"); Fehler überspringen."""
-        colors_table = config.get("colors") if isinstance(config.get("colors"), dict) else {}
-        table = colors_table.get("light")
-        if not isinstance(table, dict):
-            return {}
-        overrides = {}
-        for name, value in table.items():
-            base = self.palette_.lookup(name)
-            light = self.palette_.lookup(value) if isinstance(value, str) else None
-            if base is None or light is None:
-                print(f"[colors.light] {name} = {value!r}: unbekannte Farbe, übersprungen", file=sys.stderr)
-            else:
-                overrides[base] = light
-        return overrides
-
-    def load_theme(self, config):
-        """Leistenfarben aus [ui]; unbekannte Namen oder Werte -> Alacritty-Farben."""
-        def color(key, default):
-            return self.config_color(config, "ui", key, default)
-
-        opacity = get_float(config, "ui", "bar_opacity")
-        if opacity is None or not 0 <= opacity <= 1:
-            if opacity is not None:
-                print(f"[ui] bar_opacity={opacity} außerhalb 0-1, nehme {DEFAULT_BAR_OPACITY}", file=sys.stderr)
-            opacity = DEFAULT_BAR_OPACITY
-        return Theme(color("bar_background", DEFAULT_BAR_BACKGROUND),
-                     color("bar_foreground", DEFAULT_BAR_FOREGROUND), opacity)
-
-    def index_of(self, hex_color):
-        """Position einer Farbe in der Leiste; fehlt sie, das erste Feld."""
-        return self.swatches.index(hex_color) if hex_color in self.swatches else 0
 
     def set_tool(self, tool):
         self.tool = tool
@@ -474,21 +274,21 @@ class Canvas(QGraphicsView):
             self.size_bar.set_active(self.size_level)
             return
         name = item.color.name()
-        self.palette_bar.set_active(self.swatches.index(name) if name in self.swatches else -1)
+        self.palette_bar.set_active(self.settings.swatches.index(name) if name in self.settings.swatches else -1)
         if isinstance(item, ShapeElement):
-            levels, value = self.stroke_widths, item.width
+            levels, value = self.settings.stroke_widths, item.width
         else:
-            levels, value = self.text_sizes, item.font_size
+            levels, value = self.settings.text_sizes, item.font_size
         self.size_bar.set_active(levels.index(value) if value in levels else -1)
 
     # Aktuelle Größe, abgeleitet aus der Stufe
     @property
     def pen_width(self):
-        return self.stroke_widths[self.size_level]
+        return self.settings.stroke_widths[self.size_level]
 
     @property
     def text_size(self):
-        return self.text_sizes[self.size_level]
+        return self.settings.text_sizes[self.size_level]
 
     def set_size(self, level):
         """Größen-Stufe (0-basiert) für neue Objekte, den getippten Text und die Auswahl."""
@@ -506,8 +306,8 @@ class Canvas(QGraphicsView):
 
     def set_color(self, index):
         """Farbe für neue Objekte, den getippten Text und die Auswahl."""
-        self.color_index = index % len(self.colors)
-        self.pen_color = self.colors[self.color_index]
+        self.color_index = index % len(self.settings.colors)
+        self.pen_color = self.settings.colors[self.color_index]
         if self.editing_text:  # Farbwechsel während der Eingabe gilt für diesen Text
             self.editing_text.set_color(self.pen_color)
         item = self.selected_element()
@@ -556,19 +356,19 @@ class Canvas(QGraphicsView):
         (colors.adapt_color), sonst unverändert. Gespeichert wird immer die Grundfarbe."""
         if not self.board:
             return QColor(color)
-        return QColor(adapt_color(QColor(color).name(), self.board_color.name(), self.light_overrides))
+        return QColor(adapt_color(QColor(color).name(), self.board_color.name(), self.settings.light_overrides))
 
     def refresh_colors(self):
         """Nach Hintergrundwechsel: Elemente und Farbleiste zeigen die passenden Varianten."""
         for item in self.elements():
             item.refresh_color()
-        self.palette_bar.set_colors([self.adapt_color(c) for c in self.swatches])
+        self.palette_bar.set_colors([self.adapt_color(c) for c in self.settings.swatches])
         self.viewport().update()
 
     def selection_colors(self):
         """(Linie, Füllung) für Auswahlrahmen und Griffe: die Leistenfarbe mit mehr
         Kontrast zum Whiteboard-Hintergrund als Linie, damit sie auf hell und dunkel sichtbar ist."""
-        line, fill = QColor(self.theme.foreground), QColor(self.theme.background)
+        line, fill = QColor(self.settings.theme.foreground), QColor(self.settings.theme.background)
         if self.board and contrast(fill.name(), self.board_color.name()) > \
                 contrast(line.name(), self.board_color.name()):
             line, fill = fill, line
@@ -582,7 +382,7 @@ class Canvas(QGraphicsView):
         bzw. letzten los. Nur im Whiteboard."""
         if not self.board:
             return
-        colors = self.board_backgrounds
+        colors = self.settings.board_backgrounds
         current = next((i for i, c in enumerate(colors) if c == self.board_color), None)
         if current is None:
             new = colors[0] if step > 0 else colors[-1]
@@ -680,7 +480,7 @@ class Canvas(QGraphicsView):
 
     def export_image(self):
         """Sauberes PNG ohne Bearbeitungsdaten, immer als neue Datei."""
-        path, message = save_png(self.render_image(), self.output_dir)
+        path, message = save_png(self.render_image(), self.settings.output_dir)
         self.report(message, error=path is None)
 
     def elements(self):
@@ -693,7 +493,7 @@ class Canvas(QGraphicsView):
         Rückgabe: Pfad der Datei, bei Fehler None."""
         rendered = self.render_image()
         try:
-            path = self.document_path or new_file_path(self.output_dir, "_board" if self.board else "")
+            path = self.document_path or new_file_path(self.settings.output_dir, "_board" if self.board else "")
         except OSError as e:
             self.report(f"Speichern fehlgeschlagen: {e}", error=True)
             return None
@@ -857,7 +657,7 @@ class Canvas(QGraphicsView):
             self.finish_shape(pos)
         self.start_pos = pos
         self.current_item = ShapeElement(self.tool, pos, self.pen_color, self.pen_width,
-                                         radius=self.rect_radius)
+                                         radius=self.settings.rect_radius)
         self.scene_.addItem(self.current_item)
 
     def mouseDoubleClickEvent(self, event):
@@ -1061,7 +861,7 @@ class Canvas(QGraphicsView):
         item = self.selected_element()
         if item is None:
             return
-        step = self.move_steps[fine] / self.zoom()
+        step = self.settings.move_steps[fine] / self.zoom()
         old = item.pos()
         self.undo_stack.push(MoveItemCommand(item, old, old + QPointF(dx * step, dy * step),
                                              "Verschieben", mergeable=True))
@@ -1105,7 +905,7 @@ class Canvas(QGraphicsView):
         if self.editing_text:
             # Während der Texteingabe gehen die Tasten an den Text. Ausnahmen: Esc beendet,
             # Größen-Tasten (Alt+…) ändern die Schriftgröße, statt einen Buchstaben zu tippen
-            action = self.keymap.action_for(event)
+            action = self.settings.keymap.action_for(event)
             if key == Qt.Key_Escape:
                 self.finish_text()
             elif action and action.startswith(ACTIONS_WHILE_TYPING) and action in self.actions:
@@ -1120,7 +920,7 @@ class Canvas(QGraphicsView):
             elif not self.board:  # Whiteboard schließt nur mit Strg+Q / Fenster schließen
                 self.close()
             return
-        action = self.keymap.action_for(event)
+        action = self.settings.keymap.action_for(event)
         if action in self.actions:  # Plätze ohne Werkzeug/Farbe haben keinen Handler
             self.actions[action]()
 
