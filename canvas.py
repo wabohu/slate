@@ -6,7 +6,7 @@ canvas_board.py (Whiteboard), canvas_output.py (Kopieren, Speichern, Meldungen),
 canvas_history.py (Verlauf). Feste Werte aus der Config: settings.py. Siehe docs/plan-aufteilung.md.
 """
 from PySide6.QtCore import QEvent, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QPainter, QUndoStack
+from PySide6.QtGui import QColor, QCursor, QPainter, QUndoStack
 from PySide6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView
 
 from canvas_board import BoardMixin
@@ -20,6 +20,10 @@ from settings import BOARD_EXTENT, HIT_TOLERANCE, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
 from ui import MainBar, PaletteBar, SizeBar, Toast, ToolBar
 from wm import restore_focus
+
+# Screenshot-Modus: so lange nach einem Fokusverlust warten, bevor das Overlay ihn
+# zurückholt (Maus steht noch darüber), damit der Window-Manager fertig ist
+FOCUS_RETRY_MS = 50
 
 # Aktionen, die auch während der Texteingabe als Taste wirken (Präfixe der Aktionsnamen).
 # Nur Tasten, die beim Tippen kein Zeichen erzeugen sollen, sonst fehlen Buchstaben im Text
@@ -103,6 +107,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         self.panning = None       # letzte Mausposition beim Verschieben mit der mittleren Taste
         self.zoom_rest = 0        # angefangene Raste beim Zoomen
         self.overview_return = None  # (Ansicht vorher, Ansicht in der Übersicht) für Strg+W zurück
+        self.asking = False  # rofi-Nachfrage offen: Fokus nicht zurückholen (canvas_output.ask)
         self.history_path = None  # Verlaufseintrag dieser Sitzung (canvas_history.py), None = aus
         self.history_timer = QTimer(self)
         self.history_timer.setSingleShot(True)
@@ -325,6 +330,27 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, QGraphicsView):
         Hotkey zwischendurch ein anderes Fenster fokussiert hat."""
         self.activateWindow()
         self.setFocus()
+
+    # Fokus folgt der Maus (wie focus_follows_mouse in herbstluftwm): Steht die Maus über
+    # dem Overlay, bekommt es die Tasten, sonst das Fenster, über dem sie steht.
+    def hovered(self):
+        return self.isVisible() and self.frameGeometry().contains(QCursor.pos())
+
+    def refocus_if_hovered(self):
+        if not self.board and not self.asking and not self.isActiveWindow() and self.hovered():
+            self.take_focus()
+
+    def changeEvent(self, event):
+        # Qt-Konzept: changeEvent meldet Zustandswechsel des Fensters, hier "aktiv/inaktiv".
+        # Hat ein Hotkey den Fokus weggenommen, die Maus steht aber noch hier: zurückholen.
+        # Kurz warten, damit der Window-Manager seinen Fokuswechsel erst abschließt
+        if event.type() == QEvent.ActivationChange and not self.board and not self.isActiveWindow():
+            QTimer.singleShot(FOCUS_RETRY_MS, self.refocus_if_hovered)
+        super().changeEvent(event)
+
+    def enterEvent(self, event):
+        self.refocus_if_hovered()  # Maus kommt von einem anderen Monitor herein
+        super().enterEvent(event)
 
     def show_window(self):
         """Whiteboard als normales Fenster zeigen, Ansicht auf die Elemente richten."""

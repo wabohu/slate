@@ -105,8 +105,10 @@ class OutputMixin:
         """
         if not self.settings.use_rofi:
             return NOT_AVAILABLE
+        self.asking = True  # rofi hat jetzt den Fokus, nicht zurückholen
         try:
             return ask(question, choices, self.settings.rofi_theme)
         finally:
+            self.asking = False
             if not self.board:
                 self.take_focus()
