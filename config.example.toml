@@ -31,6 +31,15 @@ text = [16, 28, 40, 64]      # Schriftgröße, je 6-300
 bar_background = "background"
 bar_foreground = "foreground"   # Symbole, Rahmen, Beschriftung
 bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
+# Kurze Meldungen (Gespeichert, Kopiert, Fehler): "dunst" (notify-send) oder "toast"
+# (Einblendung im Fenster). Fehlt notify-send, wird automatisch "toast" genommen.
+messages = "dunst"
+# Nachfragen (z. B. "Speichern?" beim Schließen des Whiteboards): "rofi" (rofi -dmenu,
+# Auswahl mit Pfeiltasten oder Fuzzy-Eingabe) oder "qt" (Qt-Dialog). Fehlt rofi: "qt".
+dialogs = "rofi"
+# Eigenes rofi-Theme für die Nachfragen; ohne Angabe rofi/annotate.rasi im Projekt
+# (lädt zusätzlich ~/.config/rofi/colors.rasi, falls vorhanden)
+# rofi_theme = "~/.config/rofi/themes/annotate.rasi"
 
 [board]
 # Whiteboard (python annotate.py --board): Hintergrundfarbe. Name wie in [colors],

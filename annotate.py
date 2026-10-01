@@ -42,6 +42,7 @@ from commands import AddItemCommand, EditTextCommand, MoveItemCommand, PropertyC
 from config import get_float, get_int, get_int_list, get_list, get_str, load_config
 from elements import ShapeElement, TextElement
 from keymap import KeyMap
+from notify import NOT_AVAILABLE, ask, notify
 from tools import Tool, parse_tool, tool_icon, tool_order
 from document import build_document, load_document, save_document
 from export import copy_to_clipboard, default_output_dir, new_file_path, render_scene, save_png
@@ -242,6 +243,11 @@ class Canvas(QGraphicsView):
 
         self.toast = Toast(self.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
 
+        # Meldungen und Nachfragen: dunst/rofi oder Qt ([ui] messages, dialogs)
+        self.use_dunst = self.config_choice(config, "messages", ("dunst", "toast"))
+        self.use_rofi = self.config_choice(config, "dialogs", ("rofi", "qt"))
+        self.rofi_theme = get_str(config, "ui", "rofi_theme")  # None = rofi/annotate.rasi im Projekt
+
         # Schrittweiten für hjkl aus [move]
         self.move_steps = {
             False: self.config_step(config, "step", DEFAULT_MOVE_STEP),
@@ -283,6 +289,37 @@ class Canvas(QGraphicsView):
         for name, (dx, dy) in {"left": (-1, 0), "down": (0, 1), "up": (0, -1), "right": (1, 0)}.items():
             self.actions[f"move_{name}"] = lambda dx=dx, dy=dy: self.move_selected(dx, dy, fine=False)
             self.actions[f"move_{name}_fine"] = lambda dx=dx, dy=dy: self.move_selected(dx, dy, fine=True)
+
+    def config_choice(self, config, key, choices):
+        """[ui] key muss einer der choices sein; True = die erste (externe) Variante."""
+        value = get_str(config, "ui", key) or choices[0]
+        if value not in choices:
+            print(f"[ui] {key}={value!r} unbekannt, erlaubt: {', '.join(choices)}; nehme {choices[0]!r}",
+                  file=sys.stderr)
+            value = choices[0]
+        return value == choices[0]
+
+    def report(self, text, error=False):
+        """Ergebnis-Meldung (Gespeichert, Kopiert, Fehler …): per dunst, sonst Einblendung."""
+        if not (self.use_dunst and notify(text, error=error)):
+            self.toast.show_message(text)
+
+    def ask(self, question, choices):
+        """Auswahl per rofi, sonst None. NOT_AVAILABLE = rofi nicht benutzbar (Qt nehmen).
+
+        Im Screenshot-Modus hält das Fenster einen Keyboard-Grab; rofi bekäme sonst
+        keine Tasten. Darum vorher freigeben und danach wieder holen.
+        """
+        if not self.use_rofi:
+            return NOT_AVAILABLE
+        grabbed = not self.board
+        if grabbed:
+            self.releaseKeyboard()
+        try:
+            return ask(question, choices, self.rofi_theme)
+        finally:
+            if grabbed:
+                self.grabKeyboard()
 
     def config_step(self, config, key, default):
         """Schrittweite aus [move]; außerhalb MOVE_STEP_RANGE -> Standard."""
@@ -450,6 +487,13 @@ class Canvas(QGraphicsView):
 
     def confirm_close(self):
         """Ungespeicherte Änderungen? Fragen: Speichern, Verwerfen oder Abbrechen."""
+        choice = self.ask("Das Whiteboard hat ungespeicherte Änderungen.",
+                          ["Speichern", "Verwerfen", "Abbrechen"])
+        if choice is not NOT_AVAILABLE:
+            if choice == 0:
+                self.save_drawing()
+                return self.undo_stack.isClean()
+            return choice == 1  # Abbrechen oder Esc: offen lassen
         answer = QMessageBox.question(
             self, "annotate", "Das Whiteboard hat ungespeicherte Änderungen. Speichern?",
             QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
@@ -502,7 +546,7 @@ class Canvas(QGraphicsView):
 
     def copy_image(self):
         ok, message = copy_to_clipboard(self.render_image())
-        self.toast.show_message(message)
+        self.report(message, error=not ok)
         return ok
 
     def copy_and_quit(self):
@@ -512,8 +556,8 @@ class Canvas(QGraphicsView):
 
     def export_image(self):
         """Sauberes PNG ohne Bearbeitungsdaten, immer als neue Datei."""
-        _, message = save_png(self.render_image(), self.output_dir)
-        self.toast.show_message(message)
+        path, message = save_png(self.render_image(), self.output_dir)
+        self.report(message, error=path is None)
 
     def elements(self):
         """Alle Elemente von unten nach oben (Reihenfolge beim Speichern)."""
@@ -526,7 +570,7 @@ class Canvas(QGraphicsView):
         try:
             path = self.document_path or new_file_path(self.output_dir, "_board" if self.board else "")
         except OSError as e:
-            self.toast.show_message(f"Speichern fehlgeschlagen: {e}")
+            self.report(f"Speichern fehlgeschlagen: {e}", error=True)
             return
         background = self.board_color if self.board else self.background_image
         ok, message = save_document(path, rendered, build_document(background, self.elements()))
@@ -535,7 +579,7 @@ class Canvas(QGraphicsView):
             self.undo_stack.setClean()  # Stand merken: ab hier "nichts ungespeichert"
             if self.board:
                 self.update_title()
-        self.toast.show_message(message)
+        self.report(message, error=not ok)
 
     # --- Text ---
     def start_text(self, pos):
@@ -980,7 +1024,7 @@ def main():
             canvas = Canvas(screen, QPixmap.fromImage(background), elements,
                             document_path=args.file if is_drawing else None)
             canvas.show_overlay()
-        canvas.toast.show_message(message)
+        canvas.report(message)
     elif args.board:
         screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
         canvas = Canvas(screen, None, board=True)

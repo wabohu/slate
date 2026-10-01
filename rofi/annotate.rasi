@@ -1,0 +1,82 @@
+/**
+ * Kompakte Nachfrage für annotate (z. B. "Speichern / Verwerfen / Abbrechen").
+ *
+ * Farben: Deine ~/.config/rofi/colors.rasi wird beim Aufruf zusätzlich geladen,
+ * falls vorhanden (annotate übergibt sie per -theme-str). Fehlt sie, gelten die
+ * Werte hinter dem Komma in var(...) (Tokyo Night Storm).
+ */
+* {
+    background:     var(base03, #24283b);
+    background-alt: var(base02, #414868);
+    foreground:     var(white, #c0caf5);
+    dimmed:         var(base00, #9aa5ce);
+    selected:       var(blue, #7aa2f7);
+    frame:          var(base01, #565f89);
+}
+
+window {
+    location:         center;
+    anchor:           center;
+    width:            460px;
+    padding:          18px;
+    border:           1px;
+    border-radius:    8px;
+    border-color:     @frame;
+    background-color: @background;
+}
+
+mainbox {
+    children:         [ message, inputbar, listview ];
+    spacing:          14px;
+    background-color: transparent;
+}
+
+message {
+    background-color: transparent;
+}
+
+textbox {
+    text-color:       @foreground;
+    background-color: transparent;
+}
+
+/* Eingabezeile für die Fuzzy-Suche: tippen filtert die Auswahl, Enter nimmt die oberste */
+inputbar {
+    children:         [ entry ];
+    padding:          7px 12px;
+    border-radius:    5px;
+    background-color: @background-alt;
+}
+
+entry {
+    placeholder:       "tippen zum Filtern …";
+    placeholder-color: @dimmed;
+    text-color:        @foreground;
+    background-color:  transparent;
+}
+
+listview {
+    lines:            3;
+    columns:          1;
+    fixed-height:     false;
+    scrollbar:        false;
+    spacing:          4px;
+    background-color: transparent;
+}
+
+element {
+    padding:          7px 12px;
+    border-radius:    5px;
+    background-color: transparent;
+    text-color:       @dimmed;
+}
+
+element selected.normal {
+    background-color: @background-alt;
+    text-color:       @selected;
+}
+
+element-text {
+    background-color: inherit;
+    text-color:       inherit;
+}
