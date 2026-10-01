@@ -53,14 +53,26 @@ from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
 
-# Griffe am Auswahlrahmen: Kantenlänge beim Zeichnen und Fangradius beim Anklicken (Pixel)
+# Griffe am Auswahlrahmen: Kantenlänge beim Zeichnen und Fangradius beim Anklicken.
+# Alle drei Werte in Bildschirm-Pixeln, unabhängig vom Zoom
 HANDLE_SIZE = 8
 HANDLE_GRAB = 7
+HIT_TOLERANCE = 6  # so weit neben einem Strich zählt ein Klick noch als Treffer (D2)
+
+# Whiteboard-Ansicht: Zoomgrenzen, Faktor pro Mausrad-Raste, Pixel pro Raste beim Verschieben
+ZOOM_RANGE = (0.1, 8.0)
+ZOOM_STEP = 1.07
+WHEEL_PAN_STEP = 80
 
 # Whiteboard: halbe Kantenlänge der "unendlichen" Fläche, Rand um den Export ([board] background)
 BOARD_EXTENT = 1_000_000
 BOARD_EXPORT_MARGIN = 32
 DEFAULT_BOARD_BACKGROUND = "background"
+
+# Auswahl mit hjkl verschieben ([move]): Bildschirm-Pixel pro Tastendruck, normal und fein (Shift)
+DEFAULT_MOVE_STEP = 10
+DEFAULT_MOVE_STEP_FINE = 1
+MOVE_STEP_RANGE = (1, 500)
 
 # Feineinstellung per Alt+Mausrad: Pixel pro Raste
 WHEEL_TEXT_STEP = 2
@@ -208,6 +220,9 @@ class Canvas(QGraphicsView):
         self.passthrough = False  # Maus-Events gehen an den Text-Editor (Cursor setzen, markieren)
         self.wheel_rest = 0       # angefangene Mausrad-Raste (Touchpads liefern kleine Schritte)
         self.resizing = None      # (Element, Griff-Nummer, Geometrie bei Zugbeginn) beim Ziehen am Griff
+        self.panning = None       # letzte Mausposition beim Verschieben mit der mittleren Taste
+        self.zoom_rest = 0        # angefangene Raste beim Zoomen
+        self.overview_return = None  # (Ansicht vorher, Ansicht in der Übersicht) für Strg+W zurück
         self.viewport().setMouseTracking(True)  # Mausbewegung auch ohne Taste (Zeiger über Griffen)
 
         # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
@@ -226,6 +241,12 @@ class Canvas(QGraphicsView):
         self.place_bars()
 
         self.toast = Toast(self.theme, self)  # kurze Meldungen, z. B. nach dem Speichern
+
+        # Schrittweiten für hjkl aus [move]
+        self.move_steps = {
+            False: self.config_step(config, "step", DEFAULT_MOVE_STEP),
+            True: self.config_step(config, "step_fine", DEFAULT_MOVE_STEP_FINE),
+        }
 
         # Ausgabe: Zielordner für PNGs ([output] dir), ~ ist erlaubt
         self.output_dir = get_str(config, "output", "dir") or default_output_dir()
@@ -246,6 +267,8 @@ class Canvas(QGraphicsView):
             "copy_image": self.copy_image,
             "save": self.save_drawing,
             "quit": self.close,
+            "zoom_reset": self.zoom_reset,
+            "overview": self.overview,
             "export_png": self.export_image,
             "color_next": lambda: self.set_color(self.color_index + 1),
             "color_prev": lambda: self.set_color(self.color_index - 1),
@@ -257,6 +280,20 @@ class Canvas(QGraphicsView):
             self.actions[f"color_{i + 1}"] = lambda i=i: self.set_color(i)
         for i in range(SIZE_LEVELS):
             self.actions[f"size_{i + 1}"] = lambda i=i: self.set_size(i)
+        for name, (dx, dy) in {"left": (-1, 0), "down": (0, 1), "up": (0, -1), "right": (1, 0)}.items():
+            self.actions[f"move_{name}"] = lambda dx=dx, dy=dy: self.move_selected(dx, dy, fine=False)
+            self.actions[f"move_{name}_fine"] = lambda dx=dx, dy=dy: self.move_selected(dx, dy, fine=True)
+
+    def config_step(self, config, key, default):
+        """Schrittweite aus [move]; außerhalb MOVE_STEP_RANGE -> Standard."""
+        value = get_int(config, "move", key)
+        if value is None:
+            return default
+        low, high = MOVE_STEP_RANGE
+        if not low <= value <= high:
+            print(f"[move] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            return default
+        return value
 
     def config_color(self, config, section, key, default):
         """Farbe aus der Config: Name aus der Palette, "background" oder "#rrggbb"."""
@@ -299,12 +336,19 @@ class Canvas(QGraphicsView):
         items = [i for i in self.scene_.selectedItems() if isinstance(i, (ShapeElement, TextElement))]
         return items[0] if items else None
 
+    def zoom(self):
+        """Aktueller Zoomfaktor der Ansicht (1.0 = 100 %)."""
+        return self.transform().m11()
+
     def element_at(self, pos):
         """Oberstes Element an der Szenenposition pos oder None.
 
-        scene.items(pos) prüft über shape(): bei Formen nur der Rand plus Toleranz (D2).
+        Sucht in einem kleinen Quadrat um pos, dessen Größe in Bildschirm-Pixeln fest ist
+        (HIT_TOLERANCE). Qt prüft dabei shape(): bei Formen nur der Rand (D2).
         """
-        for item in self.scene_.items(pos):  # sortiert von oben nach unten
+        r = HIT_TOLERANCE / self.zoom()
+        area = QRectF(pos.x() - r, pos.y() - r, 2 * r, 2 * r)
+        for item in self.scene_.items(area, Qt.IntersectsItemShape):  # von oben nach unten
             if isinstance(item, (ShapeElement, TextElement)):
                 return item
         return None
@@ -544,9 +588,10 @@ class Canvas(QGraphicsView):
         item = self.selected_element()
         if item is None or self.tool != Tool.SELECT or self.editing_text:
             return None
+        grab = HANDLE_GRAB / self.zoom()  # Fangradius in Szenen-Einheiten
         for i, local in enumerate(item.handle_points()):
             point = item.mapToScene(local)
-            if abs(point.x() - pos.x()) <= HANDLE_GRAB and abs(point.y() - pos.y()) <= HANDLE_GRAB:
+            if abs(point.x() - pos.x()) <= grab and abs(point.y() - pos.y()) <= grab:
                 return i
         return None
 
@@ -583,14 +628,20 @@ class Canvas(QGraphicsView):
             painter.drawPolygon(QPolygonF(points))
         fill = QColor(self.theme.background)
         fill.setAlpha(255)
-        painter.setPen(QPen(self.theme.foreground, 1.5))
+        outline = QPen(self.theme.foreground, 1.5)
+        outline.setCosmetic(True)
+        painter.setPen(outline)
         painter.setBrush(QBrush(fill))
-        half = HANDLE_SIZE / 2
+        size = HANDLE_SIZE / self.zoom()  # auf dem Bildschirm immer gleich groß
         for p in points:
-            painter.drawRect(QRectF(p.x() - half, p.y() - half, HANDLE_SIZE, HANDLE_SIZE))
+            painter.drawRect(QRectF(p.x() - size / 2, p.y() - size / 2, size, size))
 
     # --- Maus ---
     def mousePressEvent(self, event):
+        if event.button() == Qt.MiddleButton and self.board:
+            self.panning = event.position()  # Ansicht verschieben beginnt
+            self.viewport().setCursor(Qt.ClosedHandCursor)
+            return
         if event.button() != Qt.LeftButton:
             return
         pos = self.mapToScene(event.position().toPoint())
@@ -663,6 +714,11 @@ class Canvas(QGraphicsView):
             self.mousePressEvent(event)  # sonst wie ein normaler Klick behandeln
 
     def mouseMoveEvent(self, event):
+        if self.panning is not None:
+            delta = event.position() - self.panning
+            self.panning = event.position()
+            self.pan_by(delta.x(), delta.y())
+            return
         if self.passthrough:
             super().mouseMoveEvent(event)
             return
@@ -689,6 +745,10 @@ class Canvas(QGraphicsView):
             self.current_item.set_end(pos)
 
     def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MiddleButton and self.panning is not None:
+            self.panning = None
+            self.viewport().setCursor(Qt.ArrowCursor if self.tool == Tool.SELECT else Qt.CrossCursor)
+            return
         if event.button() != Qt.LeftButton:
             return
         if self.passthrough:
@@ -724,8 +784,16 @@ class Canvas(QGraphicsView):
 
     # --- Mausrad ---
     def wheelEvent(self, event):
-        """Alt+Mausrad: Größe fein einstellen (Auswahl oder gerade getippter Text)."""
-        if not event.modifiers() & Qt.AltModifier:
+        """Alt+Mausrad: Größe fein einstellen. Whiteboard: Mausrad verschiebt, Strg+Mausrad zoomt."""
+        mods = event.modifiers()
+        if self.board and not mods & Qt.AltModifier:
+            event.accept()
+            if mods & Qt.ControlModifier:
+                self.zoom_by_wheel(event.angleDelta().y() or event.angleDelta().x(), event.position())
+            else:
+                self.pan_by_wheel(event, swap=bool(mods & Qt.ShiftModifier))
+            return
+        if not mods & Qt.AltModifier:
             super().wheelEvent(event)
             return
         event.accept()
@@ -737,6 +805,102 @@ class Canvas(QGraphicsView):
             return
         self.wheel_rest -= steps * 120
         self.adjust_size(steps)
+
+    # --- Whiteboard-Ansicht: verschieben und zoomen ---
+    def pan_by(self, dx, dy):
+        """Ansicht um dx/dy Bildschirm-Pixel verschieben (Inhalt folgt der Maus).
+
+        Die Scrollbalken sind ausgeblendet, funktionieren aber weiter: Ihr Wert ist die
+        Position der Ansicht in der großen Szene.
+        """
+        self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - round(dx))
+        self.verticalScrollBar().setValue(self.verticalScrollBar().value() - round(dy))
+
+    def pan_by_wheel(self, event, swap):
+        """Mausrad: senkrecht; Kipprad/Touchpad: waagerecht; Shift: Achsen tauschen."""
+        pixels = event.pixelDelta()  # Touchpads liefern genaue Pixel
+        if not pixels.isNull():
+            dx, dy = pixels.x(), pixels.y()
+        else:
+            angle = event.angleDelta()
+            dx, dy = angle.x() / 120 * WHEEL_PAN_STEP, angle.y() / 120 * WHEEL_PAN_STEP
+        if swap:
+            dx, dy = dy, dx
+        self.pan_by(dx, dy)
+
+    def zoom_by_wheel(self, delta, mouse):
+        """Zoomen, wobei der Punkt unter dem Mauszeiger (mouse, Viewport-Koordinaten) stehen bleibt.
+
+        Qts AnchorUnderMouse geht hier nicht: Es merkt sich die Mausposition in
+        QGraphicsView.mouseMoveEvent, das wir überschreiben. Darum von Hand verankern.
+        """
+        self.zoom_rest += delta
+        steps = int(self.zoom_rest / 120)
+        if steps == 0:
+            return
+        self.zoom_rest -= steps * 120
+        factor = clamp(self.zoom() * ZOOM_STEP ** steps, ZOOM_RANGE) / self.zoom()
+        anchor = self.mapToScene(mouse.toPoint())  # Szenenpunkt unter der Maus
+        self.scale(factor, factor)
+        drift = self.mapFromScene(anchor) - mouse.toPoint()  # wohin er durchs Skalieren gewandert ist
+        self.pan_by(-drift.x(), -drift.y())
+        self.toast.show_message(f"Zoom {round(self.zoom() * 100)} %")
+
+    def view_state(self):
+        """Aktuelle Ansicht: Transformation (Zoom) und Szenenpunkt in der Fenstermitte."""
+        return self.transform(), self.mapToScene(self.viewport().rect().center())
+
+    def set_view_state(self, state):
+        transform, center = state
+        self.setTransform(transform)
+        self.centerOn(center)
+
+    def overview(self):
+        """Whiteboard: alle Elemente ins Fenster einpassen (höchstens 100 %).
+
+        Erneutes Strg+W springt zurück zur Ansicht davor, solange die Übersicht
+        unverändert ist (nicht gezoomt oder verschoben); sonst wieder Übersicht.
+        """
+        if not self.board:
+            return
+        if self.overview_return:
+            before, during = self.overview_return
+            self.overview_return = None
+            transform, center = self.view_state()
+            if transform == during[0] and (center - during[1]).manhattanLength() < 1:
+                self.set_view_state(before)
+                self.toast.show_message(f"Zurück ({round(self.zoom() * 100)} %)")
+                return
+        before = self.view_state()
+        if not self.elements():
+            self.resetTransform()
+            self.centerOn(0, 0)
+        else:
+            rect = self.used_rect()
+            view = self.viewport().rect()
+            factor = clamp(min(view.width() / rect.width(), view.height() / rect.height()),
+                           (ZOOM_RANGE[0], 1.0))
+            self.resetTransform()
+            self.scale(factor, factor)
+            self.centerOn(rect.center())
+        self.overview_return = (before, self.view_state())
+        self.toast.show_message(f"Übersicht ({round(self.zoom() * 100)} %)")
+
+    def move_selected(self, dx, dy, fine):
+        """Auswahl um einen Schritt (Bildschirm-Pixel, zoomunabhängig) verschieben."""
+        item = self.selected_element()
+        if item is None:
+            return
+        step = self.move_steps[fine] / self.zoom()
+        old = item.pos()
+        self.undo_stack.push(MoveItemCommand(item, old, old + QPointF(dx * step, dy * step),
+                                             "Verschieben", mergeable=True))
+        self.update_bars()  # Griffe mitbewegen; beim Zusammenfassen meldet der Stack nichts
+
+    def zoom_reset(self):
+        if self.board:
+            self.resetTransform()  # zurück auf 100 %, ohne Drehung/Verzerrung
+            self.toast.show_message("Zoom 100 %")
 
     def adjust_size(self, steps):
         """Größe um steps Rasten ändern, unabhängig von den Stufen."""

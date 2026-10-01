@@ -15,8 +15,6 @@ from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem, QStyle, QSty
 from tools import Tool, shape_path
 
 
-# Wie viele Pixel neben dem Strich ein Klick noch als Treffer zählt
-HIT_TOLERANCE = 6
 
 
 def new_id():
@@ -119,13 +117,14 @@ class ShapeElement(QGraphicsPathItem):
         path.lineTo(local)
         self.setPath(path)
 
-    # --- Treffer beim Anklicken (D2: nur der Rand, mit Toleranz) ---
+    # --- Treffer beim Anklicken (D2: nur der Rand) ---
     # Qt fragt shape() für Klicks und boundingRect() für Neuzeichnen und Suche.
     # Standard bei geschlossenen Pfaden wäre: auch das Innere ist Treffer.
+    # Die Toleranz neben dem Strich gibt die Canvas dazu (in Bildschirm-Pixeln, zoomunabhängig).
     def shape(self):
         if self._hit_shape is None:
             stroker = QPainterPathStroker()  # macht aus einer Linie eine Fläche dieser Breite
-            stroker.setWidth(self.width + 2 * HIT_TOLERANCE)
+            stroker.setWidth(self.width + 2)
             stroker.setCapStyle(Qt.RoundCap)
             stroker.setJoinStyle(Qt.RoundJoin)
             self._hit_shape = stroker.createStroke(self.path())

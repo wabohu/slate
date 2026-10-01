@@ -10,6 +10,7 @@ wenn die Änderung schon passiert ist (z. B. Item liegt schon in der Szene).
 """
 import time
 
+from PySide6.QtCore import QPointF
 from PySide6.QtGui import QUndoCommand
 
 
@@ -46,13 +47,32 @@ class RemoveItemCommand(QUndoCommand):
 
 
 class MoveItemCommand(QUndoCommand):
-    """Objekt von old_pos nach new_pos verschoben."""
+    """Objekt von old_pos nach new_pos verschoben.
 
-    def __init__(self, item, old_pos, new_pos, text="Verschieben"):
+    mergeable=True (Verschieben per Taste): Schritte kurz hintereinander am selben
+    Objekt werden zu einem Undo-Schritt zusammengefasst (siehe PropertyCommand).
+    """
+
+    MERGE_ID = 2
+    MERGE_WINDOW = 1.0
+
+    def __init__(self, item, old_pos, new_pos, text="Verschieben", mergeable=False):
         super().__init__(text)
         self.item = item
-        self.old_pos = old_pos
-        self.new_pos = new_pos
+        self.old_pos = QPointF(old_pos)  # Kopien: setPos ändert die Originale nicht, aber sicher ist sicher
+        self.new_pos = QPointF(new_pos)
+        self.mergeable = mergeable
+        self.time = time.monotonic()
+
+    def id(self):
+        return self.MERGE_ID if self.mergeable else -1
+
+    def mergeWith(self, other):
+        if other.item is not self.item or other.time - self.time > self.MERGE_WINDOW:
+            return False
+        self.new_pos = other.new_pos
+        self.time = other.time
+        return True
 
     def redo(self):
         self.item.setPos(self.new_pos)

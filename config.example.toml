@@ -37,6 +37,11 @@ bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
 # "background" (Alacritty-Hintergrund) oder "#rrggbb"
 background = "background"
 
+[move]
+# Ausgewähltes Element mit h j k l verschieben: Bildschirm-Pixel pro Tastendruck (1-500)
+step = 10          # h j k l
+step_fine = 1      # Shift+h j k l
+
 [output]
 # Ordner für Strg+S (Zeichnung) und Strg+E (Export), PNG mit Zeitstempel. ~ ist erlaubt.
 # Standard: ~/Pictures/annotate
@@ -56,6 +61,17 @@ color_next = "tab"
 color_prev = "shift+tab"
 copy_quit = "return"       # Bild in die Zwischenablage und beenden (Whiteboard: nur kopieren)
 quit = "ctrl+q"            # beenden; im Whiteboard die einzige Taste dafür
+zoom_reset = "ctrl+0"      # Whiteboard: Zoom zurück auf 100 %
+overview = "ctrl+w"        # Whiteboard: Übersicht (alles einpassen), erneut = zurück
+# Auswahl verschieben (Schrittweiten in [move]), Shift = fein
+move_left = "h"
+move_down = "j"
+move_up = "k"
+move_right = "l"
+move_left_fine = "shift+h"
+move_down_fine = "shift+j"
+move_up_fine = "shift+k"
+move_right_fine = "shift+l"
 copy_image = "ctrl+c"      # Bild in die Zwischenablage, offen bleiben
 save = "ctrl+s"            # bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten)
 export_png = "ctrl+e"      # sauberes PNG ohne Bearbeitungsdaten

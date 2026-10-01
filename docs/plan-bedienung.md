@@ -55,10 +55,13 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Strg+S | Zeichnung speichern (bearbeitbares PNG) | D1 |
 | Strg+E | Sauberes PNG exportieren | 7 |
 | Alt+← / Alt+→ | Verlauf: vorheriger / nächster Screenshot | 10 |
-| Leertaste + Ziehen, Strg+Mausrad | Whiteboard: Fläche verschieben, zoomen | 11 |
+| Mausrad, mittlere Maustaste ziehen | Whiteboard: Fläche verschieben (beide Achsen) | 11 |
+| Strg+Mausrad, Strg+0 | Whiteboard: zoomen, Zoom zurücksetzen | 11 |
+| Strg+W | Whiteboard: Übersicht, ganzes Dokument einpassen; erneut = zurück | 11 |
+| h j k l, Shift+h j k l | Auswahl verschieben (normal / fein) | 12 |
 | Strg+↑ / Strg+↓ | Nach vorne / nach hinten | 12 |
 
-Noch frei danach: Y U I O P H J K L N M, 1–0, Shift+Q/W/E/T, Alt-Kombinationen außer
+Noch frei danach: Y U I O P N M, 1–0, Shift+Q/W/E/T, Alt-Kombinationen außer
 Alt + A S D F und Alt+Pfeile.
 
 **Verbinder (15)** brauchen keine eigene Taste: Beginnt oder endet ein Pfeil auf einer

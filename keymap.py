@@ -44,6 +44,12 @@ DEFAULT_KEYS = {
     "color_prev": "shift+tab",
     "copy_quit": "return",     # Bild in die Zwischenablage und beenden
     "copy_image": "ctrl+c",    # Bild in die Zwischenablage, offen bleiben
+    "zoom_reset": "ctrl+0",    # Whiteboard: Zoom auf 100 %
+    "overview": "ctrl+w",      # Whiteboard: ganzes Dokument ins Fenster einpassen
+    # Auswahl verschieben (Schrittweiten in [move]); Shift = feine Schritte
+    "move_left": "h", "move_down": "j", "move_up": "k", "move_right": "l",
+    "move_left_fine": "shift+h", "move_down_fine": "shift+j",
+    "move_up_fine": "shift+k", "move_right_fine": "shift+l",
     "quit": "ctrl+q",          # beenden (im Whiteboard die einzige Taste dafür, Esc schließt dort nicht)
     "save": "ctrl+s",          # bearbeitbare Zeichnung (PNG mit eingebetteten Daten)
     "export_png": "ctrl+e",    # sauberes PNG ohne Bearbeitungsdaten
