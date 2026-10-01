@@ -43,6 +43,7 @@ DEFAULT_KEYS = {
     "color_next": "tab",
     "color_prev": "shift+tab",
     "copy_quit": "return",     # Bild in die Zwischenablage und beenden
+    "copy_path_quit": "shift+return",  # speichern (wie Strg+S), absoluten Pfad kopieren, beenden
     "copy_image": "ctrl+c",    # Bild in die Zwischenablage, offen bleiben
     "zoom_reset": "ctrl+0",    # Whiteboard: Zoom auf 100 %
     "overview": "ctrl+w",      # Whiteboard: ganzes Dokument ins Fenster einpassen

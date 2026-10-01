@@ -89,6 +89,7 @@ redo = "shift+r"
 color_next = "tab"
 color_prev = "shift+tab"
 copy_quit = "return"       # Bild in die Zwischenablage und beenden (Whiteboard: nur kopieren)
+copy_path_quit = "shift+return"  # speichern wie Strg+S, absoluten Pfad kopieren, beenden (Whiteboard: offen)
 quit = "ctrl+q"            # beenden; im Whiteboard die einzige Taste dafür
 zoom_reset = "ctrl+0"      # Whiteboard: Zoom zurück auf 100 %
 overview = "ctrl+w"        # Whiteboard: Übersicht (alles einpassen), erneut = zurück

@@ -52,6 +52,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Strg+V / Strg+D | Einfügen / Duplizieren | 12 |
 | Strg+A | Alles auswählen | 12 |
 | Enter | Bild in die Zwischenablage und beenden | 7 |
+| Shift+Enter | Speichern (wie Strg+S), absoluten Pfad in die Zwischenablage, beenden | 7 |
 | Strg+S | Zeichnung speichern (bearbeitbares PNG) | D1 |
 | Strg+E | Sauberes PNG exportieren | 7 |
 | Alt+← / Alt+→ | Verlauf: vorheriger / nächster Screenshot | 10 |

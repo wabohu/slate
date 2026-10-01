@@ -58,6 +58,24 @@ def copy_to_clipboard(image):
     return True, "In die Zwischenablage kopiert (ohne xclip, evtl. nicht dauerhaft)"
 
 
+def copy_text_to_clipboard(text):
+    """Text (z. B. einen Pfad) in die Zwischenablage, wie copy_to_clipboard. Rückgabe: ok."""
+    if shutil.which("xclip"):
+        try:
+            subprocess.run(
+                ["xclip", "-selection", "clipboard", "-i"],
+                input=text.encode(),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=5, check=True,
+            )
+            return True
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"[export] xclip fehlgeschlagen: {e}", file=sys.stderr)
+    QGuiApplication.clipboard().setText(text)
+    print("[export] xclip fehlt, Text nur in der Qt-Zwischenablage", file=sys.stderr)
+    return True
+
+
 def default_output_dir():
     """~/Pictures/annotate bzw. der XDG-Bilderordner, falls anders benannt."""
     pictures = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)

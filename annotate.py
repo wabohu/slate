@@ -45,7 +45,8 @@ from keymap import KeyMap
 from notify import NOT_AVAILABLE, ask, notify
 from tools import RECT_RADIUS, Tool, parse_tool, tool_icon, tool_order
 from document import build_document, load_document, save_document
-from export import copy_to_clipboard, default_output_dir, new_file_path, render_scene, save_png
+from export import (copy_text_to_clipboard, copy_to_clipboard, default_output_dir, new_file_path,
+                    render_scene, save_png, short_path)
 from ui import MainBar, PaletteBar, SizeBar, Theme, Toast, ToolBar
 
 
@@ -286,6 +287,7 @@ class Canvas(QGraphicsView):
             "undo": self.undo_stack.undo,
             "redo": self.undo_stack.redo,
             "copy_quit": self.copy_and_quit,
+            "copy_path_quit": self.copy_path_and_quit,
             "copy_image": self.copy_image,
             "save": self.save_drawing,
             "quit": self.close,
@@ -664,6 +666,18 @@ class Canvas(QGraphicsView):
         if self.copy_image() and not self.board:
             self.close()
 
+    def copy_path_and_quit(self):
+        """Shift+Enter: speichern wie Strg+S, absoluten Pfad der Datei in die Zwischenablage,
+        beenden; im Whiteboard bleibt das Fenster offen (wie bei Enter)."""
+        path = self.save_drawing()
+        if path is None:
+            return  # Fehler hat save_drawing schon gemeldet
+        path = Path(path).resolve()
+        copy_text_to_clipboard(str(path))
+        self.report(f"Pfad kopiert: {short_path(path)}")
+        if not self.board:
+            self.close()
+
     def export_image(self):
         """Sauberes PNG ohne Bearbeitungsdaten, immer als neue Datei."""
         path, message = save_png(self.render_image(), self.output_dir)
@@ -675,13 +689,14 @@ class Canvas(QGraphicsView):
                 if isinstance(i, (ShapeElement, TextElement))]
 
     def save_drawing(self):
-        """Bearbeitbare Zeichnung: beim ersten Mal neue Datei, danach dieselbe überschreiben."""
+        """Bearbeitbare Zeichnung: beim ersten Mal neue Datei, danach dieselbe überschreiben.
+        Rückgabe: Pfad der Datei, bei Fehler None."""
         rendered = self.render_image()
         try:
             path = self.document_path or new_file_path(self.output_dir, "_board" if self.board else "")
         except OSError as e:
             self.report(f"Speichern fehlgeschlagen: {e}", error=True)
-            return
+            return None
         background = self.board_color if self.board else self.background_image
         ok, message = save_document(path, rendered, build_document(background, self.elements()))
         if ok:
@@ -690,6 +705,7 @@ class Canvas(QGraphicsView):
             if self.board:
                 self.update_title()
         self.report(message, error=not ok)
+        return path if ok else None
 
     # --- Text ---
     def start_text(self, pos):

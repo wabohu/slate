@@ -115,6 +115,13 @@ def main():
     board2.show_window()
     check("Whiteboard neu geladen = gleicher Export", board2.render_image() == board_image)
 
+    # Shift+Enter: speichern, absoluten Pfad kopieren; Whiteboard bleibt offen
+    QTest.keyClick(board2, Qt.Key_Return, Qt.ShiftModifier)
+    copied = QGuiApplication.clipboard().text()
+    check("Shift+Enter: absoluter Pfad kopiert",
+          copied == str(Path(board2.document_path).resolve()) and Path(copied).is_absolute()
+          and board2.undo_stack.isClean() and board2.isVisible())
+
     # Hintergrund wechseln (Strg+B): Undo-Schritt, wird mitgespeichert
     old_bg = QColor(board2.board_color)
     QTest.keyClick(board2, Qt.Key_B, Qt.ControlModifier)
