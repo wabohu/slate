@@ -6,7 +6,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 - Arch Linux, X11 (kein Wayland), Window-Manager: herbstluftwm
 - Terminal: Alacritty (Config in TOML)
 - Python 3 + PySide6 (Qt6). Abhängigkeiten über pacman (`python-pyside6`), keine pip-Pakete ohne Rückfrage
-- Ich habe eine funktionierende X11-Desktop-Session. Du selbst kannst die GUI nicht starten. Sag mir, wie ich testen soll, und ich melde mich mit dem Ergebnis
+- Ich habe eine funktionierende X11-Desktop-Session. Auf meinem Bildschirm kannst du die GUI nicht bedienen, aber in einem eigenen unsichtbaren X-Server (`tests/gui/`, Xvfb + herbstluftwm + sxhkd, gesteuert per xdotool, Bildschirmfotos in `tests/gui/out/`, die du dir ansehen kannst). Was dort nicht prüfbar ist (Flackern, meine zwei Monitore, HiDPI, Geschmack), teste ich: Sag mir, wie, und ich melde mich mit dem Ergebnis
 
 ## Architektur
 - Der Screenshot wird per `QScreen.grabWindow(0)` aufgenommen, bevor das Fenster erscheint
@@ -35,7 +35,8 @@ Nicht in jeder Sitzung nötig, bei Bedarf lesen:
 
 ## Konventionen
 - Kleine, lauffähige Schritte. Nach jedem Schritt muss das Programm starten
-- Vor jedem Commit alle drei Tests: `python tests/regress.py` (zeichnet ohne Bildschirm eine feste Szene und vergleicht mit `tests/regress_reference.png`), `python tests/test_document.py` (Speichern, Laden, Weiterbearbeiten) und `python tests/test_settings.py` (Config-Werte und Fallbacks). Ändert sich die Optik absichtlich, Referenz mit `--update` neu schreiben und das im Commit erwähnen
+- Neue Bedienung, die man per Tastatur/Maus prüfen kann, bekommt nach Möglichkeit ein GUI-Szenario in `tests/gui/` (Harness: `tests/gui/harness.py`, Vorlage: `test_overlay.py`). Erst selbst dort testen, dann mir nur noch die Handtests geben, die der GUI-Test nicht abdeckt
+- Vor jedem Commit alle Tests: `python tests/gui/test_overlay.py` (GUI-Test im eigenen X-Server: Start per Hotkey, Fokus, sxhkd-Hotkeys bei offenem Overlay, Fokus zurück nach Esc, Verlauf; danach die Fotos in `tests/gui/out/overlay/` ansehen), `python tests/regress.py` (zeichnet ohne Bildschirm eine feste Szene und vergleicht mit `tests/regress_reference.png`), `python tests/test_document.py` (Speichern, Laden, Weiterbearbeiten) und `python tests/test_settings.py` (Config-Werte und Fallbacks). Ändert sich die Optik absichtlich, Referenz mit `--update` neu schreiben und das im Commit erwähnen
 - Code bleibt lesbar und in getrennten Bereichen bzw. Dateien: Capture, Zeichenlogik/Canvas, UI, Export. Wohin neuer Code gehört: Faustregel in `docs/plan-aufteilung.md`
 - Tastenkürzel müssen auf dem US-Tastaturlayout funktionieren (`us`, Variante `altgr-intl`)
 - Fehlende Konfigurationsdateien oder Werte dürfen nie zum Absturz führen, immer sinnvolle Fallbacks
