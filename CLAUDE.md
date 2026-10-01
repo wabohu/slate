@@ -85,7 +85,10 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 18. [ ] Hintergrundfarbe im laufenden Whiteboard ändern (bisher nur per Config `[board] background`). Ideen:
     - Auswahl aus der Farbleiste plus Hell/Dunkel (z. B. Weiß wie Papier, Alacritty-Hintergrund), per Taste oder Schalter in der Leiste; Tastenbelegung mit D4 abstimmen
     - Als Undo-Schritt (`PropertyCommand` auf eine Setter-Methode für die Board-Farbe), wird mitgespeichert (steckt schon im Dateiformat: `background.type = "color"`)
-    - Zu klären: Gilt das auch im Screenshot-Modus (z. B. Screenshot abdunkeln oder durch Fläche ersetzen)? Bei hellem Hintergrund passen helle Palettenfarben schlecht, evtl. Leistenfarben/Kontrast mitdenken
+    - Nur im Whiteboard, nicht im Screenshot-Modus (entschieden). Bei hellem Hintergrund passen helle Palettenfarben schlecht, evtl. Leistenfarben/Kontrast mitdenken
+19. [ ] Text per Doppelklick anlegen, ohne vorher T zu drücken. Empfehlung: im Auswahl-Werkzeug Doppelklick auf leere Stelle = neuer Text dort (wie Excalidraw); auf Text = bearbeiten (gibt es schon); auf Form = beschriften (Punkt 15)
+    - In Zeichenwerkzeugen eher nicht: Qt meldet den Doppelklick erst nach dem ersten Klick, Freihand hat dann schon einen Punkt gezeichnet (müsste samt Undo-Schritt wieder weg), und zwei schnelle Freihand-Punkte würden ungewollt zu Text. Linie/Rechteck/Ellipse wären unkritisch (Klick ohne Ziehen wird verworfen)
+    - Offen: nur Auswahl-Werkzeug oder auch Zeichenwerkzeuge
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.
