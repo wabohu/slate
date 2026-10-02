@@ -67,6 +67,12 @@ def tool_mark(tool, size):
     elif tool == Tool.FREEHAND:
         path.moveTo(-h, h * .3)
         path.cubicTo(-h * .3, -h, h * .3, h, h, -h * .3)
+    elif tool == Tool.BLUR:
+        path.addRect(QRectF(-h, -h, size, size))
+        path.moveTo(0, -h)
+        path.lineTo(0, h)
+        path.moveTo(-h, 0)
+        path.lineTo(h, 0)
     elif tool == Tool.TEXT:
         path.moveTo(-h * .8, -h)
         path.lineTo(h * .8, -h)

@@ -120,9 +120,11 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
 
         # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
         # Auswahl-Werkzeug fest vorne, dann die Zeichenwerkzeuge in Config-Reihenfolge
-        self.bar_tools = [Tool.SELECT] + self.settings.tools
+        # Unschärfe fest hinten, nur im Screenshot-Modus (im Whiteboard gibt es nichts zu verbergen)
+        self.bar_tools = [Tool.SELECT] + self.settings.tools + ([] if board else [Tool.BLUR])
         labels = [self.settings.keymap.label("tool_select")]
         labels += [self.settings.keymap.label(f"tool_{i}") for i in range(1, len(self.settings.tools) + 1)]
+        labels += [] if board else [self.settings.keymap.label("tool_blur")]
         self.tool_bar = ToolBar([tool_icon(t) for t in self.bar_tools], labels, self.settings.theme)
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
         self.tool_bar.selected.connect(lambda i: self.set_tool(self.bar_tools[i]))
@@ -155,6 +157,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         # Aktion (Name aus keymap.py) -> Funktion. Neue Taste = Eintrag dort + Handler hier
         self.actions = {
             "tool_select": lambda: self.set_tool(Tool.SELECT),
+            "tool_blur": lambda: None if self.board else self.set_tool(Tool.BLUR),
             "delete": self.delete_selected,
             "undo": self.undo_stack.undo,
             "redo": self.undo_stack.redo,
@@ -311,6 +314,9 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         # Feste Szenengröße = Bild: Die Ansicht zeigt es mittig (fit_overlay), auch wenn
         # ein Strich über den Rand hinausragt
         self.scene_.setSceneRect(self.export_rect)
+        # Unschärfe-Elemente verpixeln dieses Rohbild (elements.ShapeElement.blur_image)
+        self.scene_.blur_source = self.background_image
+        self.scene_.blur_scale = self.background_image.width() / max(1.0, self.export_rect.width())
 
     def replace_content(self, pixmap, elements):
         """Verlauf: anderen Screenshot samt Elementen in dieselbe Canvas laden.

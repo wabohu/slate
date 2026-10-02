@@ -46,7 +46,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Alt + Mausrad | Größe fein einstellen (Auswahl bzw. getippter Text) | 6 |
 | X | Füllung an/aus (Rechteck, Ellipse) | 13, 15 |
 | C | Werkzeug nummerierter Marker | 9 |
-| Z | Werkzeug Unschärfe | 9 |
+| Z | Werkzeug Unschärfe (umgesetzt: verpixeln) | 9 |
 | V | Vorlagen öffnen (Popup) | 14 |
 | B | Leiste ein-/ausblenden (umgesetzt) | 13 |
 | Strg+C | mit Auswahl: Elemente kopieren; ohne: ganzes Bild in die Zwischenablage | 7, 12 |

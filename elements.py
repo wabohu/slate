@@ -45,6 +45,28 @@ def distance(a, b):
     return math.hypot(a.x() - b.x(), a.y() - b.y())
 
 
+# Unschärfe: Klotzgröße = Strichstärke × Faktor (Stufen 2/4/8/12 px -> 6/12/24/36 px Klötze)
+BLUR_BLOCK_FACTOR = 3
+BLUR_MIN_BLOCK = 4
+
+
+def blur_block(width):
+    return max(BLUR_MIN_BLOCK, round(width * BLUR_BLOCK_FACTOR))
+
+
+def pixelate(image, rect, block):
+    """Ausschnitt rect (Bildpixel) von image verpixelt: verkleinern (Mittelwert je Klotz),
+    dann ohne Glättung wieder vergrößern. Rückgabe: (QImage, benutzter Ausschnitt als QRect)
+    oder None, wenn rect ganz außerhalb des Bildes liegt."""
+    rect = rect.toAlignedRect().intersected(image.rect())
+    if rect.isEmpty():
+        return None
+    part = image.copy(rect)
+    small = part.scaled(max(1, round(part.width() / block)), max(1, round(part.height() / block)),
+                        Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    return small.scaled(part.width(), part.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation), rect
+
+
 def shown_color(item, color):
     """Farbe, wie das Element sie zeigt. color ist die Grundfarbe (wird gespeichert);
     die Szene kann sie an den Hintergrund anpassen (Canvas.adapt_color, z. B. auf
@@ -65,6 +87,7 @@ class ShapeElement(QGraphicsPathItem):
     def __init__(self, tool, origin, color, width, element_id=None, radius=RECT_RADIUS):
         super().__init__()
         self._hit_shape = None  # Zwischenspeicher für shape(), siehe unten
+        self._blur_cache = None  # Unschärfe: zuletzt berechnetes Bild
         self.setFlag(QGraphicsPathItem.ItemIsSelectable)  # Qt verwaltet Auswahl + Markierung
         self.id = element_id or new_id()
         self.tool = tool
@@ -138,6 +161,10 @@ class ShapeElement(QGraphicsPathItem):
     # Standard bei geschlossenen Pfaden wäre: auch das Innere ist Treffer.
     # Die Toleranz neben dem Strich gibt die Canvas dazu (in Bildschirm-Pixeln, zoomunabhängig).
     def shape(self):
+        if self.tool == Tool.BLUR:  # gefüllte Fläche: Treffer auch innen (D2)
+            path = QPainterPath()
+            path.addRect(self.path().boundingRect())
+            return path
         if self._hit_shape is None:
             stroker = QPainterPathStroker()  # macht aus einer Linie eine Fläche dieser Breite
             stroker.setWidth(self.width + 2)
@@ -162,7 +189,45 @@ class ShapeElement(QGraphicsPathItem):
         self._hit_shape = None
 
     def paint(self, painter, option, widget=None):
+        if self.tool == Tool.BLUR:
+            self.paint_blur(painter)
+            return
         super().paint(painter, without_selection_highlight(option), widget)
+
+    def blur_image(self):
+        """Verpixelter Screenshot unter diesem Element: (QImage, Ziel in lokalen Koordinaten) oder None.
+        Die Szene liefert das Rohbild (blur_source) und den Maßstab Bildpixel je Szeneneinheit."""
+        scene = self.scene()
+        source = getattr(scene, "blur_source", None)
+        if source is None:
+            return None
+        factor = getattr(scene, "blur_scale", 1.0)
+        local = self.path().boundingRect()
+        in_scene = self.mapRectToScene(local)
+        in_image = QRectF(in_scene.x() * factor, in_scene.y() * factor,
+                          in_scene.width() * factor, in_scene.height() * factor)
+        key = (in_image.getRect(), self.width, source.cacheKey())
+        if self._blur_cache is None or self._blur_cache[0] != key:
+            result = pixelate(source, in_image, blur_block(self.width) * factor)
+            self._blur_cache = (key, result)
+        result = self._blur_cache[1]
+        if result is None:
+            return None
+        image, used = result
+        # Zielrechteck lokal: der tatsächlich benutzte Bildausschnitt, zurück in Szeneneinheiten
+        target = self.mapRectFromScene(QRectF(used.x() / factor, used.y() / factor,
+                                              used.width() / factor, used.height() / factor))
+        return image, target
+
+    def paint_blur(self, painter):
+        blurred = self.blur_image()
+        if blurred is None:  # ohne Screenshot (z. B. Whiteboard): nur schraffierter Rahmen
+            painter.setPen(QPen(QColor(128, 128, 128), 1, Qt.DashLine))
+            painter.setBrush(QColor(128, 128, 128, 60))
+            painter.drawRect(self.path().boundingRect())
+            return
+        image, target = blurred
+        painter.drawImage(target, image)
 
     # Qt-Konzept: itemChange meldet Änderungen am Item, hier "in eine Szene gelegt".
     # Erst dann ist bekannt, auf welchem Hintergrund es liegt, also Farbe neu bestimmen.

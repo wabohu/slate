@@ -125,6 +125,38 @@ def main():
           and cur.viewport().cursor().shape() == Qt.BitmapCursor)
     cur.close()
 
+    # Unschärfe (z): verpixelt den Screenshot darunter; beim Speichern ins Rohbild eingebrannt
+    from PySide6.QtGui import QPainter as _QPainter
+    stripes = QImage(800, 400, QImage.Format_RGB32)
+    stripes.fill(QColor("white"))
+    sp = _QPainter(stripes)
+    for x in range(0, 800, 4):  # feine senkrechte Streifen: nach dem Verpixeln einheitlich grau
+        sp.fillRect(x, 0, 2, 400, QColor("black"))
+    sp.end()
+    blur_canvas = make_canvas(QPixmap.fromImage(stripes))
+    bview = blur_canvas.viewport()
+    QTest.keyClick(blur_canvas, Qt.Key_Z)
+    blur_canvas.set_size(2)  # Stufe 3: Klötze 24 px
+    QTest.mousePress(bview, Qt.LeftButton, pos=QPoint(100, 100))
+    QTest.mouseMove(bview, QPoint(300, 250))
+    QTest.mouseRelease(bview, Qt.LeftButton, pos=QPoint(300, 250))
+    blurs = [e for e in blur_canvas.elements() if e.tool == Tool.BLUR]
+    shown = blur_canvas.render_image()
+
+    def stripe_contrast(img, y, x0, x1):
+        values = [img.pixelColor(x, y).lightness() for x in range(x0, x1)]
+        return max(values) - min(values)
+    check("Unschärfe: ein Element, Bereich verpixelt, außerhalb unverändert",
+          len(blurs) == 1 and stripe_contrast(shown, 150, 130, 150) < 40 and stripe_contrast(shown, 350, 130, 150) > 200)
+    QTest.keyClick(blur_canvas, Qt.Key_S, Qt.ControlModifier)
+    saved_bg, saved_elems, _, _ = load_document(blur_canvas.document_path)
+    check("Unschärfe: gespeichertes Rohbild ist dort verpixelt (eingebrannt), Element bleibt",
+          stripe_contrast(saved_bg, 150, 130, 150) < 40 and stripe_contrast(saved_bg, 350, 130, 150) > 200
+          and [e.tool for e in saved_elems] == [Tool.BLUR])
+    check("Unschärfe: im laufenden Tool bleibt das Rohbild unverändert",
+          stripe_contrast(blur_canvas.background_image, 150, 130, 150) > 200)
+    blur_canvas.close()
+
     # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
     # gezeichnet und exportiert wird in voller Auflösung
     big = QPixmap(2200, 1000)

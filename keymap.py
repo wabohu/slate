@@ -37,6 +37,7 @@ def _slots(prefix, count, keys, modifier=""):
 
 DEFAULT_KEYS = {
     "tool_select": "w",
+    "tool_blur": "z",          # Unschärfe (verpixeln), nur Screenshot-Modus
     "delete": ("delete", "backspace"),  # ausgewähltes Element löschen
     "undo": "r",
     "redo": "shift+r",

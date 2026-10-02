@@ -67,7 +67,7 @@ class HistoryMixin:
         # Direkt rendern statt render_image(): das würde Auswahl und Texteingabe beenden
         rendered = render_scene(self.scene_, self.export_rect, self.export_size)
         ok, message = save_document(self.history_path, rendered,
-                                    build_document(self.background_image, self.elements()))
+                                    build_document(self.background_to_save(), self.elements()))
         if not ok:
             print(f"[history] {message}", file=sys.stderr)
 

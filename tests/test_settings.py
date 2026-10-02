@@ -146,7 +146,7 @@ def main():
           and ("←", "älterer Screenshot") in flat(shot) and ("strg+shift+b", "Hintergrund zurück") in flat(board))
     ov = shortcuts.overview(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=False)
     check("Panel-Daten: Werkzeuge mit Auswahl vorne, Farben und Größen je Taste",
-          ov["tools"] == [(Tool.SELECT, "w"), (Tool.RECT, "a"), (Tool.TEXT, "s")]
+          ov["tools"] == [(Tool.SELECT, "w"), (Tool.RECT, "a"), (Tool.TEXT, "s"), (Tool.BLUR, "z")]
           and ov["colors"] == list("asdfgzxcv") and ov["sizes"] == list("asdf")
           and ov["color_hint"] == "shift + …, tab / shift+tab blättert" and ov["size_hint"].startswith("alt + …"))
     names = [name for name, _ in ov["lists"]]

@@ -19,6 +19,11 @@ class Tool(Enum):
     ELLIPSE = "Kreis / Ellipse"
     TEXT = "Text"
     SELECT = "Auswahl"  # kein Zeichenwerkzeug, steht in der Leiste immer vorne (Taste W)
+    BLUR = "Unschärfe"  # verpixelt den Screenshot darunter; fester Platz hinten (Taste Z), nur Screenshot-Modus
+
+
+# Werkzeuge mit festem Platz in der Leiste, nicht Teil von [tools] order
+FIXED_TOOLS = (Tool.SELECT, Tool.BLUR)
 
 
 # Eckenradius des Rechtecks in Pixeln (Standard; je Element in ShapeElement.radius,
@@ -35,16 +40,16 @@ def tool_order(names):
     """Werkzeuge in der Reihenfolge der Config, ohne Unbekannte und Duplikate.
 
     Ohne brauchbare Liste: alle Werkzeuge in Reihenfolge des Enums.
-    Das Auswahl-Werkzeug gehört nicht dazu, es hat einen festen Platz.
+    Auswahl und Unschärfe gehören nicht dazu, sie haben einen festen Platz (FIXED_TOOLS).
     """
     result = []
     for name in names or []:
         tool = parse_tool(name)
         if tool is None:
             print(f"[tools] Unbekanntes Werkzeug: {name!r}", file=sys.stderr)
-        elif tool not in result and tool != Tool.SELECT:
+        elif tool not in result and tool not in FIXED_TOOLS:
             result.append(tool)
-    return result or [t for t in Tool if t != Tool.SELECT]
+    return result or [t for t in Tool if t not in FIXED_TOOLS]
 
 
 def shape_path(tool, start, end, pen_width, radius=RECT_RADIUS):
@@ -71,6 +76,8 @@ def shape_path(tool, start, end, pen_width, radius=RECT_RADIUS):
         path.addRoundedRect(QRectF(start, end).normalized(), radius, radius)
     elif tool == Tool.ELLIPSE:
         path.addEllipse(QRectF(start, end).normalized())
+    elif tool == Tool.BLUR:  # Fläche, die verpixelt wird (gezeichnet in ShapeElement.paint)
+        path.addRect(QRectF(start, end).normalized())
     return path
 
 
@@ -98,6 +105,12 @@ def tool_icon(tool):
         path.lineTo(22, 8)
         path.moveTo(15, 8)
         path.lineTo(15, 22)
+    elif tool == Tool.BLUR:  # Raster wie grobe Pixel (unten rechts bleibt Platz für die Taste)
+        for i in range(4):
+            path.moveTo(6 + i * 5, 6)
+            path.lineTo(6 + i * 5, 21)
+            path.moveTo(6, 6 + i * 5)
+            path.lineTo(21, 6 + i * 5)
     elif tool == Tool.SELECT:  # Mauszeiger
         path.moveTo(9, 5)
         path.lineTo(9, 21)

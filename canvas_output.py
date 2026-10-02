@@ -13,12 +13,15 @@ elements(), update_title().
 from pathlib import Path
 
 from PySide6.QtCore import QRectF
+from PySide6.QtGui import QPainter
 
 from document import build_document, save_document
+from elements import ShapeElement, blur_block, pixelate
 from export import (copy_text_to_clipboard, copy_to_clipboard, new_file_path, render_scene, save_png,
                     short_path)
 from notify import NOT_AVAILABLE, ask, notify
 from settings import BOARD_EXPORT_MARGIN
+from tools import Tool
 
 
 class OutputMixin:
@@ -82,7 +85,7 @@ class OutputMixin:
         except OSError as e:
             self.report(f"Speichern fehlgeschlagen: {e}", error=True)
             return None
-        background = self.board_color if self.board else self.background_image
+        background = self.board_color if self.board else self.background_to_save()
         ok, message = save_document(path, rendered, build_document(background, self.elements()))
         if ok:
             self.document_path = path
@@ -91,6 +94,26 @@ class OutputMixin:
                 self.update_title()
         self.report(message, error=not ok)
         return path if ok else None
+
+    def background_to_save(self):
+        """Rohbild für die bearbeitbare Datei, Unschärfe-Bereiche darin eingebrannt: Keine
+        gespeicherte Datei enthält je, was verpixelt wurde. Im laufenden Tool bleibt das
+        Rohbild unverändert (Unschärfe verschieben/löschen geht dort weiter)."""
+        blurs = [e for e in self.elements() if isinstance(e, ShapeElement) and e.tool == Tool.BLUR]
+        if not blurs:
+            return self.background_image
+        image = self.background_image.copy()
+        factor = self.scene_.blur_scale
+        painter = QPainter(image)
+        for element in blurs:
+            r = element.mapRectToScene(element.path().boundingRect())
+            result = pixelate(self.background_image, QRectF(r.x() * factor, r.y() * factor,
+                                                            r.width() * factor, r.height() * factor),
+                              blur_block(element.width) * factor)
+            if result:
+                painter.drawImage(result[1].topLeft(), result[0])
+        painter.end()
+        return image
 
     # --- Meldungen und Nachfragen ---
     def report(self, text, error=False):
