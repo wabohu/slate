@@ -78,7 +78,7 @@ def copy_text_to_clipboard(text):
 
 def copy_data_to_clipboard(data, mime):
     """Beliebige Daten (bytes) mit eigenem Datentyp in die Zwischenablage, z. B. kopierte
-    Elemente ("application/x-annotate-elements"). Über xclip bleiben sie nach dem Beenden
+    Elemente ("application/x-slate-elements"). Über xclip bleiben sie nach dem Beenden
     erhalten, so lassen sie sich in einem anderen Fenster einfügen. Rückgabe: ok."""
     if shutil.which("xclip"):
         try:
@@ -118,17 +118,17 @@ def data_from_clipboard(mime):
 
 
 def default_output_dir():
-    """~/Pictures/annotate bzw. der XDG-Bilderordner, falls anders benannt."""
+    """~/Pictures/slate bzw. der XDG-Bilderordner, falls anders benannt."""
     pictures = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
-    return Path(pictures or Path.home() / "Pictures") / "annotate"
+    return Path(pictures or Path.home() / "Pictures") / "slate"
 
 
 def new_file_path(directory, suffix=""):
     """Freier Dateiname mit Zeitstempel im Ordner (wird angelegt), z. B.
-    annotate_2026-10-01_14-03-22.png; bei Kollision _2, _3 … Kann OSError auslösen."""
+    slate_2026-10-01_14-03-22.png; bei Kollision _2, _3 … Kann OSError auslösen."""
     directory = Path(directory).expanduser()
     directory.mkdir(parents=True, exist_ok=True)
-    stem = datetime.now().strftime("annotate_%Y-%m-%d_%H-%M-%S") + suffix
+    stem = datetime.now().strftime("slate_%Y-%m-%d_%H-%M-%S") + suffix
     path = directory / f"{stem}.png"
     counter = 2
     while path.exists():  # zweimal Speichern in derselben Sekunde

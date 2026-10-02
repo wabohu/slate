@@ -1,4 +1,4 @@
-"""Eigene Konfiguration des Tools: ~/.config/annotate/config.toml
+"""Eigene Konfiguration des Tools: ~/.config/slate/config.toml
 
 Bewusst ohne Qt, zum Testen direkt aufrufen:
 
@@ -15,7 +15,7 @@ from pathlib import Path
 
 def config_path():
     base = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
-    return Path(base) / "annotate" / "config.toml"
+    return Path(base) / "slate" / "config.toml"
 
 
 def load_config(path=None):

@@ -21,8 +21,8 @@ def main():
         s.start_keysink()  # weißes Fenster: Abdunklung außerhalb gut sichtbar und messbar
         wait(lambda: s.focus_id() == s.window_named("keysink"))
         s.key("alt+Escape")
-        check("Overlay gestartet", wait(lambda: s.annotate_pids(), 10))
-        pid = s.annotate_pids()[0]
+        check("Overlay gestartet", wait(lambda: s.slate_pids(), 10))
+        pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.4)
         s.key("f")
@@ -42,7 +42,7 @@ def main():
         time.sleep(0.3)
         s.screenshot("03-angepasst")
         s.key("Return")
-        check("beendet", wait(lambda: not s.annotate_pids(), 10))
+        check("beendet", wait(lambda: not s.slate_pids(), 10))
         png = s.tmp / "clip.png"
         with open(png, "wb") as f:
             subprocess.run(["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],

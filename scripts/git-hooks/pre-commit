@@ -1,6 +1,6 @@
 #!/bin/sh
 # Vor jedem Commit: Ändert der Commit config.example.toml, die eigene Config
-# (~/.config/annotate/config.toml) auf den Stand der Vorlage bringen, eigene Werte bleiben.
+# (~/.config/slate/config.toml) auf den Stand der Vorlage bringen, eigene Werte bleiben.
 # Blockiert den Commit nie. Eingerichtet per: git config core.hooksPath scripts/git-hooks
 if git diff --cached --name-only | grep -qx 'config.example.toml'; then
     python scripts/sync_config.py || echo "[pre-commit] sync_config fehlgeschlagen, Commit läuft trotzdem" >&2

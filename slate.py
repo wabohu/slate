@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""annotate: Screenshot-Annotationstool und Whiteboard (Start).
+"""slate: Screenshot-Annotationstool und Whiteboard (Start).
 
-    python annotate.py              Screenshot des Monitors unter der Maus markieren
-    python annotate.py bild.png     gespeicherte Zeichnung oder beliebiges PNG öffnen
-    python annotate.py --board      leeres Whiteboard in einem normalen Fenster
-    python annotate.py --last       letzten Screenshot aus dem Verlauf öffnen
+    python slate.py              Screenshot des Monitors unter der Maus markieren
+    python slate.py bild.png     gespeicherte Zeichnung oder beliebiges PNG öffnen
+    python slate.py --board      leeres Whiteboard in einem normalen Fenster
+    python slate.py --last       letzten Screenshot aus dem Verlauf öffnen
 
 Bedienung: docs/bedienung.md. Die Zeichenfläche steht in canvas.py.
-Muss ausführbar bleiben: ~/.local/bin/annotate-board ist ein Symlink hierauf (sxhkd).
+Muss ausführbar bleiben: ~/.local/bin/slate ist ein Symlink hierauf (sxhkd).
 """
 import argparse
 import sys

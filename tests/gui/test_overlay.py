@@ -12,23 +12,23 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import ANNOTATE, Session, check, load_elements, summary, wait  # noqa: E402
+from harness import SLATE, Session, check, load_elements, summary, wait  # noqa: E402
 
 
 def main():
     with Session("overlay") as s:
-        empty = s.run([str(ANNOTATE), "--last"])
-        check("--last bei leerem Verlauf: Fehlercode 1, kein Fenster", empty.returncode == 1 and not s.annotate_pids())
+        empty = s.run([str(SLATE), "--last"])
+        check("--last bei leerem Verlauf: Fehlercode 1, kein Fenster", empty.returncode == 1 and not s.slate_pids())
         sink_out = s.start_keysink()
         sink = s.window_named("keysink")
         check("Ausgangslage: Testfenster hat den Fokus", wait(lambda: s.focus_id() == sink))
         s.type("a")
         check("Ausgangslage: Tasten kommen im Testfenster an", wait(lambda: sink_out.read_text() == "a"))
 
-        # Start per Hotkey (sxhkd -> annotate.py)
+        # Start per Hotkey (sxhkd -> slate.py)
         s.key("alt+Escape")
-        check("Start per Hotkey: annotate läuft", wait(lambda: s.annotate_pids(), 10))
-        pid = (s.annotate_pids() or [0])[0]
+        check("Start per Hotkey: slate läuft", wait(lambda: s.slate_pids(), 10))
+        pid = (s.slate_pids() or [0])[0]
         check("Start per Hotkey: Overlay sichtbar", wait(lambda: s.windows_of(pid), 10))
         overlay = s.windows_of(pid)
         check("Overlay hat sofort den Fokus", wait(lambda: s.focus_id() in overlay))
@@ -58,7 +58,7 @@ def main():
 
         # Esc: beenden, Fokus zurück ans Testfenster
         s.key("Escape")
-        check("Esc beendet das Overlay", wait(lambda: not s.annotate_pids(), 10))
+        check("Esc beendet das Overlay", wait(lambda: not s.slate_pids(), 10))
         check("Fokus nach Esc zurück beim Testfenster", wait(lambda: s.focus_id() == sink))
         s.type("b")
         check("Tasten kommen danach wieder im Testfenster an", wait(lambda: sink_out.read_text() == "ab"))
@@ -71,13 +71,13 @@ def main():
         check(f"Verlauf: Rechteck und Ellipse gespeichert ({', '.join(tools)})", tools == ["ELLIPSE", "RECT"])
 
         # --last öffnet den neuesten Verlaufseintrag (z. B. per Hotkey)
-        s.spawn([str(ANNOTATE), "--last"], log="last")
-        check("--last öffnet den letzten Screenshot", wait(lambda: s.annotate_pids(), 10))
-        wait(lambda: s.windows_of(s.annotate_pids()[0]), 10)
+        s.spawn([str(SLATE), "--last"], log="last")
+        check("--last öffnet den letzten Screenshot", wait(lambda: s.slate_pids(), 10))
+        wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
         time.sleep(0.4)
         s.screenshot("05-last")
         s.key("Escape")
-        check("--last: Esc beendet", wait(lambda: not s.annotate_pids(), 5))
+        check("--last: Esc beendet", wait(lambda: not s.slate_pids(), 5))
     return summary()
 
 

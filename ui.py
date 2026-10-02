@@ -14,7 +14,7 @@ from tools import tool_icon
 class Theme:
     """Farben der Oberfläche: Hintergrund der Leiste und Vordergrund (Symbole, Rahmen, Text).
 
-    Standard ist ein neutrales Dunkelgrau mit Weiß; annotate.py setzt normalerweise
+    Standard ist ein neutrales Dunkelgrau mit Weiß; slate.py setzt normalerweise
     die Farben aus dem Alacritty-Schema ([ui] in der Config).
     """
 

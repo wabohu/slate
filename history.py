@@ -2,7 +2,7 @@
 
 Ein Eintrag ist dieselbe Datei wie beim Speichern mit Strg+S (document.py): fertiges
 Bild plus eingebettete Bearbeitungsdaten. Der Dateiname enthält den Zeitpunkt des
-Screenshots (annotate_2026-10-01_14-03-22.png), darum ist die Sortierung nach Namen
+Screenshots (slate_2026-10-01_14-03-22.png), darum ist die Sortierung nach Namen
 die zeitliche Reihenfolge. Das Änderungsdatum taugt dafür nicht, weil ältere Einträge
 beim Weiterbearbeiten neu geschrieben werden.
 
@@ -17,13 +17,13 @@ from pathlib import Path
 
 from export import new_file_path
 
-_NAME_RE = re.compile(r"^annotate_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})(?:_\d+)?\.png$")
+_NAME_RE = re.compile(r"^slate_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})(?:_\d+)?\.png$")
 
 
 def default_history_dir():
-    """~/.local/share/annotate/history bzw. $XDG_DATA_HOME/annotate/history."""
+    """~/.local/share/slate/history bzw. $XDG_DATA_HOME/slate/history."""
     base = os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
-    return Path(base) / "annotate" / "history"
+    return Path(base) / "slate" / "history"
 
 
 def entries(directory):

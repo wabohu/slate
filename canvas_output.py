@@ -30,15 +30,15 @@ from settings import BOARD_EXPORT_MARGIN
 from tools import Tool
 
 # Kopierte Elemente in der Zwischenablage: eigener Datentyp, JSON wie im Dateiformat
-ELEMENTS_MIME = "application/x-annotate-elements"
-CLIP_FORMAT = "annotate-elements"
+ELEMENTS_MIME = "application/x-slate-elements"
+CLIP_FORMAT = "slate-elements"
 DUPLICATE_OFFSET = 20  # Strg+D: Versatz in Bildschirm-Pixeln
 
 
 def rich_copy_path():
     """Private Datei mit der bearbeitbaren Fassung des zuletzt kopierten Bildes."""
     base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
-    return Path(base) / "annotate" / "clipboard.json"
+    return Path(base) / "slate" / "clipboard.json"
 
 
 class OutputMixin:

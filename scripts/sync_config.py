@@ -2,7 +2,7 @@
 """Eigene Config auf den Stand der Vorlage bringen: neue Einträge aus config.example.toml
 übernehmen, eigene Werte behalten.
 
-    python scripts/sync_config.py            # ~/.config/annotate/config.toml aktualisieren
+    python scripts/sync_config.py            # ~/.config/slate/config.toml aktualisieren
     python scripts/sync_config.py --dry-run  # nur zeigen, was sich ändern würde
 
 Ergebnis = Text der Vorlage (mit allen Kommentaren), darin:
@@ -175,7 +175,7 @@ def merge(template_text, user_text):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true", help="nur anzeigen")
-    parser.add_argument("--config", type=Path, default=None, help="statt ~/.config/annotate/config.toml")
+    parser.add_argument("--config", type=Path, default=None, help="statt ~/.config/slate/config.toml")
     args = parser.parse_args()
     target = args.config or config_path()
     if not target.is_file():

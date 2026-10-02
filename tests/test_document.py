@@ -59,7 +59,7 @@ def main():
     out = Path(default_output_dir())
 
     def drawings():  # gespeicherte Zeichnungen, ohne Export-PNGs
-        return sorted(p for p in out.glob("annotate_*.png") if not p.stem.endswith("_export"))
+        return sorted(p for p in out.glob("slate_*.png") if not p.stem.endswith("_export"))
 
     QTest.keyClick(canvas, Qt.Key_S, Qt.ControlModifier)
     QTest.keyClick(canvas, Qt.Key_S, Qt.ControlModifier)
@@ -73,7 +73,7 @@ def main():
     rendered = canvas.render_image()
     check("gespeichertes PNG zeigt die Zeichnung",
           QImage(str(path)).convertToFormat(rendered.format()) == rendered)
-    check("Export-PNG ohne Bearbeitungsdaten", not QImage(str(exports[0])).text("annotate"))
+    check("Export-PNG ohne Bearbeitungsdaten", not QImage(str(exports[0])).text("slate"))
 
     bg, elements, is_drawing, message = load_document(path)
     check(f"als Zeichnung geladen ({message})", is_drawing and len(elements) == len(canvas.elements()))

@@ -1,18 +1,18 @@
 """Zeichnungen speichern und laden: ein normales PNG mit eingebetteten Bearbeitungsdaten.
 
 Das PNG zeigt die Zeichnung mit allen Markierungen, so wie jeder Bildbetrachter sie
-anzeigt. Zusätzlich steckt in einem PNG-Text-Chunk (Metadaten, Schlüssel "annotate")
+anzeigt. Zusätzlich steckt in einem PNG-Text-Chunk (Metadaten, Schlüssel "slate")
 ein JSON-Dokument:
 
     {
-      "format": "annotate", "version": 1,
+      "format": "slate", "version": 1,
       "background": {"type": "image", "png": "<Base64 des rohen Screenshots>"}
                  oder {"type": "color", "color": "#24283b"}   (Whiteboard),
       "elements": [ {"type": "shape", ...}, {"type": "text", ...} ],  # von unten nach oben
       "crop": [x, y, breite, höhe]   (optional: Ausschnitt in Szenenkoordinaten, Taste y)
     }
 
-Öffnet man so ein PNG mit annotate, ist alles wieder bearbeitbar. Ein PNG ohne diese
+Öffnet man so ein PNG mit slate, ist alles wieder bearbeitbar. Ein PNG ohne diese
 Daten öffnet sich als Hintergrund. Programme, die das Bild neu speichern, verwerfen
 die Metadaten oft; die eigene Datei bleibt davon unberührt.
 
@@ -31,9 +31,9 @@ from PySide6.QtGui import QColor, QImage, QImageReader
 from elements import ImageElement, ShapeElement, TextElement
 from export import png_bytes, short_path
 
-FORMAT = "annotate"
+FORMAT = "slate"
 VERSION = 1
-PNG_KEY = "annotate"
+PNG_KEY = "slate"
 ELEMENT_TYPES = {"shape": ShapeElement, "text": TextElement, "image": ImageElement}
 
 # Große eingebettete Bilder erlauben (Qt begrenzt Bildgrößen sonst auf 256 MB Speicher)
@@ -112,7 +112,7 @@ def load_document(path, with_crop=False):
     try:
         document = json.loads(raw)
         if document.get("format") != FORMAT:
-            raise ValueError("kein annotate-Dokument")
+            raise ValueError("kein slate-Dokument")
         if document.get("version", 0) > VERSION:
             print(f"[document] Version {document['version']} ist neuer als dieses Tool ({VERSION}), "
                   "versuche es trotzdem", file=sys.stderr)

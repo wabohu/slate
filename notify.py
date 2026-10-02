@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROFI_THEME = Path(__file__).resolve().parent / "rofi" / "annotate.rasi"
+ROFI_THEME = Path(__file__).resolve().parent / "rofi" / "slate.rasi"
 ROFI_COLORS = Path.home() / ".config" / "rofi" / "colors.rasi"
 NOT_AVAILABLE = object()  # Rückgabe von ask(), wenn rofi nicht benutzbar ist
 
@@ -28,11 +28,11 @@ def notify(text, error=False, timeout_ms=3000):
     global _last_notification_id
     if _headless() or not shutil.which("notify-send"):
         return False
-    cmd = ["notify-send", "--app-name=annotate", "--print-id",
+    cmd = ["notify-send", "--app-name=slate", "--print-id",
            f"--urgency={'critical' if error else 'normal'}", f"--expire-time={timeout_ms}"]
     if _last_notification_id:
         cmd.append(f"--replace-id={_last_notification_id}")
-    cmd += ["annotate", text]
+    cmd += ["slate", text]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=3, check=True)
     except (OSError, subprocess.SubprocessError) as e:

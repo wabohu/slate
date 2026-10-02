@@ -17,8 +17,8 @@ from harness import Session, check, load_elements, summary, wait  # noqa: E402
 def main():
     with Session("select") as s:
         s.key("alt+Escape")
-        check("Overlay gestartet", wait(lambda: s.annotate_pids(), 10))
-        pid = s.annotate_pids()[0]
+        check("Overlay gestartet", wait(lambda: s.slate_pids(), 10))
+        pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.4)
         s.key("f")
@@ -35,7 +35,7 @@ def main():
         time.sleep(0.3)
         s.screenshot("03-geloescht")
         s.key("Return")
-        check("beendet", wait(lambda: not s.annotate_pids(), 10))
+        check("beendet", wait(lambda: not s.slate_pids(), 10))
         entries = s.history_entries()
         remaining = load_elements(entries[0]) if entries else []
         check(f"übrig bleibt nur das dritte Rechteck ({len(remaining)})",
@@ -43,8 +43,8 @@ def main():
 
         # Vorder-/Hintergrund: zwei überlappende Marker, den unteren ganz nach vorne holen
         s.key("alt+Escape")
-        wait(lambda: s.annotate_pids(), 10)
-        wait(lambda: s.windows_of(s.annotate_pids()[0]), 10)
+        wait(lambda: s.slate_pids(), 10)
+        wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
         time.sleep(0.4)
         s.key("c")
         for x in (600, 625):
@@ -57,7 +57,7 @@ def main():
         time.sleep(0.3)
         s.screenshot("04-marker-vorne")
         s.key("Return")
-        wait(lambda: not s.annotate_pids(), 10)
+        wait(lambda: not s.slate_pids(), 10)
         entries = s.history_entries()
         markers = [e for e in load_elements(entries[-1])] if entries else []
         check("Strg+Shift+↑: der erste Marker liegt jetzt oben",

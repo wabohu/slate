@@ -1,6 +1,6 @@
 """Werkzeuge: Enum, Namen aus der Config, Geometrie der Formen und Symbole.
 
-Ohne Canvas-Abhängigkeiten, damit elements.py und annotate.py beide darauf
+Ohne Canvas-Abhängigkeiten, damit elements.py und slate.py beide darauf
 aufbauen können, ohne sich gegenseitig zu importieren.
 """
 import math

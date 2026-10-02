@@ -29,8 +29,8 @@ def main():
         s.type(TEXT)
         time.sleep(0.3)
         s.key("alt+Escape")
-        check("Overlay gestartet", wait(lambda: s.annotate_pids(), 10))
-        pid = s.annotate_pids()[0]
+        check("Overlay gestartet", wait(lambda: s.slate_pids(), 10))
+        pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.4)
         # Zeile mit dem Text finden (das Eingabefeld füllt das Fenster, Text steht mittig)
@@ -48,7 +48,7 @@ def main():
         check("Bereich verpixelt (Text nicht mehr kontrastreich)", contrast(after, row, 10, 300) < 120)
 
         s.key("Return")  # kopieren und beenden -> Verlauf wird gespeichert
-        check("beendet", wait(lambda: not s.annotate_pids(), 10))
+        check("beendet", wait(lambda: not s.slate_pids(), 10))
         entries = s.history_entries()
         check("Verlaufseintrag vorhanden", len(entries) == 1)
         if entries:

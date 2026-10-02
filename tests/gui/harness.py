@@ -22,17 +22,17 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent / "out"
-ANNOTATE = REPO / "annotate.py"
+SLATE = REPO / "slate.py"
 KEYSINK = Path(__file__).resolve().parent / "keysink.py"
 
-# Belegung im Test: Start wie bei dir per Alt+Escape (über das ausführbare annotate.py,
+# Belegung im Test: Start wie bei dir per Alt+Escape (über das ausführbare slate.py,
 # prüft also auch das Ausführbar-Bit), dazu zwei Test-Hotkeys
 SXHKDRC = """\
 alt + Escape
-  {annotate}
+  {slate}
 
 alt + Delete
-  {annotate} --board
+  {slate} --board
 
 super + k
   touch {tmp}/hotkey-fired
@@ -41,7 +41,7 @@ super + j
   herbstclient jumpto $(xdotool search --name '^keysink$' | head -1)
 """
 
-ANNOTATE_CONFIG = """\
+SLATE_CONFIG = """\
 [ui]
 messages = "toast"   # kein dunst im Test
 
@@ -89,7 +89,7 @@ class Session:
     def __init__(self, name, size="1920x1080"):
         self.name = name
         self.size = size
-        self.tmp = Path(tempfile.mkdtemp(prefix="annotate-gui-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="slate-gui-"))
         self.out = OUT / name
         self.procs = []
         self.display = _free_display()
@@ -111,10 +111,10 @@ class Session:
             shutil.rmtree(self.out)
         self.out.mkdir(parents=True)
         home = self.tmp / "home"
-        (home / ".config" / "annotate").mkdir(parents=True)
-        (home / ".config" / "annotate" / "config.toml").write_text(ANNOTATE_CONFIG.format(tmp=self.tmp))
+        (home / ".config" / "slate").mkdir(parents=True)
+        (home / ".config" / "slate" / "config.toml").write_text(SLATE_CONFIG.format(tmp=self.tmp))
         sxhkdrc = self.tmp / "sxhkdrc"
-        sxhkdrc.write_text(SXHKDRC.format(annotate=ANNOTATE, tmp=self.tmp))
+        sxhkdrc.write_text(SXHKDRC.format(slate=SLATE, tmp=self.tmp))
         autostart = self.tmp / "hlwm-autostart"
         autostart.write_text("#!/bin/sh\nherbstclient set focus_follows_mouse true\n")
         autostart.chmod(0o755)
@@ -131,11 +131,11 @@ class Session:
         self.spawn(["herbstluftwm", "--autostart", str(autostart)])
         if not wait(lambda: self.run(["herbstclient", "get", "focus_follows_mouse"]).stdout.strip() == "true", 10):
             raise RuntimeError("herbstluftwm startet nicht")
-        self.spawn(["sxhkd", "-c", str(sxhkdrc)], log="sxhkd")  # inkl. Ausgaben von annotate
+        self.spawn(["sxhkd", "-c", str(sxhkdrc)], log="sxhkd")  # inkl. Ausgaben von slate
         time.sleep(0.5)  # sxhkd meldet nicht, wann es bereit ist
 
     def stop(self):
-        for pid in self.annotate_pids():
+        for pid in self.slate_pids():
             os.kill(pid, signal.SIGKILL)
         for proc in reversed(self.procs):
             proc.terminate()
@@ -155,15 +155,15 @@ class Session:
         return subprocess.run(cmd, env=self.env, capture_output=True, text=True, timeout=10)
 
     # --- Prozesse und Fenster ---
-    def annotate_pids(self):
-        """PIDs von annotate.py auf DIESEM Display (nie deine echten Instanzen)."""
+    def slate_pids(self):
+        """PIDs von slate.py auf DIESEM Display (nie deine echten Instanzen)."""
         pids = []
         for proc in Path("/proc").iterdir():
             if not proc.name.isdigit():
                 continue
             try:
                 cmdline = (proc / "cmdline").read_bytes()
-                if b"annotate.py" not in cmdline:
+                if b"slate.py" not in cmdline:
                     continue
                 environ = (proc / "environ").read_bytes().split(b"\0")
             except OSError:
@@ -219,8 +219,8 @@ class Session:
         return _qt_image(self.screenshot(name)).pixelColor(x, y).name()
 
     def history_entries(self):
-        directory = Path(self.env["XDG_DATA_HOME"]) / "annotate" / "history"
-        return sorted(directory.glob("annotate_*.png")) if directory.exists() else []
+        directory = Path(self.env["XDG_DATA_HOME"]) / "slate" / "history"
+        return sorted(directory.glob("slate_*.png")) if directory.exists() else []
 
     def start_keysink(self):
         """Testfenster starten, warten bis es da ist und den Fokus hat. Rückgabe: Ausgabedatei."""

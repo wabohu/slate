@@ -19,8 +19,8 @@ from harness import Session, check, load_drawing, summary, wait  # noqa: E402
 def main():
     with Session("clipboard") as s:
         s.key("alt+Escape")
-        check("Overlay gestartet", wait(lambda: s.annotate_pids(), 10))
-        wait(lambda: s.windows_of(s.annotate_pids()[0]), 10)
+        check("Overlay gestartet", wait(lambda: s.slate_pids(), 10))
+        wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
         time.sleep(0.4)
         s.key("f")
         s.drag(300, 300, 500, 450)
@@ -31,11 +31,11 @@ def main():
         s.key("ctrl+c")
         s.key("Escape")          # Auswahl aufheben
         s.key("Escape")          # beenden; die Zwischenablage hält xclip
-        check("Screenshot beendet", wait(lambda: not s.annotate_pids(), 10))
+        check("Screenshot beendet", wait(lambda: not s.slate_pids(), 10))
 
         s.key("alt+Delete")
-        check("Whiteboard gestartet", wait(lambda: s.annotate_pids(), 10))
-        pid = s.annotate_pids()[0]
+        check("Whiteboard gestartet", wait(lambda: s.slate_pids(), 10))
+        pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.6)
         s.move(900, 500)
@@ -58,7 +58,7 @@ def main():
                     labels.append(e.marker_order)
             check("Marker zählen im Whiteboard weiter (verschiedene Reihenfolge)", len(set(labels)) == 2)
         s.key("ctrl+q")
-        wait(lambda: not s.annotate_pids(), 5)
+        wait(lambda: not s.slate_pids(), 5)
 
     # Ausschnitt mit Markern ins Whiteboard: Marker setzen, y, Enter; im Whiteboard Strg+V
     # -> Bild-Element mit dem Screenshot-Teil, der Marker bleibt eigenes Element.
@@ -68,8 +68,8 @@ def main():
         wait(lambda: s.focus_id() == s.window_named("keysink"))
         s.type("Hallo Klasse")
         s.key("alt+Escape")
-        wait(lambda: s.annotate_pids(), 10)
-        wait(lambda: s.windows_of(s.annotate_pids()[0]), 10)
+        wait(lambda: s.slate_pids(), 10)
+        wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
         time.sleep(0.4)
         s.key("c")
         s.move(400, 500)
@@ -77,10 +77,10 @@ def main():
         s.key("y")
         s.drag(100, 400, 700, 650)          # Ausschnitt um Text und Marker
         s.key("Return")
-        check("Screenshot kopiert und beendet", wait(lambda: not s.annotate_pids(), 10))
+        check("Screenshot kopiert und beendet", wait(lambda: not s.slate_pids(), 10))
         s.key("alt+Delete")
-        wait(lambda: s.annotate_pids(), 10)
-        wait(lambda: s.windows_of(s.annotate_pids()[0]), 10)
+        wait(lambda: s.slate_pids(), 10)
+        wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
         time.sleep(0.6)
         # Das Testfenster teilt sich den Bildschirm mit dem Whiteboard (gekachelt, obere Hälfte);
         # Fokus folgt der Maus, darum die Maus ins Whiteboard (untere Hälfte)
@@ -108,7 +108,7 @@ def main():
                   and elements[0].size.toTuple() == (600.0, 250.0)
                   and elements[2].size.toTuple() == (160.0, 90.0))
         s.key("ctrl+q")
-        wait(lambda: not s.annotate_pids(), 5)
+        wait(lambda: not s.slate_pids(), 5)
     return summary()
 
 

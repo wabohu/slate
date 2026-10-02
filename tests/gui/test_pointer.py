@@ -28,8 +28,8 @@ def main():
         sink_out = s.start_keysink()  # heller Hintergrund im Screenshot: Abdunkeln gut messbar
         wait(lambda: s.focus_id() == s.window_named("keysink"))
         s.key("alt+Escape")
-        check("Overlay gestartet", wait(lambda: s.annotate_pids(), 10))
-        pid = s.annotate_pids()[0]
+        check("Overlay gestartet", wait(lambda: s.slate_pids(), 10))
+        pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         s.move(*MOUSE)
         time.sleep(0.5)
@@ -53,17 +53,17 @@ def main():
 
         s.key("Escape")
         time.sleep(0.3)
-        check("Esc beendet das Zeigen, nicht das Tool", pid in s.annotate_pids())
+        check("Esc beendet das Zeigen, nicht das Tool", pid in s.slate_pids())
         s.key("Escape")
-        check("zweites Esc beendet das Tool", wait(lambda: not s.annotate_pids(), 5))
+        check("zweites Esc beendet das Tool", wait(lambda: not s.slate_pids(), 5))
         check("beim Zeigen nichts gezeichnet (kein Verlaufseintrag)", s.history_entries() == [])
         check("Testfenster unberührt", sink_out.read_text() == "")
 
         # Lupe vergrößert wirklich: senkrechte Rechteckkante bei x=1000, Maus 20 px links davon.
         # Mit Vergrößerung 2 erscheint die Kante in der Lupe bei x≈1020.
         s.key("alt+Escape")
-        wait(lambda: s.annotate_pids(), 10)
-        pid = s.annotate_pids()[0]
+        wait(lambda: s.slate_pids(), 10)
+        pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.4)
         s.key("f")
@@ -78,7 +78,7 @@ def main():
         check("Lupe: Kante erscheint vergrößert weiter rechts", lens != plain)
         s.key("Escape")
         s.key("Escape")
-        wait(lambda: not s.annotate_pids(), 5)
+        wait(lambda: not s.slate_pids(), 5)
     return summary()
 
 

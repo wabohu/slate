@@ -1,8 +1,8 @@
 /**
- * Kompakte Nachfrage für annotate (z. B. "Speichern / Verwerfen / Abbrechen").
+ * Kompakte Nachfrage für slate (z. B. "Speichern / Verwerfen / Abbrechen").
  *
  * Farben: Deine ~/.config/rofi/colors.rasi wird beim Aufruf zusätzlich geladen,
- * falls vorhanden (annotate übergibt sie per -theme-str). Fehlt sie, gelten die
+ * falls vorhanden (slate übergibt sie per -theme-str). Fehlt sie, gelten die
  * Werte hinter dem Komma in var(...) (Tokyo Night Storm).
  */
 * {

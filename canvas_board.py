@@ -152,7 +152,7 @@ class BoardMixin:
     # --- Fenster ---
     def update_title(self):
         name = Path(self.document_path).name if self.document_path else "neu"
-        self.setWindowTitle(f"annotate – Whiteboard – {name}")
+        self.setWindowTitle(f"slate – Whiteboard – {name}")
 
     def confirm_close(self):
         """Ungespeicherte Änderungen? Fragen: Speichern, Verwerfen oder Abbrechen."""
@@ -164,7 +164,7 @@ class BoardMixin:
                 return self.undo_stack.isClean()
             return choice == 1  # Abbrechen oder Esc: offen lassen
         answer = QMessageBox.question(
-            self, "annotate", "Das Whiteboard hat ungespeicherte Änderungen. Speichern?",
+            self, "slate", "Das Whiteboard hat ungespeicherte Änderungen. Speichern?",
             QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
         if answer == QMessageBox.Save:
             self.save_drawing()

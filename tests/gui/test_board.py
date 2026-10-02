@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import ANNOTATE, Session, check, load_drawing, summary, wait  # noqa: E402
+from harness import SLATE, Session, check, load_drawing, summary, wait  # noqa: E402
 
 PAPER = "#f8f6f0"         # heller Hintergrund aus DEFAULT_BOARD_BACKGROUNDS
 EMPTY = (960, 120)        # Bildschirmpunkt, an dem nichts gezeichnet wird
@@ -20,7 +20,7 @@ EMPTY = (960, 120)        # Bildschirmpunkt, an dem nichts gezeichnet wird
 
 def board_window(s):
     """(PID, Fenster) des laufenden Whiteboards oder (None, None)."""
-    for pid in s.annotate_pids():
+    for pid in s.slate_pids():
         wins = s.windows_of(pid)
         if wins:
             return pid, wins[0]
@@ -52,7 +52,7 @@ def main():
         s.key("Escape")
         s.key("Return")
         time.sleep(0.5)
-        check("Esc und Enter schließen das Whiteboard nicht", pid in s.annotate_pids())
+        check("Esc und Enter schließen das Whiteboard nicht", pid in s.slate_pids())
 
         # Strg+B: heller Hintergrund
         s.key("ctrl+b")
@@ -65,12 +65,12 @@ def main():
         s.screenshot("03-rofi")
         ask_rofi(s, "ab")
         time.sleep(0.5)
-        check("rofi 'ab' (Abbrechen): Whiteboard bleibt offen", pid in s.annotate_pids())
+        check("rofi 'ab' (Abbrechen): Whiteboard bleibt offen", pid in s.slate_pids())
 
         # Strg+Q, "sp" = Speichern: Datei angelegt, Fenster zu
         s.key("ctrl+q")
         ask_rofi(s, "sp")
-        check("rofi 'sp' (Speichern): Whiteboard geschlossen", wait(lambda: pid not in s.annotate_pids(), 5))
+        check("rofi 'sp' (Speichern): Whiteboard geschlossen", wait(lambda: pid not in s.slate_pids(), 5))
         saved = sorted((s.tmp / "output").glob("*_board.png"))
         check("gespeichert als …_board.png", len(saved) == 1)
         if not saved:
@@ -80,8 +80,8 @@ def main():
               hasattr(background, "name") and background.name() == PAPER
               and [e.tool.name for e in elements] == ["RECT"])
 
-        # Wieder öffnen (wie python annotate.py datei.png): als Whiteboard, hell, Titel = Datei
-        s.spawn([str(ANNOTATE), str(saved[0])], log="reopen")
+        # Wieder öffnen (wie python slate.py datei.png): als Whiteboard, hell, Titel = Datei
+        s.spawn([str(SLATE), str(saved[0])], log="reopen")
         check("wieder geöffnet", wait(lambda: board_window(s)[1], 10))
         pid, win = board_window(s)
         check("Titel nennt die Datei", saved[0].name in (s.window_name(win) or ""))
@@ -91,10 +91,10 @@ def main():
         s.key("ctrl+q")
         time.sleep(0.5)
         check("unverändert: Strg+Q ohne Nachfrage", not s.rofi_open())
-        check("unverändert: geschlossen", wait(lambda: pid not in s.annotate_pids(), 5))
+        check("unverändert: geschlossen", wait(lambda: pid not in s.slate_pids(), 5))
 
         # Ändern und verwerfen: Datei bleibt wie gespeichert
-        s.spawn([str(ANNOTATE), str(saved[0])], log="reopen2")
+        s.spawn([str(SLATE), str(saved[0])], log="reopen2")
         wait(lambda: board_window(s)[1], 10)
         pid, win = board_window(s)
         wait(lambda: s.focus_id() == win)
@@ -102,7 +102,7 @@ def main():
         s.drag(1100, 400, 1400, 700)
         s.key("ctrl+q")
         ask_rofi(s, "vw")
-        check("rofi 'vw' (Verwerfen): geschlossen", wait(lambda: pid not in s.annotate_pids(), 5))
+        check("rofi 'vw' (Verwerfen): geschlossen", wait(lambda: pid not in s.slate_pids(), 5))
         _, elements = load_drawing(saved[0])
         check("verworfen: Datei unverändert (nur das Rechteck)", [e.tool.name for e in elements] == ["RECT"])
     return summary()
