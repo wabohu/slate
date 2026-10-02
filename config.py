@@ -1,11 +1,11 @@
-"""Eigene Konfiguration des Tools: ~/.config/slate/config.toml
+"""The tool's own configuration: ~/.config/slate/config.toml
 
-Bewusst ohne Qt, zum Testen direkt aufrufen:
+Deliberately without Qt, run it directly to test:
 
     python config.py
 
-Fehlt die Datei oder ist sie kaputt, gibt es einfach leere Werte.
-Wer die Werte benutzt, entscheidet selbst über den Fallback.
+If the file is missing or broken, there are simply empty values.
+Whoever uses the values decides on the fallback.
 """
 import os
 import sys
@@ -19,7 +19,7 @@ def config_path():
 
 
 def load_config(path=None):
-    """Geparste Config als dict; bei jedem Problem ein leeres dict."""
+    """Parsed config as a dict; an empty dict on any problem."""
     path = Path(path) if path else config_path()
     if not path.is_file():
         return {}
@@ -27,12 +27,12 @@ def load_config(path=None):
         with open(path, "rb") as f:
             return tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError) as e:
-        print(f"[config] Kann {path} nicht lesen: {e}", file=sys.stderr)
+        print(f"[config] Cannot read {path}: {e}", file=sys.stderr)
         return {}
 
 
 def get_list(config, section, key):
-    """config[section][key] als Liste von Strings; fehlt/falsch/leer -> None."""
+    """config[section][key] as a list of strings; missing/wrong/empty -> None."""
     table = config.get(section)
     value = table.get(key) if isinstance(table, dict) else None
     if not isinstance(value, list):
@@ -41,21 +41,21 @@ def get_list(config, section, key):
 
 
 def get_str(config, section, key):
-    """config[section][key] als String; fehlt/falsch -> None."""
+    """config[section][key] as a string; missing/wrong -> None."""
     table = config.get(section)
     value = table.get(key) if isinstance(table, dict) else None
     return value if isinstance(value, str) else None
 
 
 def get_int(config, section, key):
-    """config[section][key] als int; fehlt/falsch -> None (True/False zählen nicht als Zahl)."""
+    """config[section][key] as an int; missing/wrong -> None (True/False do not count as numbers)."""
     table = config.get(section)
     value = table.get(key) if isinstance(table, dict) else None
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def get_float(config, section, key):
-    """config[section][key] als Zahl (int oder float); fehlt/falsch -> None."""
+    """config[section][key] as a number (int or float); missing/wrong -> None."""
     table = config.get(section)
     value = table.get(key) if isinstance(table, dict) else None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -64,7 +64,7 @@ def get_float(config, section, key):
 
 
 def get_int_list(config, section, key):
-    """config[section][key] als Liste von ints; fehlt/falsch/leer -> None."""
+    """config[section][key] as a list of ints; missing/wrong/empty -> None."""
     table = config.get(section)
     value = table.get(key) if isinstance(table, dict) else None
     if not isinstance(value, list) or not value:
@@ -75,9 +75,9 @@ def get_int_list(config, section, key):
 
 
 if __name__ == "__main__":
-    print(f"Datei: {config_path()}")
+    print(f"File: {config_path()}")
     cfg = load_config()
-    print(f"Inhalt: {cfg}")
-    print(f"Farben:     order={get_list(cfg, 'colors', 'order')}  default={get_str(cfg, 'colors', 'default')}")
-    print(f"Werkzeuge:  order={get_list(cfg, 'tools', 'order')}  default={get_str(cfg, 'tools', 'default')}")
-    print(f"Größe:      default={get_int(cfg, 'size', 'default')}  stroke={get_int_list(cfg, 'size', 'stroke')}  text={get_int_list(cfg, 'size', 'text')}")
+    print(f"Content: {cfg}")
+    print(f"Colors:     order={get_list(cfg, 'colors', 'order')}  default={get_str(cfg, 'colors', 'default')}")
+    print(f"Tools:      order={get_list(cfg, 'tools', 'order')}  default={get_str(cfg, 'tools', 'default')}")
+    print(f"Size:       default={get_int(cfg, 'size', 'default')}  stroke={get_int_list(cfg, 'size', 'stroke')}  text={get_int_list(cfg, 'size', 'text')}")

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Alle GUI-Szenarien (tests/gui/test_*.py) nacheinander, je in einem eigenen X-Server.
+"""All GUI scenarios (tests/gui/test_*.py) one after another, each in its own X server.
 
     python tests/gui/run.py
 
-Rückgabewert 0 = alle ok. Bildschirmfotos: tests/gui/out/<szenario>/.
+Exit code 0 = all ok. Screenshots: tests/gui/out/<scenario>/.
 """
 import subprocess
 import sys
@@ -16,5 +16,5 @@ for scenario in sorted(here.glob("test_*.py")):
     if subprocess.run([sys.executable, str(scenario)]).returncode != 0:
         failed.append(scenario.stem)
     print(flush=True)
-print("Alle GUI-Szenarien OK." if not failed else f"Fehlgeschlagen: {', '.join(failed)}")
+print("All GUI scenarios OK." if not failed else f"Failed: {', '.join(failed)}")
 sys.exit(1 if failed else 0)

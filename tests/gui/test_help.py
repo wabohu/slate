@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""GUI-Test Tastenübersicht: ? öffnet sie (F1 nicht), jede Taste schließt nur sie (Esc beendet
-dann nicht das Tool), Klick schließt sie; im Screenshot-Modus und im Whiteboard.
+"""GUI test key overview: ? opens it (F1 does not), any key only closes it (Esc then does
+not quit the tool), a click closes it; in screenshot mode and in the whiteboard.
 
     python tests/gui/test_help.py
 
-Bildschirmfotos: tests/gui/out/help/ (Übersicht ansehen!). Rückgabewert 0 = alles ok.
+Screenshots: tests/gui/out/help/ (look at the overview!). Exit code 0 = all ok.
 """
 import sys
 import time
@@ -13,81 +13,81 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness import Session, check, summary, wait  # noqa: E402
 
-CENTER = (960, 540)  # dort liegt das Panel, wenn es offen ist
+CENTER = (960, 540)  # the panel lies here when it is open
 
 
 def main():
     with Session("help") as s:
         s.key("alt+Escape")
-        check("Overlay gestartet", wait(lambda: s.slate_pids(), 10))
+        check("overlay started", wait(lambda: s.slate_pids(), 10))
         pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.5)
-        closed = s.pixel(*CENTER, name="00-ohne")
+        closed = s.pixel(*CENTER, name="00-closed")
 
         s.key("F1")
         time.sleep(0.4)
-        check("F1 öffnet nichts", s.pixel(*CENTER) == closed)
+        check("F1 opens nothing", s.pixel(*CENTER) == closed)
         s.key("question")
-        check("? öffnet die Übersicht", wait(lambda: s.pixel(*CENTER, name="01-offen") != closed, 3))
+        check("? opens the overview", wait(lambda: s.pixel(*CENTER, name="01-open") != closed, 3))
         s.key("Escape")
         time.sleep(0.4)
-        check("Esc schließt nur die Übersicht", s.pixel(*CENTER) == closed and pid in s.slate_pids())
+        check("Esc only closes the overview", s.pixel(*CENTER) == closed and pid in s.slate_pids())
 
-        s.key("question")  # ? = Shift+/ auf US-Layout
-        check("? öffnet sie wieder", wait(lambda: s.pixel(*CENTER) != closed, 3))
+        s.key("question")  # ? = Shift+/ on the US layout
+        check("? opens it again", wait(lambda: s.pixel(*CENTER) != closed, 3))
         s.move(50, 50)
-        s.run(["xdotool", "click", "1"])  # Klick neben das Panel
+        s.run(["xdotool", "click", "1"])  # click next to the panel
         time.sleep(0.4)
-        check("Klick schließt die Übersicht", s.pixel(*CENTER) == closed and pid in s.slate_pids())
+        check("click closes the overview", s.pixel(*CENTER) == closed and pid in s.slate_pids())
 
-        # Leiste: im Screenshot-Modus anfangs aus, b blendet ein und wieder aus
-        # (Pixel mitten in der Leiste unten)
-        empty = s.pixel(960, 1037, name="03-ohne-leiste")
+        # Bar: off at first in screenshot mode, b shows it and hides it again
+        # (pixel in the middle of the bar at the bottom)
+        empty = s.pixel(960, 1037, name="03-without-bar")
         s.key("b")
-        check("Screenshot: Leiste anfangs aus, b blendet sie ein",
-              wait(lambda: s.pixel(960, 1037, name="04-mit-leiste") != empty, 3))
+        check("screenshot: bar off at first, b shows it",
+              wait(lambda: s.pixel(960, 1037, name="04-with-bar") != empty, 3))
         s.key("b")
-        check("b blendet sie wieder aus", wait(lambda: s.pixel(960, 1037) == empty, 3))
+        check("b hides it again", wait(lambda: s.pixel(960, 1037) == empty, 3))
 
         s.key("Escape")
-        check("danach beendet Esc das Tool", wait(lambda: not s.slate_pids(), 5))
+        check("afterwards Esc quits the tool", wait(lambda: not s.slate_pids(), 5))
 
-        # Whiteboard: eigene Einträge (Ansicht, Hintergrund), kein Verlauf
+        # Whiteboard: own entries (view, background), no history
         s.key("alt+Delete")
-        check("Whiteboard gestartet", wait(lambda: s.slate_pids(), 10))
+        check("whiteboard started", wait(lambda: s.slate_pids(), 10))
         pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.5)
-        # Ganze Zeile prüfen: ein einzelner Punkt kann zufällig auf einem Farbfeld in
-        # Hintergrundfarbe liegen
+        # Check a whole row: a single point may happen to lie on a color field in the
+        # background color
         from harness import _qt_image
         shot = _qt_image(s.screenshot("05-whiteboard-start"))
         background = shot.pixelColor(960, 900)
         differing = sum(shot.pixelColor(x, 1027) != background for x in range(300, 1620, 4))
-        check("Whiteboard: Leiste von Anfang an sichtbar", differing > 100)
+        check("whiteboard: bar visible from the start", differing > 100)
         s.key("question")
         time.sleep(0.4)
         s.screenshot("02-whiteboard")
         s.key("Escape")
         time.sleep(0.3)
-        check("Whiteboard: Esc schließt nur die Übersicht", pid in s.slate_pids())
+        check("whiteboard: Esc only closes the overview", pid in s.slate_pids())
         s.key("ctrl+q")
-        check("Whiteboard beendet", wait(lambda: not s.slate_pids(), 5))
+        check("whiteboard quit", wait(lambda: not s.slate_pids(), 5))
 
-    # 4K: Panel skaliert mit (Bildschirmfoto ansehen: gleich groß wirkend wie bei 1080p)
+    # 4K: the panel scales along (look at the screenshot: appears as large as at 1080p)
     with Session("help-4k", size="3840x2160") as s:
         s.key("alt+Escape")
         wait(lambda: s.slate_pids(), 10)
         pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.5)
-        closed = s.pixel(1920, 1080, name="00-ohne")
+        closed = s.pixel(1920, 1080, name="00-closed")
         s.key("question")
-        check("4K: Übersicht offen", wait(lambda: s.pixel(1920, 1080, name="01-offen") != closed, 3))
+        check("4K: overview open", wait(lambda: s.pixel(1920, 1080, name="01-open") != closed, 3))
         s.key("Escape")
         s.key("Escape")
-        check("4K: beendet", wait(lambda: not s.slate_pids(), 5))
+        check("4K: quit", wait(lambda: not s.slate_pids(), 5))
     return summary()
 
 

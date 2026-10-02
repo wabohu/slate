@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Testfenster für die GUI-Tests: ein Eingabefeld, das alles Getippte in eine Datei schreibt.
+"""Test window for the GUI tests: an input field that writes everything typed into a file.
 
-Steht stellvertretend für dein Terminal: Kommen Tasten hier an, hat das Fenster den
-Fokus. Der Fenstertitel "keysink" macht es per xdotool auffindbar.
+Stands in for your terminal: if keys arrive here, the window has the
+focus. The window title "keysink" makes it findable via xdotool.
 
-    python tests/gui/keysink.py /pfad/zur/ausgabe.txt
+    python tests/gui/keysink.py /path/to/output.txt
 """
 import sys
 from pathlib import Path

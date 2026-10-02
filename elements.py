@@ -1,9 +1,9 @@
-"""Zeichenelemente: Grafikobjekte, die ihre eigenen Werte kennen.
+"""Drawing elements: graphics objects that know their own values.
 
-Jedes Element hat eine feste ID und speichert seine Geometrie in lokalen
-Koordinaten. Qt-Konzept: Jedes QGraphicsItem hat ein eigenes Koordinatensystem;
-pos() und rotation() bilden es in die Szene ab. Verschieben ändert also nur pos,
-Drehen nur rotation, die Punkte selbst bleiben unverändert.
+Every element has a fixed ID and stores its geometry in local
+coordinates. Qt concept: every QGraphicsItem has its own coordinate system;
+pos() and rotation() map it into the scene. Moving therefore only changes pos,
+rotating only rotation, the points themselves stay unchanged.
 """
 import base64
 import math
@@ -21,26 +21,26 @@ from tools import RECT_RADIUS, Tool, marker_radius, shape_path
 
 
 def new_id():
-    """Eindeutige Kennung, z. B. für Verbinder und Speichern."""
+    """Unique identifier, e.g. for connectors and saving."""
     return uuid.uuid4().hex
 
 
 def corners(rect):
-    """Ecken eines Rechtecks in fester Reihenfolge: oben links, oben rechts, unten rechts,
-    unten links. Die gegenüberliegende Ecke von i ist (i + 2) % 4."""
+    """Corners of a rectangle in a fixed order: top left, top right, bottom right,
+    bottom left. The opposite corner of i is (i + 2) % 4."""
     return [rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()]
 
 
 def without_selection_highlight(option):
-    """Kopie der Zeichen-Optionen ohne "ausgewählt": Qt soll seinen eigenen gestrichelten
-    Rahmen nicht zeichnen, die Canvas zeichnet Rahmen und Griffe selbst."""
+    """Copy of the paint options without "selected": Qt should not draw its own dashed
+    frame, the Canvas draws frames and handles itself."""
     option = QStyleOptionGraphicsItem(option)
     option.state &= ~QStyle.State_Selected
     return option
 
 
 def scale_factor(new, fixed, old):
-    """Streckfaktor entlang einer Achse; bei (fast) null Ausdehnung nicht strecken."""
+    """Stretch factor along one axis; do not stretch for (almost) zero extent."""
     return (new - fixed) / (old - fixed) if abs(old - fixed) > 0.5 else 1.0
 
 
@@ -48,7 +48,7 @@ def distance(a, b):
     return math.hypot(a.x() - b.x(), a.y() - b.y())
 
 
-# Unschärfe: Klotzgröße = Strichstärke × Faktor (Stufen 2/4/8/12 px -> 6/12/24/36 px Klötze)
+# Blur: block size = stroke width × factor (levels 2/4/8/12 px -> 6/12/24/36 px blocks)
 BLUR_BLOCK_FACTOR = 3
 BLUR_MIN_BLOCK = 4
 
@@ -58,9 +58,9 @@ def blur_block(width):
 
 
 def pixelate(image, rect, block):
-    """Ausschnitt rect (Bildpixel) von image verpixelt: verkleinern (Mittelwert je Klotz),
-    dann ohne Glättung wieder vergrößern. Rückgabe: (QImage, benutzter Ausschnitt als QRect)
-    oder None, wenn rect ganz außerhalb des Bildes liegt."""
+    """Area rect (image pixels) of image pixelated: scale down (average per block),
+    then scale up again without smoothing. Returns: (QImage, area used as QRect)
+    or None if rect lies completely outside the image."""
     rect = rect.toAlignedRect().intersected(image.rect())
     if rect.isEmpty():
         return None
@@ -71,7 +71,7 @@ def pixelate(image, rect, block):
 
 
 def marker_text(rank, kind):
-    """1, 2, 3 … bzw. A, B, … Z, AA, AB …"""
+    """1, 2, 3 … or A, B, … Z, AA, AB …"""
     if kind != "letter":
         return str(rank)
     text = ""
@@ -82,44 +82,44 @@ def marker_text(rank, kind):
 
 
 def shown_color(item, color):
-    """Farbe, wie das Element sie zeigt. color ist die Grundfarbe (wird gespeichert);
-    die Szene kann sie an den Hintergrund anpassen (Canvas.adapt_color, z. B. auf
-    hellem Whiteboard abdunkeln). Ohne Szene oder ohne Anpassung: unverändert."""
+    """Color as the element shows it. color is the base color (gets saved);
+    the scene can adapt it to the background (Canvas.adapt_color, e.g. darken it
+    on a light whiteboard). Without a scene or without adaptation: unchanged."""
     adapt = getattr(item.scene(), "adapt_color", None)
     return adapt(color) if adapt else QColor(color)
 
 
 class ShapeElement(QGraphicsPathItem):
-    """Freihand, Linie, Pfeil, Rechteck oder Ellipse.
+    """Freehand, line, arrow, rectangle or ellipse.
 
-    points (lokal, relativ zu pos):
-      Freihand: alle Punkte des Strichs
-      sonst:    [Start, Ende]
-    radius: Eckenradius, nur für Rechtecke
+    points (local, relative to pos):
+      freehand: all points of the stroke
+      others:   [start, end]
+    radius: corner radius, only for rectangles
     """
 
     def __init__(self, tool, origin, color, width, element_id=None, radius=RECT_RADIUS):
         super().__init__()
-        self._hit_shape = None  # Zwischenspeicher für shape(), siehe unten
-        self._blur_cache = None  # Unschärfe: zuletzt berechnetes Bild
-        self.setFlag(QGraphicsPathItem.ItemIsSelectable)  # Qt verwaltet Auswahl + Markierung
+        self._hit_shape = None  # cache for shape(), see below
+        self._blur_cache = None  # blur: most recently computed image
+        self.setFlag(QGraphicsPathItem.ItemIsSelectable)  # Qt manages selection + highlight
         self.id = element_id or new_id()
         self.tool = tool
         self.color = QColor(color)
         self.width = width
         self.radius = radius
-        # Marker: Zahlen oder Buchstaben, Reihenfolge des Setzens (die Nummer ist der Platz darin)
+        # Marker: numbers or letters, order of placement (the number is the rank in it)
         self.marker_kind = "number"
         self.marker_order = 0
-        self.setPos(origin)  # Startpunkt = Ursprung des Elements
+        self.setPos(origin)  # start point = origin of the element
         start = QPointF(0, 0)
         self.points = [start] if tool == Tool.FREEHAND else [start, start]
         self.update_pen()
         self.rebuild()
 
-    # --- Speichern / Laden (document.py) ---
+    # --- Save / load (document.py) ---
     def to_dict(self):
-        """Alle Werte als einfache Python-Daten (JSON-tauglich). Farben als "#rrggbb"."""
+        """All values as plain Python data (JSON-compatible). Colors as "#rrggbb"."""
         return {
             "type": "shape",
             "id": self.id,
@@ -135,12 +135,12 @@ class ShapeElement(QGraphicsPathItem):
 
     @classmethod
     def from_dict(cls, data):
-        """Gegenstück zu to_dict. Fehlerhafte Daten lösen KeyError/ValueError/TypeError aus."""
+        """Counterpart to to_dict. Broken data raises KeyError/ValueError/TypeError."""
         tool = Tool[data["tool"].upper()]
-        # Ältere Dateien ohne "radius": bisheriger Standard, sieht also aus wie damals
+        # Older files without "radius": the previous default, so it looks like it did back then
         radius = data.get("radius", RECT_RADIUS)
         if isinstance(radius, bool) or not isinstance(radius, (int, float)) or radius < 0:
-            raise ValueError(f"radius {radius!r} ungültig")
+            raise ValueError(f"radius {radius!r} invalid")
         item = cls(tool, QPointF(*data["pos"]), data["color"], data["width"],
                    element_id=data.get("id"), radius=radius)
         item.points = [QPointF(x, y) for x, y in data["points"]]
@@ -148,16 +148,16 @@ class ShapeElement(QGraphicsPathItem):
             item.marker_kind = "letter" if data.get("kind") == "letter" else "number"
             order = data.get("order", 0)
             if isinstance(order, bool) or not isinstance(order, (int, float)):
-                raise ValueError(f"order {order!r} ungültig")
+                raise ValueError(f"order {order!r} invalid")
             item.marker_order = order
         expected = None if tool == Tool.FREEHAND else 2
         if not item.points or (expected and len(item.points) != expected):
-            raise ValueError(f"{tool.name}: falsche Anzahl Punkte")
+            raise ValueError(f"{tool.name}: wrong number of points")
         item.setRotation(data.get("rotation", 0))
         item.rebuild()
         return item
 
-    # --- Werte ändern ---
+    # --- Change values ---
     def set_color(self, color):
         self.color = QColor(color)
         self.update_pen()
@@ -165,27 +165,27 @@ class ShapeElement(QGraphicsPathItem):
     def set_width(self, width):
         self.width = width
         self.update_pen()
-        self.rebuild()  # z. B. Pfeilspitze hängt von der Strichstärke ab
+        self.rebuild()  # e.g. the arrow head depends on the stroke width
 
     def set_end(self, scene_pos):
-        """Endpunkt einer Zwei-Punkt-Form setzen (beim Aufziehen mit der Maus)."""
+        """Set the end point of a two-point shape (while drawing it with the mouse)."""
         self.points[1] = self.mapFromScene(scene_pos)
         self.rebuild()
 
     def add_point(self, scene_pos):
-        """Freihand: Punkt anhängen. Verlängert den Pfad, statt ihn neu zu bauen."""
+        """Freehand: append a point. Extends the path instead of rebuilding it."""
         local = self.mapFromScene(scene_pos)
         self.points.append(local)
         path = self.path()
         path.lineTo(local)
         self.setPath(path)
 
-    # --- Treffer beim Anklicken (D2: nur der Rand) ---
-    # Qt fragt shape() für Klicks und boundingRect() für Neuzeichnen und Suche.
-    # Standard bei geschlossenen Pfaden wäre: auch das Innere ist Treffer.
-    # Die Toleranz neben dem Strich gibt die Canvas dazu (in Bildschirm-Pixeln, zoomunabhängig).
+    # --- Hits when clicking (D2: only the outline) ---
+    # Qt asks shape() for clicks and boundingRect() for repainting and searching.
+    # The default for closed paths would be: the inside is a hit too.
+    # The Canvas adds the tolerance next to the stroke (in screen pixels, independent of zoom).
     def shape(self):
-        if self.tool == Tool.MARKER:  # Kreis ganz, dazu die Zeigelinie
+        if self.tool == Tool.MARKER:  # the whole circle, plus the pointer line
             tip, center = self.points
             r = marker_radius(self.width) + 1
             path = QPainterPath()
@@ -198,12 +198,12 @@ class ShapeElement(QGraphicsPathItem):
                 stroker.setCapStyle(Qt.RoundCap)
                 path = path.united(stroker.createStroke(line))
             return path
-        if self.tool == Tool.BLUR:  # gefüllte Fläche: Treffer auch innen (D2)
+        if self.tool == Tool.BLUR:  # filled area: a hit inside too (D2)
             path = QPainterPath()
             path.addRect(self.path().boundingRect())
             return path
         if self._hit_shape is None:
-            stroker = QPainterPathStroker()  # macht aus einer Linie eine Fläche dieser Breite
+            stroker = QPainterPathStroker()  # turns a line into an area of this width
             stroker.setWidth(self.width + 2)
             stroker.setCapStyle(Qt.RoundCap)
             stroker.setJoinStyle(Qt.RoundJoin)
@@ -211,10 +211,10 @@ class ShapeElement(QGraphicsPathItem):
         return self._hit_shape
 
     def boundingRect(self):
-        return self.shape().boundingRect()  # muss die Trefferfläche ganz umschließen
+        return self.shape().boundingRect()  # must enclose the hit area completely
 
-    # Pfad oder Stift ändern sich -> Zwischenspeicher verwerfen (vor und nach dem
-    # eigentlichen Setzen, weil Qt dazwischen noch das alte Rechteck abfragt)
+    # Path or pen change -> discard the cache (before and after the actual
+    # setting, because Qt still asks for the old rectangle in between)
     def setPath(self, path):
         self._hit_shape = None
         super().setPath(path)
@@ -235,8 +235,8 @@ class ShapeElement(QGraphicsPathItem):
         super().paint(painter, without_selection_highlight(option), widget)
 
     def blur_image(self):
-        """Verpixelter Screenshot unter diesem Element: (QImage, Ziel in lokalen Koordinaten) oder None.
-        Die Szene liefert das Rohbild (blur_source) und den Maßstab Bildpixel je Szeneneinheit."""
+        """Pixelated screenshot under this element: (QImage, target in local coordinates) or None.
+        The scene provides the raw image (blur_source) and the scale in image pixels per scene unit."""
         scene = self.scene()
         source = getattr(scene, "blur_source", None)
         if source is None:
@@ -254,15 +254,15 @@ class ShapeElement(QGraphicsPathItem):
         if result is None:
             return None
         image, used = result
-        # Zielrechteck lokal: der tatsächlich benutzte Bildausschnitt, zurück in Szeneneinheiten
+        # Local target rectangle: the image area actually used, back in scene units
         target = self.mapRectFromScene(QRectF(used.x() / factor, used.y() / factor,
                                               used.width() / factor, used.height() / factor))
         return image, target
 
     # --- Marker ---
     def marker_label(self):
-        """Nummer bzw. Buchstabe: Platz unter allen Markern derselben Art in der Szene,
-        sortiert nach Reihenfolge des Setzens. Löschen nummeriert die übrigen neu."""
+        """Number or letter: rank among all markers of the same kind in the scene,
+        sorted by order of placement. Deleting renumbers the others."""
         scene = self.scene()
         same = [i for i in (scene.items() if scene else [self])
                 if isinstance(i, ShapeElement) and i.tool == Tool.MARKER and i.marker_kind == self.marker_kind]
@@ -275,7 +275,7 @@ class ShapeElement(QGraphicsPathItem):
         color = shown_color(self, self.color)
         r = marker_radius(self.width)
         painter.setRenderHint(painter.RenderHint.Antialiasing)
-        if distance(tip, center) > 1:  # Zeigelinie mit Punkt an der Spitze
+        if distance(tip, center) > 1:  # pointer line with a dot at the tip
             line_w = max(2.0, r * 0.16)
             for pen_color, extra in ((QColor(0, 0, 0, 120), 2.0), (color, 0.0)):
                 pen = QPen(pen_color, line_w + extra)
@@ -300,7 +300,7 @@ class ShapeElement(QGraphicsPathItem):
 
     def paint_blur(self, painter):
         blurred = self.blur_image()
-        if blurred is None:  # ohne Screenshot (z. B. Whiteboard): nur schraffierter Rahmen
+        if blurred is None:  # without a screenshot (e.g. whiteboard): only a hatched frame
             painter.setPen(QPen(QColor(128, 128, 128), 1, Qt.DashLine))
             painter.setBrush(QColor(128, 128, 128, 60))
             painter.drawRect(self.path().boundingRect())
@@ -308,32 +308,32 @@ class ShapeElement(QGraphicsPathItem):
         image, target = blurred
         painter.drawImage(target, image)
 
-    # Qt-Konzept: itemChange meldet Änderungen am Item, hier "in eine Szene gelegt".
-    # Erst dann ist bekannt, auf welchem Hintergrund es liegt, also Farbe neu bestimmen.
+    # Qt concept: itemChange reports changes to the item, here "put into a scene".
+    # Only then is it known which background it lies on, so determine the color again.
     def itemChange(self, change, value):
         if change == QGraphicsPathItem.ItemSceneHasChanged:
             self.refresh_color()
         return super().itemChange(change, value)
 
     def refresh_color(self):
-        """Gezeigte Farbe neu bestimmen (nach Hintergrundwechsel)."""
+        """Determine the shown color again (after a background change)."""
         self.update_pen()
 
-    # --- Griffe zum Größe ändern (Auswahl-Werkzeug) ---
+    # --- Handles for resizing (select tool) ---
     def handle_points(self):
-        """Griffpunkte in lokalen Koordinaten: Endpunkte bei Linie/Pfeil, sonst 4 Ecken."""
-        if self.tool in (Tool.LINE, Tool.ARROW, Tool.MARKER):  # Marker: Spitze und Kreis
+        """Handle points in local coordinates: end points for line/arrow, otherwise 4 corners."""
+        if self.tool in (Tool.LINE, Tool.ARROW, Tool.MARKER):  # marker: tip and circle
             return list(self.points)
         return corners(self.box(self.points))
 
     def box(self, points):
-        """Umrandendes Rechteck der Geometrie (ohne Strichbreite)."""
+        """Bounding rectangle of the geometry (without stroke width)."""
         if self.tool == Tool.FREEHAND:
             return QPolygonF(points).boundingRect()
         return QRectF(points[0], points[1]).normalized()
 
     def geometry(self):
-        """Alles, was sich beim Größe ändern ändern kann, für Undo (kopiert)."""
+        """Everything that can change when resizing, for undo (copied)."""
         return (QPointF(self.pos()), [QPointF(p) for p in self.points])
 
     def set_geometry(self, state):
@@ -343,25 +343,25 @@ class ShapeElement(QGraphicsPathItem):
         self.rebuild()
 
     def drag_handle(self, index, scene_pos, start):
-        """Griff index wurde nach scene_pos gezogen; start = geometry() bei Zugbeginn."""
-        local = self.mapFromScene(scene_pos)  # pos ändert sich beim Ziehen nicht
+        """Handle index was dragged to scene_pos; start = geometry() at drag start."""
+        local = self.mapFromScene(scene_pos)  # pos does not change while dragging
         points = [QPointF(p) for p in start[1]]
         if self.tool in (Tool.LINE, Tool.ARROW, Tool.MARKER):
             points[index] = local
         elif self.tool == Tool.FREEHAND:
-            # Alle Punkte strecken; die gegenüberliegende Ecke bleibt fest
+            # Stretch all points; the opposite corner stays fixed
             box = corners(self.box(points))
             fixed, handle = box[(index + 2) % 4], box[index]
             sx = scale_factor(local.x(), fixed.x(), handle.x())
             sy = scale_factor(local.y(), fixed.y(), handle.y())
             points = [QPointF(fixed.x() + (p.x() - fixed.x()) * sx,
                               fixed.y() + (p.y() - fixed.y()) * sy) for p in points]
-        else:  # Rechteck, Ellipse: gegenüberliegende Ecke + neue Ecke
+        else:  # rectangle, ellipse: opposite corner + new corner
             points = [corners(self.box(points))[(index + 2) % 4], local]
         self.points = points
         self.rebuild()
 
-    # --- Aufbau aus den Werten ---
+    # --- Build from the values ---
     def update_pen(self):
         pen = QPen(shown_color(self, self.color), self.width)
         pen.setCapStyle(Qt.RoundCap)
@@ -369,11 +369,11 @@ class ShapeElement(QGraphicsPathItem):
         self.setPen(pen)
 
     def rebuild(self):
-        """Pfad komplett aus tool und points neu berechnen."""
+        """Recompute the path completely from tool and points."""
         if self.tool == Tool.FREEHAND:
             first = self.points[0]
             path = QPainterPath(first)
-            # Kleiner Startstrich, damit auch ein einzelner Klick einen Punkt zeichnet
+            # Tiny start stroke, so that even a single click draws a dot
             path.lineTo(first.x() + 0.01, first.y())
             for point in self.points[1:]:
                 path.lineTo(point)
@@ -383,9 +383,9 @@ class ShapeElement(QGraphicsPathItem):
 
 
 class TextElement(QGraphicsTextItem):
-    """Textobjekt mit fester ID, Farbe und Schriftgröße (fett, in Pixeln).
+    """Text object with a fixed ID, color and font size (bold, in pixels).
 
-    Später hängt eine Formbeschriftung als Kind-Item an einem ShapeElement (D5).
+    Later a shape label will hang on a ShapeElement as a child item (D5).
     """
 
     def __init__(self, origin, color, font_size, text="", element_id=None):
@@ -397,8 +397,8 @@ class TextElement(QGraphicsTextItem):
         self.setPlainText(text)
         self.setPos(origin)
 
-    # color = Grundfarbe (wird gespeichert), gezeigt wird die an den Hintergrund
-    # angepasste Variante (siehe shown_color); Text und Form haben dieselbe Schnittstelle
+    # color = base color (gets saved), what is shown is the variant adapted to the
+    # background (see shown_color); text and shape have the same interface
     @property
     def color(self):
         return QColor(self._color)
@@ -408,11 +408,11 @@ class TextElement(QGraphicsTextItem):
         self.refresh_color()
 
     def refresh_color(self):
-        """Gezeigte Farbe neu bestimmen (nach Hintergrundwechsel)."""
+        """Determine the shown color again (after a background change)."""
         self.setDefaultTextColor(shown_color(self, self._color))
 
     def itemChange(self, change, value):
-        if change == QGraphicsTextItem.ItemSceneHasChanged:  # siehe ShapeElement.itemChange
+        if change == QGraphicsTextItem.ItemSceneHasChanged:  # see ShapeElement.itemChange
             self.refresh_color()
         return super().itemChange(change, value)
 
@@ -426,7 +426,7 @@ class TextElement(QGraphicsTextItem):
     def paint(self, painter, option, widget=None):
         super().paint(painter, without_selection_highlight(option), widget)
 
-    # --- Griffe: Ziehen an einer Ecke skaliert die Schrift ---
+    # --- Handles: dragging a corner scales the font ---
     def handle_points(self):
         return corners(self.boundingRect())
 
@@ -439,9 +439,9 @@ class TextElement(QGraphicsTextItem):
         self.setPos(pos)
 
     def drag_handle(self, index, scene_pos, start, size_range=(6, 300)):
-        """Schriftgröße im Verhältnis der Diagonale; gegenüberliegende Ecke bleibt stehen."""
+        """Font size in proportion to the diagonal; the opposite corner stays put."""
         start_pos, start_size = start
-        self.set_geometry(start)  # vom Ausgangszustand aus rechnen, nicht schrittweise
+        self.set_geometry(start)  # compute from the initial state, not step by step
         box = corners(self.boundingRect())
         fixed_local, handle_local = box[(index + 2) % 4], box[index]
         fixed_scene = start_pos + fixed_local
@@ -449,10 +449,10 @@ class TextElement(QGraphicsTextItem):
                  / max(1.0, distance(start_pos + handle_local, fixed_scene)))
         low, high = size_range
         self.set_font_size(max(low, min(high, round(start_size * ratio))))
-        # Neue Größe: Position so setzen, dass die feste Ecke an ihrem Platz bleibt
+        # New size: set the position so that the fixed corner stays in its place
         self.setPos(fixed_scene - corners(self.boundingRect())[(index + 2) % 4])
 
-    # --- Speichern / Laden (document.py) ---
+    # --- Save / load (document.py) ---
     def to_dict(self):
         return {
             "type": "text",
@@ -471,11 +471,11 @@ class TextElement(QGraphicsTextItem):
         item.setRotation(data.get("rotation", 0))
         return item
 
-    # --- Bearbeiten ---
+    # --- Editing ---
     def start_editing(self):
-        # TextEditorInteraction macht das Item zu einem kleinen Editor (Cursor, Tippen, Auswahl)
+        # TextEditorInteraction turns the item into a small editor (cursor, typing, selection)
         self.setTextInteractionFlags(Qt.TextEditorInteraction)
-        self.setFocus()  # Tastatureingaben gehen jetzt über die Szene an dieses Item
+        self.setFocus()  # keyboard input now goes to this item via the scene
 
     def stop_editing(self):
         self.setTextInteractionFlags(Qt.NoTextInteraction)
@@ -483,11 +483,11 @@ class TextElement(QGraphicsTextItem):
 
 
 class ImageElement(QGraphicsItem):
-    """Bild (z. B. ein eingefügter Screenshot-Ausschnitt im Whiteboard).
+    """Image (e.g. a pasted screenshot crop on the whiteboard).
 
-    image: das Bild in voller Auflösung; size: angezeigte Größe in Szeneneinheiten.
-    Griffe an den Ecken ändern die Größe mit festem Seitenverhältnis. Farbe und
-    Strichstärke gibt es nicht: set_color tut nichts, Größen-Tasten lassen es aus.
+    image: the image in full resolution; size: displayed size in scene units.
+    Handles at the corners resize it with a fixed aspect ratio. There is no color
+    or stroke width: set_color does nothing, size keys skip it.
     """
 
     def __init__(self, origin, image, size=None, element_id=None):
@@ -496,14 +496,14 @@ class ImageElement(QGraphicsItem):
         self.id = element_id or new_id()
         self.image = QImage(image)
         self.size = QSizeF(size) if size is not None else QSizeF(self.image.size())
-        self.color = QColor("#000000")  # nur damit Farb-Vergleiche bei einer Auswahl funktionieren
+        self.color = QColor("#000000")  # only so that color comparisons work for a selection
         self.setPos(origin)
 
-    # --- Qt: Fläche und Zeichnen ---
+    # --- Qt: area and painting ---
     def boundingRect(self):
         return QRectF(QPointF(0, 0), self.size)
 
-    def shape(self):  # Treffer auf der ganzen Fläche
+    def shape(self):  # hit on the whole area
         path = QPainterPath()
         path.addRect(self.boundingRect())
         return path
@@ -513,12 +513,12 @@ class ImageElement(QGraphicsItem):
         painter.drawImage(self.boundingRect(), self.image)
 
     def set_color(self, color):
-        """Bilder haben keine Stiftfarbe; Farbwechsel bei einer Auswahl lassen sie aus."""
+        """Images have no pen color; color changes on a selection skip them."""
 
     def refresh_color(self):
-        """Nichts anzupassen (kein Stift)."""
+        """Nothing to adapt (no pen)."""
 
-    # --- Griffe: Größe mit festem Seitenverhältnis ---
+    # --- Handles: size with a fixed aspect ratio ---
     def handle_points(self):
         return corners(self.boundingRect())
 
@@ -527,12 +527,12 @@ class ImageElement(QGraphicsItem):
 
     def set_geometry(self, state):
         pos, size = state
-        self.prepareGeometryChange()  # Qt-Konzept: vor jeder Änderung von boundingRect melden
+        self.prepareGeometryChange()  # Qt concept: announce every change of boundingRect beforehand
         self.size = QSizeF(size)
         self.setPos(pos)
 
     def drag_handle(self, index, scene_pos, start):
-        """Ecke index nach scene_pos; gegenüberliegende Ecke bleibt, Seitenverhältnis fest."""
+        """Corner index to scene_pos; the opposite corner stays, aspect ratio fixed."""
         start_pos, start_size = start
         box = corners(QRectF(start_pos, start_size))
         fixed = box[(index + 2) % 4]
@@ -543,7 +543,7 @@ class ImageElement(QGraphicsItem):
         top = fixed.y() - size.height() if scene_pos.y() < fixed.y() else fixed.y()
         self.set_geometry((QPointF(left, top), size))
 
-    # --- Speichern / Laden ---
+    # --- Save / load ---
     def to_dict(self):
         buffer = QBuffer()
         buffer.open(QIODevice.WriteOnly)
@@ -561,10 +561,10 @@ class ImageElement(QGraphicsItem):
     def from_dict(cls, data):
         image = QImage.fromData(base64.b64decode(data["png"]))
         if image.isNull():
-            raise ValueError("Bild unlesbar")
+            raise ValueError("image unreadable")
         width, height = (float(v) for v in data["size"])
         if width <= 0 or height <= 0:
-            raise ValueError("Bildgröße muss positiv sein")
+            raise ValueError("image size must be positive")
         item = cls(QPointF(*data["pos"]), image, QSizeF(width, height), element_id=data.get("id"))
         item.setRotation(data.get("rotation", 0))
         return item

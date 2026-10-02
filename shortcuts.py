@@ -1,83 +1,83 @@
-"""Inhalt der Tastenübersicht (?): welche Taste was tut, nach Gruppen.
+"""Content of the key overview (?): which key does what, by group.
 
-sections() liefert alles als Listen (Gruppe -> Tasten, Beschreibung); overview() ordnet es
-für das Panel (ui.HelpPanel): Werkzeuge, Farben und Größen als Bildzeile, der Rest als Listen.
-Tasten werden klein geschrieben (a s d, strg+s), Modifier und Namen wie in der Doku.
+sections() returns everything as lists (group -> keys, description); overview() arranges it
+for the panel (ui.HelpPanel): tools, colors and sizes as a picture row, the rest as lists.
+Keys are written in lower case (a s d, ctrl+s), modifiers and names as in the docs.
 
-Die Tasten kommen aus der KeyMap, also mit den eigenen Belegungen aus [keys] und der
-Werkzeug-Reihenfolge aus [tools] order. Angezeigt wird nur, was im aktuellen Modus
-(Screenshot oder Whiteboard) gilt. Das Panel selbst zeichnet ui.HelpPanel.
+The keys come from the KeyMap, so with your own bindings from [keys] and the
+tool order from [tools] order. Only what applies in the current mode (screenshot or
+whiteboard) is shown. The panel itself is drawn by ui.HelpPanel.
 
-Neue Aktion in keymap.DEFAULT_KEYS = hier eine Beschreibung in DESCRIPTIONS
-(tests/test_settings.py prüft, dass keine fehlt).
+New action in keymap.DEFAULT_KEYS = a description here in DESCRIPTIONS
+(tests/test_settings.py checks that none is missing).
 """
 import re
 
 SCREENSHOT, BOARD = "screenshot", "board"
 BOTH = (SCREENSHOT, BOARD)
 
-# Aktion -> (Gruppe, Beschreibung, Modi). Werkzeug-, Farb- und Größenplätze und die
-# hjkl-Tasten werden zusammengefasst (siehe sections) und stehen darum nicht einzeln hier.
+# Action -> (group, description, modes). Tool, color and size slots and the
+# hjkl keys are combined (see sections) and are therefore not listed one by one here.
 DESCRIPTIONS = {
-    "tool_select": ("Werkzeuge", "Auswahl", BOTH),
-    "tool_marker": ("Werkzeuge", "Marker (nochmal: 1 2 3 / A B C)", BOTH),
-    "tool_blur": ("Werkzeuge", "Unschärfe", (SCREENSHOT,)),
-    "color_next": ("Farbe und Größe", "Farbe weiter", BOTH),
-    "color_prev": ("Farbe und Größe", "Farbe zurück", BOTH),
-    "delete": ("Auswahl", "löschen", BOTH),
-    "select_all": ("Auswahl", "alles auswählen", BOTH),
-    "raise": ("Auswahl", "nach vorne", BOTH),
-    "lower": ("Auswahl", "nach hinten", BOTH),
-    "raise_top": ("Auswahl", "ganz nach vorne", BOTH),
-    "lower_bottom": ("Auswahl", "ganz nach hinten", BOTH),
-    "undo": ("Allgemein", "Rückgängig", BOTH),
-    "redo": ("Allgemein", "Wiederholen", BOTH),
-    "copy_quit": ("Ausgabe", "Bild kopieren und beenden", (SCREENSHOT,)),
-    "copy_path_quit": ("Ausgabe", "speichern, Pfad kopieren, beenden", (SCREENSHOT,)),
-    "copy_image": ("Ausgabe", "Bild kopieren (mit Auswahl: Elemente)", BOTH),
-    "paste": ("Auswahl", "Elemente einfügen", BOTH),
-    "duplicate": ("Auswahl", "verdoppeln", BOTH),
-    "save": ("Ausgabe", "bearbeitbar speichern", BOTH),
-    "export_png": ("Ausgabe", "sauberes PNG exportieren", BOTH),
-    "crop": ("Ausgabe", "Ausschnitt festlegen (dabei Esc: aufheben)", (SCREENSHOT,)),
-    "quit": ("Allgemein", "beenden", BOTH),
-    "help": ("Allgemein", "diese Übersicht", BOTH),
-    "toggle_bar": ("Allgemein", "Leiste ein/aus", BOTH),
-    "spotlight": ("Zeigen", "Spotlight an/aus", BOTH),
-    "magnifier": ("Zeigen", "Lupe an/aus", BOTH),
-    "zoom_reset": ("Ansicht", "Zoom 100 %", (BOARD,)),
-    "overview": ("Ansicht", "Übersicht / zurück", (BOARD,)),
-    "background_next": ("Ansicht", "Hintergrund hell/dunkel", (BOARD,)),
-    "background_prev": ("Ansicht", "Hintergrund zurück", (BOARD,)),
-    "history_prev": ("Verlauf", "älterer Screenshot", (SCREENSHOT,)),
-    "history_next": ("Verlauf", "neuerer Screenshot", (SCREENSHOT,)),
+    "tool_select": ("Tools", "Select", BOTH),
+    "tool_marker": ("Tools", "Marker (again: 1 2 3 / A B C)", BOTH),
+    "tool_blur": ("Tools", "Blur", (SCREENSHOT,)),
+    "color_next": ("Color and size", "next color", BOTH),
+    "color_prev": ("Color and size", "previous color", BOTH),
+    "delete": ("Selection", "delete", BOTH),
+    "select_all": ("Selection", "select all", BOTH),
+    "raise": ("Selection", "bring forward", BOTH),
+    "lower": ("Selection", "send backward", BOTH),
+    "raise_top": ("Selection", "bring to front", BOTH),
+    "lower_bottom": ("Selection", "send to back", BOTH),
+    "undo": ("General", "undo", BOTH),
+    "redo": ("General", "redo", BOTH),
+    "copy_quit": ("Output", "copy image and quit", (SCREENSHOT,)),
+    "copy_path_quit": ("Output", "save, copy path, quit", (SCREENSHOT,)),
+    "copy_image": ("Output", "copy image (with selection: elements)", BOTH),
+    "paste": ("Selection", "paste elements", BOTH),
+    "duplicate": ("Selection", "duplicate", BOTH),
+    "save": ("Output", "save editable", BOTH),
+    "export_png": ("Output", "export clean PNG", BOTH),
+    "crop": ("Output", "set crop (Esc meanwhile: remove)", (SCREENSHOT,)),
+    "quit": ("General", "quit", BOTH),
+    "help": ("General", "this overview", BOTH),
+    "toggle_bar": ("General", "bar on/off", BOTH),
+    "spotlight": ("Pointing", "spotlight on/off", BOTH),
+    "magnifier": ("Pointing", "magnifier on/off", BOTH),
+    "zoom_reset": ("View", "zoom 100 %", (BOARD,)),
+    "overview": ("View", "fit all / back", (BOARD,)),
+    "background_next": ("View", "background light/dark", (BOARD,)),
+    "background_prev": ("View", "previous background", (BOARD,)),
+    "history_prev": ("History", "older screenshot", (SCREENSHOT,)),
+    "history_next": ("History", "newer screenshot", (SCREENSHOT,)),
 }
-# Zusammengefasst in sections()
+# Combined in sections()
 GROUPED = re.compile(r"^(tool|color|size)_\d+$|^move_(left|down|up|right)(_fine)?$")
 
-# Feste Bedienung ohne Eintrag in der Tastentabelle: (Gruppe, Taste/Maus, Beschreibung, Modi)
+# Fixed controls without an entry in the key table: (group, key/mouse, description, modes)
 FIXED = [
-    ("Allgemein", "Esc", "Zeigen aus, Auswahl aufheben, sonst beenden", (SCREENSHOT,)),
-    ("Allgemein", "Esc", "Zeigen aus, Auswahl aufheben", (BOARD,)),
-    ("Maus", "Ziehen", "zeichnen mit dem Werkzeug", BOTH),
-    ("Maus", "Klick (Auswahl)", "auswählen, ziehen = verschieben", BOTH),
-    ("Maus", "Griffe ziehen", "Größe ändern", BOTH),
-    ("Maus", "Doppelklick (Auswahl)", "Text bearbeiten / neuer Text", BOTH),
-    ("Maus", "Alt+Mausrad", "Größe fein", BOTH),
-    ("Maus", "Mausrad, mittlere Taste", "Ansicht verschieben", (BOARD,)),
-    ("Maus", "Strg+Mausrad", "zoomen", (BOARD,)),
+    ("General", "Esc", "pointing off, deselect, otherwise quit", (SCREENSHOT,)),
+    ("General", "Esc", "pointing off, deselect", (BOARD,)),
+    ("Mouse", "Drag", "draw with the tool", BOTH),
+    ("Mouse", "Click (select)", "select, drag = move", BOTH),
+    ("Mouse", "Drag handles", "resize", BOTH),
+    ("Mouse", "Double-click (select)", "edit text / new text", BOTH),
+    ("Mouse", "Alt+wheel", "fine size", BOTH),
+    ("Mouse", "Wheel, middle button", "pan the view", (BOARD,)),
+    ("Mouse", "Ctrl+wheel", "zoom", (BOARD,)),
 ]
 
-# Tastennamen wie in docs/bedienung.md (Qt schreibt sie englisch)
-KEY_NAMES = {"Ctrl": "Strg", "Return": "Enter", "Del": "Entf", "Left": "←", "Right": "→",
+# Key names as in docs/usage.md (differing from Qt's names)
+KEY_NAMES = {"Return": "Enter", "Left": "←", "Right": "→",
              "Up": "↑", "Down": "↓", "Shift+?": "?", "Meta": "Super"}
 
-GROUP_ORDER = ["Werkzeuge", "Farbe und Größe", "Auswahl", "Zeigen", "Ausgabe", "Ansicht", "Verlauf", "Allgemein",
-               "Maus"]
+GROUP_ORDER = ["Tools", "Color and size", "Selection", "Pointing", "Output", "View", "History", "General",
+               "Mouse"]
 
 
 def display(label):
-    """Qt-Tastentext in die Schreibweise der Übersicht, z. B. 'Ctrl+Return' -> 'strg+enter'."""
+    """Qt key text in the spelling of the overview, e.g. 'Ctrl+Return' -> 'ctrl+enter'."""
     if label in KEY_NAMES:
         return KEY_NAMES[label].lower()
     if label == "+":
@@ -86,7 +86,7 @@ def display(label):
 
 
 def split_common(labels):
-    """['shift+a', 'shift+s'] -> ('shift', ['a', 's']); ohne gemeinsamen Modifier ('', labels)."""
+    """['shift+a', 'shift+s'] -> ('shift', ['a', 's']); without a common modifier ('', labels)."""
     prefixes = {label.rpartition("+")[0] for label in labels if label}
     if len(prefixes) == 1 and (prefix := prefixes.pop()):
         return prefix, [label.rpartition("+")[2] for label in labels]
@@ -94,7 +94,7 @@ def split_common(labels):
 
 
 def combine(labels):
-    """['Shift+A', 'Shift+S'] -> 'Shift+A S'; gemischte Modifier einzeln mit Komma."""
+    """['Shift+A', 'Shift+S'] -> 'Shift+A S'; mixed modifiers one by one with commas."""
     labels = [display(label) for label in labels if label]
     if not labels:
         return ""
@@ -107,7 +107,7 @@ def combine(labels):
 
 
 def sections(keymap, tools, color_count, size_count, board):
-    """[(Gruppe, [(Tasten, Beschreibung), …]), …] für den aktuellen Modus."""
+    """[(group, [(keys, description), …]), …] for the current mode."""
     mode = BOARD if board else SCREENSHOT
     groups = {name: [] for name in GROUP_ORDER}
 
@@ -116,43 +116,43 @@ def sections(keymap, tools, color_count, size_count, board):
             groups.setdefault(group, []).append((keys, text))
 
     def keys(action):
-        """Alle Tasten einer Aktion, z. B. 'Entf, Backspace'."""
+        """All keys of an action, e.g. 'Del, Backspace'."""
         return ", ".join(display(label) for label in keymap.labels(action))
 
     for i, tool in enumerate(tools, start=1):
-        add("Werkzeuge", keys(f"tool_{i}"), tool.value)
-    add("Farbe und Größe", combine([keymap.label(f"color_{i}") for i in range(1, color_count + 1)]),
-        "Farbe aus der Leiste")
-    add("Farbe und Größe", combine([keymap.label(f"size_{i}") for i in range(1, size_count + 1)]),
-        "Größe in Stufen")
+        add("Tools", keys(f"tool_{i}"), tool.value)
+    add("Color and size", combine([keymap.label(f"color_{i}") for i in range(1, color_count + 1)]),
+        "color from the bar")
+    add("Color and size", combine([keymap.label(f"size_{i}") for i in range(1, size_count + 1)]),
+        "size in levels")
     directions = ("left", "down", "up", "right")
-    add("Auswahl", combine([keymap.label(f"move_{d}") for d in directions]), "verschieben")
-    add("Auswahl", combine([keymap.label(f"move_{d}_fine") for d in directions]), "fein verschieben")
+    add("Selection", combine([keymap.label(f"move_{d}") for d in directions]), "move")
+    add("Selection", combine([keymap.label(f"move_{d}_fine") for d in directions]), "move finely")
 
     for action, (group, text, modes) in DESCRIPTIONS.items():
         if mode in modes:
             add(group, keys(action), text)
-    for action in keymap.texts:  # Aktionen ohne Beschreibung nie verschweigen
+    for action in keymap.texts:  # never hide actions without a description
         if action not in DESCRIPTIONS and not GROUPED.match(action):
-            add("Allgemein", keys(action), action)
+            add("General", keys(action), action)
     for group, fixed_keys, text, modes in FIXED:
         if mode in modes:
-            add(group, fixed_keys.lower(), text)  # klein wie die übrigen Tasten
-    # Werkzeuge: Auswahl zuerst, wie in der Leiste
-    groups["Werkzeuge"].sort(key=lambda entry: entry[1] != "Auswahl")
+            add(group, fixed_keys.lower(), text)  # lower case like the other keys
+    # Tools: Select first, as in the bar
+    groups["Tools"].sort(key=lambda entry: entry[1] != "Select")
     return [(name, entries) for name, entries in groups.items() if entries]
 
 
-# Gruppen, die overview() als Bildzeile bzw. eigene Spalte zeigt statt als Liste rechts
-PICTURE_GROUPS = ("Werkzeuge", "Farbe und Größe", "Maus")
+# Groups that overview() shows as a picture row or its own column instead of a list on the right
+PICTURE_GROUPS = ("Tools", "Color and size", "Mouse")
 
 
 def overview(keymap, tools, color_count, size_count, board):
-    """Daten für das Panel (Entwurf D):
-    tools: [(Tool, Tasten)] mit Auswahl vorne; colors / sizes: Tasten je Feld bzw. Stufe;
-    color_hint / size_hint: Überschrift-Zusatz (gemeinsamer Modifier, Blättern, Mausrad);
-    mouse: [(Maus, Beschreibung)]; lists: [(Gruppe, [(Tasten, Beschreibung)])] für rechts."""
-    from tools import Tool  # hier, damit das Modul ohne Qt importierbar bleibt
+    """Data for the panel (draft D):
+    tools: [(Tool, keys)] with Select first; colors / sizes: keys per field or level;
+    color_hint / size_hint: addition to the heading (common modifier, cycling, wheel);
+    mouse: [(mouse, description)]; lists: [(group, [(keys, description)])] for the right."""
+    from tools import Tool  # here, so the module stays importable without Qt
 
     def keys(action):
         return ", ".join(display(label) for label in keymap.labels(action))
@@ -166,13 +166,13 @@ def overview(keymap, tools, color_count, size_count, board):
     size_prefix, sizes = split_common([display(keymap.label(f"size_{i}")) for i in range(1, size_count + 1)])
     browse = " / ".join(k for k in (keys("color_next"), keys("color_prev")) if k)
     color_hint = ", ".join(x for x in (f"{color_prefix} + …" if color_prefix else "",
-                                       f"{browse} blättert" if browse else "") if x)
-    size_hint = ", ".join(x for x in (f"{size_prefix} + …" if size_prefix else "", "alt+mausrad fein") if x)
+                                       f"{browse} cycles" if browse else "") if x)
+    size_hint = ", ".join(x for x in (f"{size_prefix} + …" if size_prefix else "", "alt+wheel fine") if x)
     groups = sections(keymap, tools, color_count, size_count, board)
     return {
         "tools": tool_keys,
         "colors": colors, "color_hint": color_hint,
         "sizes": sizes, "size_hint": size_hint,
-        "mouse": dict(groups).get("Maus", []),
+        "mouse": dict(groups).get("Mouse", []),
         "lists": [(name, entries) for name, entries in groups if name not in PICTURE_GROUPS],
     }

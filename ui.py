@@ -1,8 +1,8 @@
-"""UI-Elemente, die über der Zeichenfläche liegen.
+"""UI elements that lie above the drawing surface.
 
-Aufbau (Variante A aus docs/plan-bedienung.md): eine MainBar mit gemeinsamem
-Hintergrund, darin nebeneinander die Gruppen (Werkzeuge | Farben | Größe),
-jede Gruppe eine CellBar.
+Structure (variant A from docs/plan-bedienung.md): a MainBar with a common
+background, in it side by side the groups (tools | colors | size),
+each group a CellBar.
 """
 from PySide6.QtCore import QPointF, QRectF, QSize, QSizeF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPen
@@ -12,10 +12,10 @@ from tools import tool_icon
 
 
 class Theme:
-    """Farben der Oberfläche: Hintergrund der Leiste und Vordergrund (Symbole, Rahmen, Text).
+    """Interface colors: background of the bar and foreground (icons, frames, text).
 
-    Standard ist ein neutrales Dunkelgrau mit Weiß; slate.py setzt normalerweise
-    die Farben aus dem Alacritty-Schema ([ui] in der Config).
+    Default is a neutral dark gray with white; normally the settings set
+    the colors from the Alacritty scheme ([ui] in the config).
     """
 
     def __init__(self, background=QColor(20, 20, 20), foreground=QColor("white"), opacity=0.75,
@@ -23,36 +23,36 @@ class Theme:
         self.background = QColor(background)
         self.background.setAlphaF(opacity)
         self.foreground = QColor(foreground)
-        self.accent = QColor(accent) if accent is not None else QColor(foreground)  # z. B. Tasten in der Übersicht
-        self.heading = QColor(heading) if heading is not None else QColor(foreground)  # Überschriften
+        self.accent = QColor(accent) if accent is not None else QColor(foreground)  # e.g. keys in the overview
+        self.heading = QColor(heading) if heading is not None else QColor(foreground)  # headings
 
     def fg(self, alpha=255):
-        """Vordergrundfarbe mit Deckkraft alpha (0-255), z. B. für dezente Flächen."""
+        """Foreground color with opacity alpha (0-255), e.g. for subtle areas."""
         color = QColor(self.foreground)
         color.setAlpha(alpha)
         return color
 
     def css(self, color):
-        """QColor -> 'rgba(r, g, b, a)' für Qt-Stylesheets."""
+        """QColor -> 'rgba(r, g, b, a)' for Qt style sheets."""
         return f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()})"
 
 
 def ui_scale(screen):
-    """Maßstab für Leiste, Meldungen und Übersicht: alle Maße gelten für 1080 px
-    Bildschirmhöhe, größere Bildschirme (z. B. 4K) bekommen alles entsprechend größer."""
+    """Scale for bar, messages and overview: all sizes are meant for 1080 px
+    screen height, larger screens (e.g. 4K) get everything correspondingly larger."""
     return max(1.0, screen.geometry().height() / 1080) if screen else 1.0
 
 
 class MainBar(QWidget):
-    """Gemeinsame Leiste: Hintergrund mit feinem Rand, Gruppen mit Trennstrichen.
+    """Common bar: background with a fine border, groups with separator lines.
 
-    Qt-Konzept Layout: QHBoxLayout ordnet die Kind-Widgets automatisch
-    nebeneinander an und berechnet daraus die Größe der Leiste. Wir müssen also
-    keine Positionen von Hand ausrechnen, wenn eine Gruppe dazukommt.
+    Qt concept layout: QHBoxLayout arranges the child widgets side by side
+    automatically and computes the size of the bar from them. So we do not
+    have to compute positions by hand when a group is added.
     """
 
-    SIZE = 0.9    # Gesamtgröße der Leiste (1.0 = Maße wie angegeben, für 1080 px Bildschirmhöhe)
-    SPACING = 18  # Abstand zwischen den Gruppen, in der Mitte liegt der Trennstrich
+    SIZE = 0.9    # overall size of the bar (1.0 = sizes as given, for 1080 px screen height)
+    SPACING = 18  # gap between the groups, the separator line lies in the middle
     RADIUS = 12
 
     def __init__(self, groups, theme, parent=None):
@@ -63,17 +63,17 @@ class MainBar(QWidget):
         self.box = QHBoxLayout(self)
         self.box.setContentsMargins(0, 0, 0, 0)
         for group in groups:
-            self.box.addWidget(group, 0, Qt.AlignVCenter)  # addWidget macht group zum Kind dieser Leiste
+            self.box.addWidget(group, 0, Qt.AlignVCenter)  # addWidget makes group a child of this bar
         self.set_scale(1.0)
 
     def set_scale(self, scale):
-        """Alle Maße mit scale vervielfachen (siehe ui_scale), dazu SIZE."""
+        """Multiply all sizes by scale (see ui_scale), plus SIZE."""
         scale *= self.SIZE
         self.scale = scale
         self.box.setSpacing(round(self.SPACING * scale))
         for group in self.groups:
             group.set_scale(scale)
-        self.box.activate()  # Layout sofort neu berechnen, nicht erst beim nächsten Zeichnen
+        self.box.activate()  # recompute the layout right away, not only on the next paint
         self.resize(self.sizeHint())
 
     def paintEvent(self, event):
@@ -90,28 +90,28 @@ class MainBar(QWidget):
             p.drawLine(QPointF(x, inset), QPointF(x, self.height() - inset))
 
     def mousePressEvent(self, event):
-        # Klicks auf Hintergrund/Trennstriche nicht an die Zeichenfläche durchreichen
+        # do not pass clicks on background/separators through to the drawing surface
         event.accept()
 
 
 class CellBar(QWidget):
-    """Gemeinsame Basis für Leisten aus gleich großen Feldern.
+    """Common base for bars made of equally sized fields.
 
-    Klick auf ein Feld sendet selected(index). Das aktive Feld ist hell markiert (Farbfelder:
-    Ring, Werkzeug und Größe: invertiert wie eine gedrückte Taste), das Feld unter der Maus
-    bekommt eine feine Umrandung. Unterklassen zeichnen nur den
-    Inhalt eines Felds (paint_cell). Alle Maße gelten bei scale 1 (1080 px Bildschirmhöhe).
+    A click on a field emits selected(index). The active field is highlighted (color fields:
+    ring, tool and size: inverted like a pressed key), the field under the mouse
+    gets a fine outline. Subclasses only draw the
+    content of a field (paint_cell). All sizes apply at scale 1 (1080 px screen height).
 
-    Weil die Leiste ein eigenes Kind-Widget ist, landen Klicks darauf hier und
-    nicht im mousePressEvent der Zeichenfläche. Es entsteht also kein Strich.
+    Because the bar is a child widget of its own, clicks on it land here and
+    not in the mousePressEvent of the drawing surface. So no stroke is created.
     """
 
     selected = Signal(int)
 
-    CELL = 28      # Kantenlänge eines Felds
-    GAP = 6        # Abstand zwischen den Feldern
-    PADDING = 10   # Rand um alle Felder
-    RADIUS = 6     # Ecken eines Felds
+    CELL = 28      # edge length of a field
+    GAP = 6        # gap between the fields
+    PADDING = 10   # margin around all fields
+    RADIUS = 6     # corners of a field
 
     def __init__(self, count, theme, parent=None):
         super().__init__(parent)
@@ -121,12 +121,12 @@ class CellBar(QWidget):
         self.hover = -1
         self.scale = 1.0
         self.setCursor(Qt.PointingHandCursor)
-        self.setMouseTracking(True)  # Mausbewegung auch ohne Taste (für das Aufhellen)
+        self.setMouseTracking(True)  # mouse movement without a button too (for the highlight)
         self.set_scale(1.0)
 
     def set_scale(self, scale):
         self.scale = scale
-        self.setFixedSize(self.sizeHint())  # feste Größe, damit das Layout sie nicht streckt
+        self.setFixedSize(self.sizeHint())  # fixed size so the layout does not stretch it
         self.update()
 
     def px(self, value):
@@ -138,9 +138,9 @@ class CellBar(QWidget):
         return QSize(round(self.px(width)), round(self.px(2 * self.PADDING + self.CELL)))
 
     def set_active(self, index):
-        """index = -1: kein Feld markieren."""
+        """index = -1: highlight no field."""
         self.active = index
-        self.update()  # plant ein Neuzeichnen, ruft später paintEvent auf
+        self.update()  # schedules a repaint, calls paintEvent later
 
     def cell_rect(self, index):
         x = self.PADDING + index * (self.CELL + self.GAP)
@@ -157,7 +157,7 @@ class CellBar(QWidget):
         raise NotImplementedError
 
     def paint_active(self, p, rect):
-        """Markierung des aktiven Felds; Standard: heller Ring mit kleinem Abstand."""
+        """Highlight of the active field; default: light ring with a small gap."""
         p.setBrush(Qt.NoBrush)
         p.setPen(QPen(self.theme.foreground, self.px(2)))
         grow = self.px(3)
@@ -166,13 +166,13 @@ class CellBar(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        # Kein eigener Hintergrund: den zeichnet die MainBar für alle Gruppen
+        # No background of its own: the MainBar draws it for all groups
         for i in range(self.count):
             rect = self.cell_rect(i)
-            p.save()  # Pinsel/Stift merken, damit paint_cell frei ändern darf
+            p.save()  # remember brush/pen so paint_cell may change them freely
             self.paint_cell(p, i, rect)
             p.restore()
-            if i == self.hover and i != self.active:  # feine Umrandung, auch auf bunten Feldern sichtbar
+            if i == self.hover and i != self.active:  # fine outline, visible on colored fields too
                 p.setPen(QPen(self.theme.fg(170), self.px(1.5)))
                 p.setBrush(Qt.NoBrush)
                 p.drawRoundedRect(rect.adjusted(-self.px(1.5), -self.px(1.5), self.px(1.5), self.px(1.5)),
@@ -193,7 +193,7 @@ class CellBar(QWidget):
         self.update()
 
     def mousePressEvent(self, event):
-        # Event immer hier "verbrauchen", auch in den Lücken zwischen Feldern
+        # always "consume" the event here, also in the gaps between fields
         event.accept()
         if event.button() != Qt.LeftButton:
             return
@@ -203,7 +203,7 @@ class CellBar(QWidget):
 
 
 class PaletteBar(CellBar):
-    """Farbleiste: ein Farbfeld pro Farbe."""
+    """Color bar: one color field per color."""
 
     CELL = 26
     GAP = 7
@@ -213,28 +213,28 @@ class PaletteBar(CellBar):
         super().__init__(len(self.colors), theme, parent)
 
     def set_colors(self, colors):
-        """Gezeigte Farben austauschen (gleiche Anzahl), z. B. helle Varianten."""
+        """Replace the shown colors (same count), e.g. light variants."""
         self.colors = [QColor(c) for c in colors]
         self.update()
 
     def paint_cell(self, p, index, rect):
         p.setBrush(self.colors[index])
-        p.setPen(QPen(self.theme.fg(55), max(1.0, self.px(1))))  # dünner Rand, damit dunkle Farben sichtbar bleiben
+        p.setPen(QPen(self.theme.fg(55), max(1.0, self.px(1))))  # thin border so dark colors stay visible
         p.drawRoundedRect(rect, self.px(self.RADIUS), self.px(self.RADIUS))
 
 
 class ToolBar(CellBar):
-    """Werkzeugleiste: ein Symbol pro Werkzeug, Tastenkürzel klein unten rechts.
+    """Tool bar: one icon per tool, shortcut small at the bottom right.
 
-    icons: QPainterPaths in Feld-Koordinaten (0 … 30), labels: Tastennamen oder "".
-    Das aktive Werkzeug ist invertiert: helle Fläche, Symbol in der Hintergrundfarbe.
+    icons: QPainterPaths in field coordinates (0 … 30), labels: key names or "".
+    The active tool is inverted: light area, icon in the background color.
     """
 
     CELL = 32
 
     def __init__(self, icons, labels, theme, parent=None):
         self.icons = icons
-        self.labels = [label.lower() for label in labels]  # klein wie in der Übersicht
+        self.labels = [label.lower() for label in labels]  # lower case as in the overview
         super().__init__(len(icons), theme, parent)
 
     def paint_cell(self, p, index, rect):
@@ -251,7 +251,7 @@ class ToolBar(CellBar):
         p.setPen(pen)
         p.setBrush(Qt.NoBrush)
         p.save()
-        p.translate(rect.topLeft())  # Symbol ist relativ zur Feldecke gebaut (0 … 30)
+        p.translate(rect.topLeft())  # the icon is built relative to the field corner (0 … 30)
         p.scale(rect.width() / 30, rect.height() / 30)
         p.drawPath(self.icons[index])
         p.restore()
@@ -266,11 +266,11 @@ class ToolBar(CellBar):
                        self.labels[index])
 
     def paint_active(self, p, rect):
-        pass  # die invertierte Fläche zeichnet paint_cell
+        pass  # paint_cell draws the inverted area
 
 
 class SizeBar(CellBar):
-    """Größen-Stufen: Punkte wachsender Größe (Strichstärke bzw. Schriftgröße)."""
+    """Size levels: dots of growing size (stroke width or font size)."""
 
     def __init__(self, levels, theme, parent=None):
         super().__init__(levels, theme, parent)
@@ -282,25 +282,25 @@ class SizeBar(CellBar):
         p.setPen(Qt.NoPen)
         p.setBrush(self.theme.fg(235) if active else self.theme.fg(18))
         p.drawRoundedRect(rect, self.px(self.RADIUS), self.px(self.RADIUS))
-        diameter = self.px(4 + index * 4)  # 4, 8, 12, 16: zeigt die Stufe, nicht den Pixelwert
+        diameter = self.px(4 + index * 4)  # 4, 8, 12, 16: shows the level, not the pixel value
         p.setBrush(dark if active else self.theme.foreground)
         p.drawEllipse(rect.center(), diameter / 2, diameter / 2)
 
     def paint_active(self, p, rect):
-        pass  # invertiert, siehe paint_cell
+        pass  # inverted, see paint_cell
 
 
 class Toast(QLabel):
-    """Kurze Einblendung oben mittig (z. B. "Gespeichert: …"), verschwindet von selbst."""
+    """Short message at the top center (e.g. "Saved: …"), disappears by itself."""
 
     DURATION_MS = 2500
 
     def __init__(self, theme, parent):
         super().__init__(parent)
         self.theme = theme
-        self.setAttribute(Qt.WA_TransparentForMouseEvents)  # Klicks gehen durch
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)  # clicks go through
         self.set_scale(1.0)
-        # Ein Timer statt vieler singleShot-Aufrufe: neue Meldung startet die Zeit neu
+        # One timer instead of many singleShot calls: a new message restarts the time
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.hide)
@@ -321,25 +321,25 @@ class Toast(QLabel):
         self.adjustSize()
         self.move((self.parent().width() - self.width()) // 2, self.top)
         self.show()
-        self.raise_()  # über alle anderen Kind-Widgets
+        self.raise_()  # above all other child widgets
         self.timer.start(self.DURATION_MS)
 
 
 class HelpPanel(QWidget):
-    """Tastenübersicht (?), Entwurf D: oben links die Werkzeug-Symbole wie in der
-    Leiste, darunter Farbfelder und Größenpunkte, je mit Taste; darunter die Maus; rechts
-    die übrigen Gruppen als Liste. Inhalt aus shortcuts.overview().
+    """Key overview (?), draft D: top left the tool icons as in the bar,
+    below them color fields and size dots, each with its key; below that the mouse; on the
+    right the other groups as lists. Content from shortcuts.overview().
 
-    Alle Maße sind für 1080 Pixel Bildschirmhöhe angegeben und werden mit der Höhe des
-    Bildschirms skaliert (4K = doppelt so groß); passt das Panel nicht ins Fenster, wird
-    es kleiner. Messen und Zeichnen machen dieselbe Methode (arrange), so passt beides.
-    Schließen regelt die Canvas (jede Taste, Klick daneben); ein Klick aufs Panel schließt es.
+    All sizes are given for 1080 pixel screen height and scale with the height of the
+    screen (4K = twice as large); if the panel does not fit into the window, it gets
+    smaller. Measuring and drawing use the same method (arrange), so both match.
+    The Canvas handles closing (any key, click outside); a click on the panel closes it.
     """
 
-    SIZE = 0.9  # Gesamtgröße (1.0 = Maße wie unten, für 1080 px Bildschirmhöhe)
+    SIZE = 0.9  # overall size (1.0 = sizes as below, for 1080 px screen height)
     MARGIN, COLUMN_GAP, SECTION_GAP = 40, 70, 44
-    LIST_GAP = 22  # Abstand zwischen den Gruppen rechts
-    TOOL_CELL, SWATCH, KEY_GAP = 46, 46, 24  # Werkzeug-Symbole so groß wie die Farbfelder
+    LIST_GAP = 22  # gap between the groups on the right
+    TOOL_CELL, SWATCH, KEY_GAP = 46, 46, 24  # tool icons as large as the color fields
 
     def __init__(self, theme, parent):
         super().__init__(parent)
@@ -350,7 +350,7 @@ class HelpPanel(QWidget):
         self.hide()
 
     def set_content(self, data, colors):
-        """data aus shortcuts.overview(); colors: Farbfelder, wie die Farbleiste sie zeigt."""
+        """data from shortcuts.overview(); colors: color fields as the color bar shows them."""
         self.data, self.colors = data, [QColor(c) for c in colors]
         self.scale = self.SIZE * ui_scale(self.window().screen())
         size = self.arrange(None)
@@ -359,7 +359,7 @@ class HelpPanel(QWidget):
         self.scale *= fit
         self.resize(self.arrange(None).toSize())
 
-    # --- Schriften und Farben ---
+    # --- fonts and colors ---
     def make_font(self, px, bold=False, mono=False, spacing=0.0):
         f = QFontDatabase.systemFont(QFontDatabase.FixedFont) if mono else QFont()
         f.setPixelSize(max(1, round(px * self.scale)))
@@ -369,7 +369,7 @@ class HelpPanel(QWidget):
         return f
 
     def arrange(self, p):
-        """Inhalt anordnen; mit Painter p auch zeichnen. Rückgabe: benötigte Größe."""
+        """Arrange the content; with painter p also draw it. Returns: required size."""
         s, d, th = self.scale, self.data, self.theme
         fg, accent, dim = th.foreground, th.accent, th.fg(150)
         title_f, hint_f, head_f = self.make_font(22, bold=True), self.make_font(15), self.make_font(13, bold=True, spacing=1.5)
@@ -377,7 +377,7 @@ class HelpPanel(QWidget):
         m = self.MARGIN * s
 
         def text(x, y, string, font, color, align=None, width=0.0):
-            """Text mit Grundlinie y; Rückgabe: Breite."""
+            """Text with baseline y; returns: width."""
             fm = QFontMetricsF(font)
             w = fm.horizontalAdvance(string)
             if p:
@@ -394,19 +394,19 @@ class HelpPanel(QWidget):
                 w += 12 * s + text(x + w + 12 * s, y, hint, head_f, dim)
             return w
 
-        # Titel
+        # title
         y = m + 26 * s
-        w_title = text(m, y, "Tastenkürzel", title_f, fg)
-        w_title += 16 * s + text(m + w_title + 16 * s, y, "beliebige Taste schließt", hint_f, dim)
+        w_title = text(m, y, "Shortcuts", title_f, fg)
+        w_title += 16 * s + text(m + w_title + 16 * s, y, "any key closes", hint_f, dim)
         top = y + 40 * s
         line_h = QFontMetricsF(text_f).height() * 1.45
 
-        # --- linke Spalte: Bildzeilen ---
+        # --- left column: picture rows ---
         x, y = m, top
-        heading(x, y, "Werkzeuge")
+        heading(x, y, "Tools")
         cell = self.TOOL_CELL * s
-        # Jedes Werkzeug so breit wie Symbol oder Name, damit die Namen nicht aneinanderstoßen
-        names = [tool.value.split(" ")[0] for tool, _ in d["tools"]]
+        # Each tool as wide as its icon or name, so the names do not run into each other
+        names = [tool.value for tool, _ in d["tools"]]
         slots = [max(cell, QFontMetricsF(small_f).horizontalAdvance(n)) + 12 * s for n in names]
         for i, (tool, keys) in enumerate(d["tools"]):
             slot_x = x + sum(slots[:i])
@@ -416,7 +416,7 @@ class HelpPanel(QWidget):
                 p.setBrush(th.fg(22))
                 p.drawRoundedRect(r, 7 * s, 7 * s)
                 p.save()
-                icon = cell * 0.8  # Symbole sind für ein 30er-Feld gebaut
+                icon = cell * 0.8  # icons are built for a 30 field
                 p.translate(r.left() + (cell - icon) / 2, r.top() + (cell - icon) / 2)
                 p.scale(icon / 30, icon / 30)
                 pen = QPen(fg, 2)
@@ -431,7 +431,7 @@ class HelpPanel(QWidget):
         left_w = sum(slots)
         y += 14 * s + cell + 43 * s + self.SECTION_GAP * s
 
-        heading(x, y, "Farben", d["color_hint"])
+        heading(x, y, "Colors", d["color_hint"])
         sw = self.SWATCH * s
         for i, color in enumerate(self.colors):
             r = QRectF(x + i * (sw + 10 * s), y + 14 * s, sw, sw)
@@ -442,10 +442,10 @@ class HelpPanel(QWidget):
             if i < len(d["colors"]):
                 text(r.left(), r.bottom() + 24 * s, d["colors"][i], key_f, accent, "center", sw)
         left_w = max(left_w, len(self.colors) * (sw + 10 * s),
-                     QFontMetricsF(head_f).horizontalAdvance("FARBEN " + d["color_hint"]) + 12 * s)
+                     QFontMetricsF(head_f).horizontalAdvance("COLORS " + d["color_hint"]) + 12 * s)
         y += 14 * s + sw + 24 * s + self.SECTION_GAP * s
 
-        heading(x, y, "Größe", d["size_hint"])
+        heading(x, y, "Size", d["size_hint"])
         step = 64 * s
         for i, keys in enumerate(d["sizes"]):
             cx = x + 20 * s + i * step
@@ -471,12 +471,12 @@ class HelpPanel(QWidget):
             return key_width(entries) + max((QFontMetricsF(text_f).horizontalAdvance(t) for _, t in entries), default=0)
 
         if d["mouse"]:
-            heading(x, y, "Maus")
+            heading(x, y, "Mouse")
             y = entry_list(x, y + 32 * s, d["mouse"], key_width(d["mouse"]))
             left_w = max(left_w, list_width(d["mouse"]))
         left_bottom = y
 
-        # --- rechte Spalte: Listen ---
+        # --- right column: lists ---
         rx = m + left_w + self.COLUMN_GAP * s
         all_entries = [e for _, entries in d["lists"] for e in entries]
         key_w = key_width(all_entries)
@@ -496,7 +496,7 @@ class HelpPanel(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         background = QColor(self.theme.background)
-        background.setAlpha(255)  # deckend: gut lesbar über jedem Bild
+        background.setAlpha(255)  # opaque: easy to read over any image
         p.setPen(QPen(self.theme.fg(60), max(1.0, self.scale)))
         p.setBrush(background)
         p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14 * self.scale, 14 * self.scale)

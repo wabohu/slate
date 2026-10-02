@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Test Einstellungen: Settings aus verschiedenen Configs, ohne Fenster.
+"""Settings test: Settings from different configs, without a window.
 
     python tests/test_settings.py
 
-Prüft, dass fehlende oder unbrauchbare Werte nie abstürzen, sondern zum Standardwert
-führen. Nutzt die isolierte Umgebung aus regress.py (leeres HOME, Standardpalette).
-Rückgabewert 0 = alles ok, 1 = Fehler.
+Checks that missing or unusable values never crash but lead to the default value.
+Uses the isolated environment from regress.py (empty HOME, default palette).
+Exit code 0 = all ok, 1 = failures.
 """
 import contextlib
 import io
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import regress  # noqa: E402,F401  (setzt HOME, Config und QT_QPA_PLATFORM)
+import regress  # noqa: E402,F401  (sets HOME, config and QT_QPA_PLATFORM)
 
 from PySide6.QtGui import QColor, QGuiApplication  # noqa: E402
 
@@ -21,13 +21,13 @@ failures = []
 
 
 def check(name, condition):
-    print(f"{'OK  ' if condition else 'FEHLER'}  {name}")
+    print(f"{'OK  ' if condition else 'FAIL  '}  {name}")
     if not condition:
         failures.append(name)
 
 
 def quiet(func, *args):
-    """Aufruf ohne die erwarteten Hinweise auf stderr; liefert (Ergebnis, Hinweise)."""
+    """Call without the expected hints on stderr; returns (result, hints)."""
     err = io.StringIO()
     with contextlib.redirect_stderr(err):
         result = func(*args)
@@ -35,152 +35,152 @@ def quiet(func, *args):
 
 
 def main():
-    app = QGuiApplication(sys.argv)  # noqa: F841  (KeyMap braucht Qt)
+    app = QGuiApplication(sys.argv)  # noqa: F841  (KeyMap needs Qt)
     import settings as st
     from tools import RECT_RADIUS, Tool
 
-    # Leere Config: alles Standard, kein Absturz
+    # Empty config: everything default, no crash
     s, _ = quiet(st.Settings, {}, False)
-    check("leer: Größen-Stufen", s.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS)
+    check("empty: size levels", s.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS)
           and s.text_sizes == list(st.DEFAULT_TEXT_SIZES))
-    check("leer: Startstufe", s.default_size_level == st.DEFAULT_SIZE_LEVEL - 1)
-    check("leer: Startwerkzeug", s.default_tool == st.DEFAULT_TOOL)
-    check("leer: Startfarbe", s.swatches[s.default_color_index] == s.palette.lookup(st.DEFAULT_COLOR))
-    check("leer: Schrittweiten", s.move_steps == {False: st.DEFAULT_MOVE_STEP, True: st.DEFAULT_MOVE_STEP_FINE})
-    check("leer: dunst und rofi", s.use_dunst and s.use_rofi and s.rofi_theme is None)
+    check("empty: start level", s.default_size_level == st.DEFAULT_SIZE_LEVEL - 1)
+    check("empty: start tool", s.default_tool == st.DEFAULT_TOOL)
+    check("empty: start color", s.swatches[s.default_color_index] == s.palette.lookup(st.DEFAULT_COLOR))
+    check("empty: step sizes", s.move_steps == {False: st.DEFAULT_MOVE_STEP, True: st.DEFAULT_MOVE_STEP_FINE})
+    check("empty: dunst and rofi", s.use_dunst and s.use_rofi and s.rofi_theme is None)
     from history import default_history_dir
-    check("leer: Verlauf an, Standardordner, 100", s.history_enabled and s.history_dir == default_history_dir()
+    check("empty: history on, default folder, 100", s.history_enabled and s.history_dir == default_history_dir()
           and s.history_keep == st.DEFAULT_HISTORY_KEEP)
-    check("leer: Leiste im Screenshot-Modus aus", s.show_bar is False)
-    check("leer: Spotlight 90 px / 45 %, Lupe 100 px / 2x", s.spotlight_radius == 90 and s.lens_radius == 100
+    check("empty: bar off in screenshot mode", s.show_bar is False)
+    check("empty: spotlight 90 px / 45 %, magnifier 100 px / 2x", s.spotlight_radius == 90 and s.lens_radius == 100
           and s.spotlight_dim == 45 and s.lens_zoom == 2.0)
     tuned, hints2 = quiet(st.Settings, {"pointer": {"spotlight_dim": 30, "lens_zoom": 3, "lens_radius": 0.5}}, False)
-    check("Abdunklung und Vergrößerung aus [pointer], ganze Zahl als Zoom ok, Bruch als Radius nicht",
+    check("dimming and magnification from [pointer], integer as zoom ok, fraction as radius not",
           tuned.spotlight_dim == 30 and tuned.lens_zoom == 3.0 and tuned.lens_radius == 100 and "lens_radius" in hints2)
-    own, hints = quiet(st.Settings, {"pointer": {"spotlight_radius": 140, "lens_radius": "groß"}}, False)
+    own, hints = quiet(st.Settings, {"pointer": {"spotlight_radius": 140, "lens_radius": "big"}}, False)
     wrong, _ = quiet(st.Settings, {"pointer": {"spotlight_radius": 5000}}, False)
-    check("Radien aus [pointer], ungültig -> Standard mit Hinweis",
+    check("radii from [pointer], invalid -> default with a hint",
           own.spotlight_radius == 140 and own.lens_radius == 100 and "lens_radius" in hints
           and wrong.spotlight_radius == 90)
-    check("Screenshot: Eckenradius, kein Whiteboard-Hintergrund",
+    check("screenshot: corner radius, no whiteboard background",
           s.rect_radius == RECT_RADIUS and s.board_background is None and s.board_backgrounds is None)
 
-    # Whiteboard: eigener Radius, Hintergründe aus der Standardliste
+    # Whiteboard: own radius, backgrounds from the default list
     b, _ = quiet(st.Settings, {}, True)
-    check("Whiteboard: Eckenradius", b.rect_radius == st.DEFAULT_RECT_RADIUS_BOARD)
-    check("Whiteboard: Leiste an", b.show_bar is True)
+    check("whiteboard: corner radius", b.rect_radius == st.DEFAULT_RECT_RADIUS_BOARD)
+    check("whiteboard: bar on", b.show_bar is True)
     flipped, _ = quiet(st.Settings, {"ui": {"show_bar": True, "show_bar_board": False}}, False)
     flipped_b, _ = quiet(st.Settings, {"ui": {"show_bar": True, "show_bar_board": False}}, True)
-    broken, _ = quiet(st.Settings, {"ui": {"show_bar": "ja"}}, False)
-    check("Leiste aus [ui] show_bar / show_bar_board, kaputt -> Standard",
+    broken, _ = quiet(st.Settings, {"ui": {"show_bar": "yes"}}, False)
+    check("bar from [ui] show_bar / show_bar_board, broken -> default",
           flipped.show_bar and not flipped_b.show_bar and broken.show_bar is False)
-    check("Whiteboard: Hintergründe", len(b.board_backgrounds) == len(st.DEFAULT_BOARD_BACKGROUNDS)
+    check("whiteboard: backgrounds", len(b.board_backgrounds) == len(st.DEFAULT_BOARD_BACKGROUNDS)
           and b.board_background == b.board_backgrounds[0])
 
-    # Unbrauchbare Werte: Standard plus Hinweis
+    # Unusable values: default plus a hint
     bad = {
-        "tools": {"order": "kein Array", "default": "zauberstab"},
+        "tools": {"order": "not an array", "default": "magic_wand"},
         "size": {"stroke": [1, 2], "text": [1, 2, 3, 4], "default": 9},
-        "colors": {"order": ["gibtsnicht"], "default": "lila", "light": {"red": "kaputt", "blue": 5}},
-        "ui": {"bar_opacity": 3, "bar_background": "quatsch", "messages": "brieftaube", "dialogs": 1},
-        "board": {"background": "nope", "backgrounds": ["auch nicht", 7]},
+        "colors": {"order": ["nonexistent"], "default": "purple", "light": {"red": "broken", "blue": 5}},
+        "ui": {"bar_opacity": 3, "bar_background": "nonsense", "messages": "carrier_pigeon", "dialogs": 1},
+        "board": {"background": "nope", "backgrounds": ["neither", 7]},
         "rect": {"radius": -1, "radius_board": 999},
-        "move": {"step": 0, "step_fine": "fein"},
-        "keys": {"undo": 5, "gibtsnicht": "x"},
-        "history": {"enabled": "ja", "keep": 0, "dir": 42},
+        "move": {"step": 0, "step_fine": "fine"},
+        "keys": {"undo": 5, "nonexistent": "x"},
+        "history": {"enabled": "yes", "keep": 0, "dir": 42},
     }
     s, hints = quiet(st.Settings, bad, True)
-    check("kaputt: Größen-Stufen", s.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS)
+    check("broken: size levels", s.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS)
           and s.text_sizes == list(st.DEFAULT_TEXT_SIZES) and s.default_size_level == st.DEFAULT_SIZE_LEVEL - 1)
-    check("kaputt: Werkzeuge", s.default_tool == st.DEFAULT_TOOL and Tool.FREEHAND in s.tools)
-    check("kaputt: Farbleiste nicht leer", len(s.swatches) > 0 and 0 <= s.default_color_index < len(s.swatches))
-    check("kaputt: helle Varianten übersprungen", s.light_overrides == {})
+    check("broken: tools", s.default_tool == st.DEFAULT_TOOL and Tool.FREEHAND in s.tools)
+    check("broken: color bar not empty", len(s.swatches) > 0 and 0 <= s.default_color_index < len(s.swatches))
+    check("broken: light variants skipped", s.light_overrides == {})
     expected_bg = QColor(s.palette.lookup(st.DEFAULT_BAR_BACKGROUND))
-    expected_bg.setAlphaF(st.DEFAULT_BAR_OPACITY)  # Theme legt die Deckkraft in die Hintergrundfarbe
-    check("kaputt: Leistenfarben", s.theme.background == expected_bg)
-    check("kaputt: dunst und rofi", s.use_dunst and s.use_rofi)
-    check("kaputt: Whiteboard-Hintergründe", len(s.board_backgrounds) == len(st.DEFAULT_BOARD_BACKGROUNDS)
+    expected_bg.setAlphaF(st.DEFAULT_BAR_OPACITY)  # Theme puts the opacity into the background color
+    check("broken: bar colors", s.theme.background == expected_bg)
+    check("broken: dunst and rofi", s.use_dunst and s.use_rofi)
+    check("broken: whiteboard backgrounds", len(s.board_backgrounds) == len(st.DEFAULT_BOARD_BACKGROUNDS)
           and s.board_background == QColor(s.palette.lookup(st.DEFAULT_BOARD_BACKGROUND)))
-    check("kaputt: Eckenradius", s.rect_radius == st.DEFAULT_RECT_RADIUS_BOARD)
-    check("kaputt: Schrittweiten", s.move_steps == {False: st.DEFAULT_MOVE_STEP, True: st.DEFAULT_MOVE_STEP_FINE})
-    check("kaputt: Verlauf", s.history_enabled and s.history_keep == st.DEFAULT_HISTORY_KEEP
+    check("broken: corner radius", s.rect_radius == st.DEFAULT_RECT_RADIUS_BOARD)
+    check("broken: step sizes", s.move_steps == {False: st.DEFAULT_MOVE_STEP, True: st.DEFAULT_MOVE_STEP_FINE})
+    check("broken: history", s.history_enabled and s.history_keep == st.DEFAULT_HISTORY_KEEP
           and s.history_dir == default_history_dir())
-    check("kaputt: Hinweise auf stderr", "[size]" in hints and "[ui]" in hints and "[rect]" in hints)
+    check("broken: hints on stderr", "[size]" in hints and "[ui]" in hints and "[rect]" in hints)
 
-    # Gültige Werte werden übernommen
+    # Valid values are taken over
     good = {
         "size": {"stroke": [1, 3, 5, 7], "default": 4},
         "colors": {"light": {"red": "#112233"}},
         "ui": {"messages": "toast", "dialogs": "qt"},
         "rect": {"radius": 0},
         "move": {"step": 25, "step_fine": 2},
-        "output": {"dir": "~/irgendwo"},
-        "history": {"enabled": False, "keep": 5, "dir": "~/verlauf"},
+        "output": {"dir": "~/somewhere"},
+        "history": {"enabled": False, "keep": 5, "dir": "~/my-history"},
     }
     s, _ = quiet(st.Settings, good, False)
-    check("gültig: übernommen", s.stroke_widths == [1, 3, 5, 7] and s.default_size_level == 3
+    check("valid: taken over", s.stroke_widths == [1, 3, 5, 7] and s.default_size_level == 3
           and s.rect_radius == 0 and s.move_steps == {False: 25, True: 2}
-          and not s.use_dunst and not s.use_rofi and s.output_dir == "~/irgendwo"
+          and not s.use_dunst and not s.use_rofi and s.output_dir == "~/somewhere"
           and s.light_overrides == {s.palette.lookup("red"): "#112233"}
-          and not s.history_enabled and s.history_keep == 5 and s.history_dir == Path.home() / "verlauf")
+          and not s.history_enabled and s.history_keep == 5 and s.history_dir == Path.home() / "my-history")
 
-    # Tastenübersicht (?): jede Aktion beschrieben, Inhalt je Modus
+    # Key overview (?): every action described, content per mode
     import shortcuts
     from keymap import DEFAULT_KEYS, KeyMap
     missing = [a for a in DEFAULT_KEYS if a not in shortcuts.DESCRIPTIONS and not shortcuts.GROUPED.match(a)]
-    check(f"Übersicht: jede Aktion hat eine Beschreibung {missing or ''}", not missing)
+    check(f"overview: every action has a description {missing or ''}", not missing)
     keymap = KeyMap({"keys": {"undo": "u"}, "tools": {"order": ["rect", "text"]}})
     shot = dict(shortcuts.sections(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=False))
     board = dict(shortcuts.sections(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=True))
     flat = lambda sec: {(k, t) for entries in sec.values() for k, t in entries}  # noqa: E731
-    check("Übersicht: eigene Belegung und Werkzeug-Reihenfolge",
-          ("u", "Rückgängig") in flat(shot) and ("a", "Rechteck") in flat(shot) and ("s", "Text") in flat(shot)
-          and shot["Werkzeuge"][0] == ("w", "Auswahl"))
-    check("Übersicht: Plätze zusammengefasst", ("shift+a s d f g z x c v", "Farbe aus der Leiste") in flat(shot)
-          and ("alt+a s d f", "Größe in Stufen") in flat(shot) and ("h j k l", "verschieben") in flat(shot))
-    check("Übersicht: nur was im Modus gilt", "Verlauf" in shot and "Verlauf" not in board
-          and "Ansicht" in board and "Ansicht" not in shot)
-    check("Übersicht: alle Tasten einer Aktion, klein, deutsche Namen",
-          ("?", "diese Übersicht") in flat(shot) and ("entf, backspace", "löschen") in flat(shot)
-          and ("enter", "Bild kopieren und beenden") in flat(shot) and ("strg+s", "bearbeitbar speichern") in flat(shot)
-          and ("←", "älterer Screenshot") in flat(shot) and ("strg+shift+b", "Hintergrund zurück") in flat(board))
+    check("overview: own bindings and tool order",
+          ("u", "undo") in flat(shot) and ("a", "Rectangle") in flat(shot) and ("s", "Text") in flat(shot)
+          and shot["Tools"][0] == ("w", "Select"))
+    check("overview: slots combined", ("shift+a s d f g z x c v", "color from the bar") in flat(shot)
+          and ("alt+a s d f", "size in levels") in flat(shot) and ("h j k l", "move") in flat(shot))
+    check("overview: only what applies in the mode", "History" in shot and "History" not in board
+          and "View" in board and "View" not in shot)
+    check("overview: all keys of an action, lower case, own names",
+          ("?", "this overview") in flat(shot) and ("del, backspace", "delete") in flat(shot)
+          and ("enter", "copy image and quit") in flat(shot) and ("ctrl+s", "save editable") in flat(shot)
+          and ("←", "older screenshot") in flat(shot) and ("ctrl+shift+b", "previous background") in flat(board))
     ov = shortcuts.overview(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=False)
-    check("Panel-Daten: Werkzeuge mit Auswahl vorne, Farben und Größen je Taste",
+    check("panel data: tools with Select first, colors and sizes per key",
           ov["tools"] == [(Tool.SELECT, "w"), (Tool.RECT, "a"), (Tool.TEXT, "s"), (Tool.MARKER, "c"), (Tool.BLUR, "z")]
           and ov["colors"] == list("asdfgzxcv") and ov["sizes"] == list("asdf")
-          and ov["color_hint"] == "shift + …, tab / shift+tab blättert" and ov["size_hint"].startswith("alt + …"))
+          and ov["color_hint"] == "shift + …, tab / shift+tab cycles" and ov["size_hint"].startswith("alt + …"))
     names = [name for name, _ in ov["lists"]]
-    check("Panel-Daten: Bildgruppen nicht doppelt in den Listen",
-          not {"Werkzeuge", "Farbe und Größe", "Maus"} & set(names) and ov["mouse"] and "Ausgabe" in names)
+    check("panel data: picture groups not repeated in the lists",
+          not {"Tools", "Color and size", "Mouse"} & set(names) and ov["mouse"] and "Output" in names)
     plain = st.Settings({}, False)
-    check("Theme: Akzent blau, Überschrift magenta (Standard)",
+    check("theme: accent blue, heading magenta (default)",
           plain.theme.accent == QColor(plain.palette.lookup("blue"))
           and plain.theme.heading == QColor(plain.palette.lookup("magenta")))
-    own, _ = quiet(st.Settings, {"ui": {"bar_heading": "yellow", "bar_accent": "quatsch"}}, False)
-    check("Theme: Überschrift aus [ui] bar_heading, unbekannter Akzent -> Standard",
+    own, _ = quiet(st.Settings, {"ui": {"bar_heading": "yellow", "bar_accent": "nonsense"}}, False)
+    check("theme: heading from [ui] bar_heading, unknown accent -> default",
           own.theme.heading == QColor(own.palette.lookup("yellow")) and own.theme.accent == plain.theme.accent)
 
-    # scripts/sync_config.py: neue Einträge übernehmen, eigene Werte behalten
+    # scripts/sync_config.py: take over new entries, keep own values
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
     import tomllib
 
     import sync_config
     template = (
-        '# Vorlage\n\n[ui]\nbar = "background"   # Kommentar mit "#" drin\ncolor = "#f8f6f0"  # hell\n'
-        'neu = true\n\n[colors.light]\n# yellow = "#8f5e15"\n\n[keys]\nundo = "r"\n')
-    user = ('# Meine Config\n[ui]\nbar = "#112233"\ncolor = "#f8f6f0"\nalt = 3\n'
-            '[colors.light]\nyellow = "#000000"\n[keys]\nundo = ["u", "ctrl+z"]\n[eigen]\nx = "a # b"\n')
+        '# Template\n\n[ui]\nbar = "background"   # comment with "#" in it\ncolor = "#f8f6f0"  # light\n'
+        'new = true\n\n[colors.light]\n# yellow = "#8f5e15"\n\n[keys]\nundo = "r"\n')
+    user = ('# My config\n[ui]\nbar = "#112233"\ncolor = "#f8f6f0"\nalt = 3\n'
+            '[colors.light]\nyellow = "#000000"\n[keys]\nundo = ["u", "ctrl+z"]\n[own]\nx = "a # b"\n')
     text, added, own = sync_config.merge(template, user)
     merged = tomllib.loads(text)
-    check("sync_config: neue Schlüssel dazu, eigene Werte behalten",
-          added == [("ui", "neu")] and merged["ui"] == {"bar": "#112233", "color": "#f8f6f0", "neu": True, "alt": 3}
-          and merged["keys"]["undo"] == ["u", "ctrl+z"] and merged["eigen"] == {"x": "a # b"})
-    check("sync_config: Kommentare der Vorlage, eigene Kopfzeile, Beispiel ersetzt",
-          text.startswith("# Meine Config\n") and '# Kommentar mit "#" drin' in text
+    check("sync_config: new keys added, own values kept",
+          added == [("ui", "new")] and merged["ui"] == {"bar": "#112233", "color": "#f8f6f0", "new": True, "alt": 3}
+          and merged["keys"]["undo"] == ["u", "ctrl+z"] and merged["own"] == {"x": "a # b"})
+    check("sync_config: comments of the template, own header, example replaced",
+          text.startswith("# My config\n") and '# comment with "#" in it' in text
           and 'yellow = "#000000"' in text and '# yellow' not in text)
-    check("sync_config: zweiter Lauf ändert nichts", sync_config.merge(template, text)[0] == text)
+    check("sync_config: second run changes nothing", sync_config.merge(template, text)[0] == text)
 
-    print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
+    print("\nAll OK." if not failures else f"\n{len(failures)} failed.")
     return 1 if failures else 0
 
 

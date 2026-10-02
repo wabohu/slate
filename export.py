@@ -1,8 +1,8 @@
-"""Ausgabe: Szene als Bild rendern, in die Zwischenablage kopieren, als PNG speichern.
+"""Output: render the scene as an image, copy it to the clipboard, save it as PNG.
 
-X11-Besonderheit: Der Inhalt der Zwischenablage gehört dem Programm, das kopiert
-hat. Beendet es sich, ist er weg. Darum kopieren wir mit xclip: Es läuft nach dem
-Kopieren im Hintergrund weiter und liefert das Bild, bis etwas anderes kopiert wird.
+X11 peculiarity: the content of the clipboard belongs to the program that copied
+it. When that program exits, it is gone. That is why we copy with xclip: it keeps running
+in the background after copying and serves the image until something else is copied.
 """
 import shutil
 import subprocess
@@ -15,10 +15,10 @@ from PySide6.QtGui import QGuiApplication, QImage, QPainter
 
 
 def render_scene(scene, source_rect, size):
-    """Ausschnitt source_rect der Szene als QImage der Größe size (Pixel).
+    """Area source_rect of the scene as a QImage of size size (pixels).
 
-    source_rect ist der Bereich des Screenshots. Würde man die ganze Szene nehmen,
-    könnte ein Strich am Rand sie vergrößern, und das Bild würde gestaucht.
+    source_rect is the area of the screenshot. Taking the whole scene instead,
+    a stroke at the edge could enlarge it, and the image would get squashed.
     """
     image = QImage(size, QImage.Format_ARGB32)
     image.fill(0)
@@ -31,7 +31,7 @@ def render_scene(scene, source_rect, size):
 
 
 def png_bytes(image):
-    """QImage -> PNG als bytes (über einen Puffer im Speicher)."""
+    """QImage -> PNG as bytes (via a buffer in memory)."""
     buffer = QBuffer()
     buffer.open(QIODevice.WriteOnly)
     image.save(buffer, "PNG")
@@ -39,27 +39,27 @@ def png_bytes(image):
 
 
 def copy_to_clipboard(image):
-    """Bild in die Zwischenablage. Rückgabe: (ok, Meldung)."""
+    """Image to the clipboard. Returns: (ok, message)."""
     if shutil.which("xclip"):
         try:
             subprocess.run(
                 ["xclip", "-selection", "clipboard", "-t", "image/png", "-i"],
                 input=png_bytes(image),
-                # Ausgaben nicht an uns binden, sonst warten wir auf den Hintergrundprozess
+                # Do not tie the outputs to us, otherwise we would wait for the background process
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 timeout=5, check=True,
             )
-            return True, "In die Zwischenablage kopiert"
+            return True, "Copied to the clipboard"
         except (OSError, subprocess.SubprocessError) as e:
-            print(f"[export] xclip fehlgeschlagen: {e}", file=sys.stderr)
-    # Fallback: Qt-Zwischenablage. Hält nur, solange das Tool läuft (oder ein Manager übernimmt)
+            print(f"[export] xclip failed: {e}", file=sys.stderr)
+    # Fallback: Qt clipboard. Only lasts while the tool is running (or a manager takes over)
     QGuiApplication.clipboard().setImage(image)
-    print("[export] xclip fehlt, Bild nur in der Qt-Zwischenablage", file=sys.stderr)
-    return True, "In die Zwischenablage kopiert (ohne xclip, evtl. nicht dauerhaft)"
+    print("[export] xclip missing, image only in the Qt clipboard", file=sys.stderr)
+    return True, "Copied to the clipboard (without xclip, possibly not permanent)"
 
 
 def copy_text_to_clipboard(text):
-    """Text (z. B. einen Pfad) in die Zwischenablage, wie copy_to_clipboard. Rückgabe: ok."""
+    """Text (e.g. a path) to the clipboard, like copy_to_clipboard. Returns: ok."""
     if shutil.which("xclip"):
         try:
             subprocess.run(
@@ -70,23 +70,23 @@ def copy_text_to_clipboard(text):
             )
             return True
         except (OSError, subprocess.SubprocessError) as e:
-            print(f"[export] xclip fehlgeschlagen: {e}", file=sys.stderr)
+            print(f"[export] xclip failed: {e}", file=sys.stderr)
     QGuiApplication.clipboard().setText(text)
-    print("[export] xclip fehlt, Text nur in der Qt-Zwischenablage", file=sys.stderr)
+    print("[export] xclip missing, text only in the Qt clipboard", file=sys.stderr)
     return True
 
 
 def copy_data_to_clipboard(data, mime):
-    """Beliebige Daten (bytes) mit eigenem Datentyp in die Zwischenablage, z. B. kopierte
-    Elemente ("application/x-slate-elements"). Über xclip bleiben sie nach dem Beenden
-    erhalten, so lassen sie sich in einem anderen Fenster einfügen. Rückgabe: ok."""
+    """Arbitrary data (bytes) with its own data type to the clipboard, e.g. copied
+    elements ("application/x-slate-elements"). Via xclip they survive quitting,
+    so they can be pasted in another window. Returns: ok."""
     if shutil.which("xclip"):
         try:
             subprocess.run(["xclip", "-selection", "clipboard", "-t", mime, "-i"], input=data,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=True)
             return True
         except (OSError, subprocess.SubprocessError) as e:
-            print(f"[export] xclip fehlgeschlagen: {e}", file=sys.stderr)
+            print(f"[export] xclip failed: {e}", file=sys.stderr)
     mime_data = QMimeData()
     mime_data.setData(mime, QByteArray(data))
     QGuiApplication.clipboard().setMimeData(mime_data)
@@ -94,12 +94,12 @@ def copy_data_to_clipboard(data, mime):
 
 
 def data_from_clipboard(mime):
-    """Daten dieses Typs aus der Zwischenablage (bytes) oder None. Qt liest die Zwischenablage
-    von X, also auch, was ein anderes (schon beendetes) Fenster per xclip hinterlassen hat.
+    """Data of this type from the clipboard (bytes) or None. Qt reads the clipboard
+    from X, so also what another (already closed) window left behind via xclip.
 
-    Ersatzweise xclip, aber nur, wenn der Typ in der Liste der angebotenen Typen (TARGETS)
-    steht: xclip als Besitzer beantwortet sonst jede Anfrage mit seinem Inhalt, egal welcher
-    Typ gefragt war (aus einem PNG würden so scheinbar "Elemente")."""
+    As a fallback xclip, but only if the type is in the list of offered types (TARGETS):
+    otherwise xclip as the owner answers every request with its content, no matter which
+    type was asked for (a PNG would then seemingly turn into "elements")."""
     mime_data = QGuiApplication.clipboard().mimeData()
     if mime_data is not None and mime_data.hasFormat(mime):
         return bytes(mime_data.data(mime))
@@ -118,37 +118,37 @@ def data_from_clipboard(mime):
 
 
 def default_output_dir():
-    """~/Pictures/slate bzw. der XDG-Bilderordner, falls anders benannt."""
+    """~/Pictures/slate or the XDG pictures folder, if it is named differently."""
     pictures = QStandardPaths.writableLocation(QStandardPaths.PicturesLocation)
     return Path(pictures or Path.home() / "Pictures") / "slate"
 
 
 def new_file_path(directory, suffix=""):
-    """Freier Dateiname mit Zeitstempel im Ordner (wird angelegt), z. B.
-    slate_2026-10-01_14-03-22.png; bei Kollision _2, _3 … Kann OSError auslösen."""
+    """Free file name with a time stamp in the folder (gets created), e.g.
+    slate_2026-10-01_14-03-22.png; on a collision _2, _3 … May raise OSError."""
     directory = Path(directory).expanduser()
     directory.mkdir(parents=True, exist_ok=True)
     stem = datetime.now().strftime("slate_%Y-%m-%d_%H-%M-%S") + suffix
     path = directory / f"{stem}.png"
     counter = 2
-    while path.exists():  # zweimal Speichern in derselben Sekunde
+    while path.exists():  # saving twice in the same second
         path = directory / f"{stem}_{counter}.png"
         counter += 1
     return path
 
 
 def short_path(path):
-    """Pfad zum Anzeigen, Home-Ordner als ~."""
+    """Path for display, home folder as ~."""
     return str(path).replace(str(Path.home()), "~", 1)
 
 
 def save_png(image, directory):
-    """Sauberes PNG (ohne Bearbeitungsdaten) mit Zeitstempel. Rückgabe: (Pfad oder None, Meldung)."""
+    """Clean PNG (without editing data) with a time stamp. Returns: (path or None, message)."""
     try:
         path = new_file_path(directory, suffix="_export")
         if not image.save(str(path), "PNG"):
-            raise OSError("QImage.save hat nicht geklappt")
+            raise OSError("QImage.save did not work")
     except OSError as e:
-        print(f"[export] Exportieren fehlgeschlagen: {e}", file=sys.stderr)
-        return None, f"Exportieren fehlgeschlagen: {e}"
-    return path, f"Exportiert: {short_path(path)}"
+        print(f"[export] Export failed: {e}", file=sys.stderr)
+        return None, f"Export failed: {e}"
+    return path, f"Exported: {short_path(path)}"

@@ -1,12 +1,12 @@
-"""Whiteboard-Teil der Canvas: Ansicht verschieben und zoomen, Hintergrund, Fenstertitel,
-Nachfrage beim Schließen. Nur im Whiteboard (board=True) aktiv.
+"""Whiteboard part of the Canvas: pan and zoom the view, background, window title,
+prompt on close. Only active on the whiteboard (board=True).
 
-Qt/Python-Konzept Mixin: BoardMixin hat kein eigenes __init__ und ist allein nicht
-lauffähig. Canvas erbt davon (class Canvas(BoardMixin, QGraphicsView)), so landen die
-Methoden in der Canvas, als stünden sie dort. Siehe docs/plan-aufteilung.md.
+Qt/Python concept mixin: BoardMixin has no __init__ of its own and cannot run on
+its own. Canvas inherits from it (class Canvas(BoardMixin, QGraphicsView)), so the
+methods end up in the Canvas as if they were written there. See docs/plan-aufteilung.md.
 
-Verwaltet (angelegt in Canvas.__init__): board_color, zoom_rest, overview_return.
-Liest aus der Canvas: board, scene_, settings, palette_bar, toast, undo_stack,
+Manages (created in Canvas.__init__): board_color, zoom_rest, overview_return.
+Reads from the Canvas: board, scene_, settings, palette_bar, toast, undo_stack,
 document_path, elements(), used_rect(), zoom(), ask(), save_drawing().
 """
 from pathlib import Path
@@ -21,19 +21,19 @@ from settings import WHEEL_PAN_STEP, ZOOM_RANGE, ZOOM_STEP, clamp
 
 
 class BoardMixin:
-    # --- Ansicht: verschieben und zoomen ---
+    # --- View: pan and zoom ---
     def pan_by(self, dx, dy):
-        """Ansicht um dx/dy Bildschirm-Pixel verschieben (Inhalt folgt der Maus).
+        """Pan the view by dx/dy screen pixels (the content follows the mouse).
 
-        Die Scrollbalken sind ausgeblendet, funktionieren aber weiter: Ihr Wert ist die
-        Position der Ansicht in der großen Szene.
+        The scroll bars are hidden but still work: their value is the
+        position of the view in the large scene.
         """
         self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - round(dx))
         self.verticalScrollBar().setValue(self.verticalScrollBar().value() - round(dy))
 
     def pan_by_wheel(self, event, swap):
-        """Mausrad: senkrecht; Kipprad/Touchpad: waagerecht; Shift: Achsen tauschen."""
-        pixels = event.pixelDelta()  # Touchpads liefern genaue Pixel
+        """Mouse wheel: vertical; tilt wheel/touchpad: horizontal; Shift: swap axes."""
+        pixels = event.pixelDelta()  # touchpads deliver exact pixels
         if not pixels.isNull():
             dx, dy = pixels.x(), pixels.y()
         else:
@@ -44,10 +44,10 @@ class BoardMixin:
         self.pan_by(dx, dy)
 
     def zoom_by_wheel(self, delta, mouse):
-        """Zoomen, wobei der Punkt unter dem Mauszeiger (mouse, Viewport-Koordinaten) stehen bleibt.
+        """Zoom while the point under the mouse cursor (mouse, viewport coordinates) stays put.
 
-        Qts AnchorUnderMouse geht hier nicht: Es merkt sich die Mausposition in
-        QGraphicsView.mouseMoveEvent, das wir überschreiben. Darum von Hand verankern.
+        Qt's AnchorUnderMouse does not work here: it remembers the mouse position in
+        QGraphicsView.mouseMoveEvent, which we override. So anchor by hand.
         """
         self.zoom_rest += delta
         steps = int(self.zoom_rest / 120)
@@ -55,15 +55,15 @@ class BoardMixin:
             return
         self.zoom_rest -= steps * 120
         factor = clamp(self.zoom() * ZOOM_STEP ** steps, ZOOM_RANGE) / self.zoom()
-        anchor = self.mapToScene(mouse.toPoint())  # Szenenpunkt unter der Maus
+        anchor = self.mapToScene(mouse.toPoint())  # scene point under the mouse
         self.scale(factor, factor)
-        drift = self.mapFromScene(anchor) - mouse.toPoint()  # wohin er durchs Skalieren gewandert ist
+        drift = self.mapFromScene(anchor) - mouse.toPoint()  # where scaling moved it to
         self.pan_by(-drift.x(), -drift.y())
-        self.refresh_cursor()  # Kreis im Mauszeiger = Strichbreite bei diesem Zoom
+        self.refresh_cursor()  # circle in the mouse cursor = stroke width at this zoom
         self.toast.show_message(f"Zoom {round(self.zoom() * 100)} %")
 
     def view_state(self):
-        """Aktuelle Ansicht: Transformation (Zoom) und Szenenpunkt in der Fenstermitte."""
+        """Current view: transformation (zoom) and scene point in the center of the window."""
         return self.transform(), self.mapToScene(self.viewport().rect().center())
 
     def set_view_state(self, state):
@@ -72,10 +72,10 @@ class BoardMixin:
         self.centerOn(center)
 
     def overview(self):
-        """Whiteboard: alle Elemente ins Fenster einpassen (höchstens 100 %).
+        """Whiteboard: fit all elements into the window (at most 100 %).
 
-        Erneutes Strg+W springt zurück zur Ansicht davor, solange die Übersicht
-        unverändert ist (nicht gezoomt oder verschoben); sonst wieder Übersicht.
+        Pressing Ctrl+W again jumps back to the view before, as long as the overview
+        is unchanged (not zoomed or panned); otherwise overview again.
         """
         if not self.board:
             return
@@ -86,7 +86,7 @@ class BoardMixin:
             if transform == during[0] and (center - during[1]).manhattanLength() < 1:
                 self.set_view_state(before)
                 self.refresh_cursor()
-                self.toast.show_message(f"Zurück ({round(self.zoom() * 100)} %)")
+                self.toast.show_message(f"Back ({round(self.zoom() * 100)} %)")
                 return
         before = self.view_state()
         if not self.elements():
@@ -102,40 +102,40 @@ class BoardMixin:
             self.centerOn(rect.center())
         self.overview_return = (before, self.view_state())
         self.refresh_cursor()
-        self.toast.show_message(f"Übersicht ({round(self.zoom() * 100)} %)")
+        self.toast.show_message(f"Overview ({round(self.zoom() * 100)} %)")
 
     def zoom_reset(self):
         if self.board:
-            self.resetTransform()  # zurück auf 100 %, ohne Drehung/Verzerrung
+            self.resetTransform()  # back to 100 %, without rotation/distortion
             self.refresh_cursor()
             self.toast.show_message("Zoom 100 %")
 
-    # --- Hintergrund ---
+    # --- Background ---
     def set_board_color(self, color):
-        """Setter für PropertyCommand: Hintergrund des Whiteboards (wird mitgespeichert)."""
+        """Setter for PropertyCommand: background of the whiteboard (saved with it)."""
         self.board_color = QColor(color)
         self.scene_.setBackgroundBrush(self.board_color)
         self.refresh_colors()
-        self.refresh_cursor()  # Stiftfarbe im Mauszeiger an den Hintergrund anpassen
+        self.refresh_cursor()  # adapt the pen color in the mouse cursor to the background
 
     def adapt_color(self, color):
-        """Gezeigte Farbe zur Grundfarbe color: auf hellem Whiteboard abgedunkelt
-        (colors.adapt_color), sonst unverändert. Gespeichert wird immer die Grundfarbe."""
+        """Shown color for the base color color: darkened on a light whiteboard
+        (colors.adapt_color), otherwise unchanged. The base color is always what gets saved."""
         if not self.board:
             return QColor(color)
         return QColor(adapt_color(QColor(color).name(), self.board_color.name(), self.settings.light_overrides))
 
     def refresh_colors(self):
-        """Nach Hintergrundwechsel: Elemente und Farbleiste zeigen die passenden Varianten."""
+        """After a background change: elements and color bar show the matching variants."""
         for item in self.elements():
             item.refresh_color()
         self.palette_bar.set_colors([self.adapt_color(c) for c in self.settings.swatches])
         self.viewport().update()
 
     def cycle_board_color(self, step):
-        """Strg+B / Strg+Shift+B: nächster bzw. voriger Hintergrund aus der Liste.
-        Ist der aktuelle nicht in der Liste (z. B. aus einer Datei), geht es beim ersten
-        bzw. letzten los. Nur im Whiteboard."""
+        """Ctrl+B / Ctrl+Shift+B: next or previous background from the list.
+        If the current one is not in the list (e.g. from a file), start at the first
+        or last one. Whiteboard only."""
         if not self.board:
             return
         colors = self.settings.board_backgrounds
@@ -145,28 +145,28 @@ class BoardMixin:
         else:
             new = colors[(current + step) % len(colors)]
         if new == self.board_color:
-            return  # nur ein Eintrag: nichts zu tun, kein leerer Undo-Schritt
+            return  # only one entry: nothing to do, no empty undo step
         self.undo_stack.push(PropertyCommand(
-            self.set_board_color, QColor(self.board_color), QColor(new), "Hintergrund ändern"))
+            self.set_board_color, QColor(self.board_color), QColor(new), "Change background"))
 
-    # --- Fenster ---
+    # --- Window ---
     def update_title(self):
-        name = Path(self.document_path).name if self.document_path else "neu"
+        name = Path(self.document_path).name if self.document_path else "new"
         self.setWindowTitle(f"slate – Whiteboard – {name}")
 
     def confirm_close(self):
-        """Ungespeicherte Änderungen? Fragen: Speichern, Verwerfen oder Abbrechen."""
-        choice = self.ask("Das Whiteboard hat ungespeicherte Änderungen.",
-                          ["Speichern", "Verwerfen", "Abbrechen"])
+        """Unsaved changes? Ask: save, discard or cancel."""
+        choice = self.ask("The whiteboard has unsaved changes.",
+                          ["Save", "Discard", "Cancel"])
         if choice is not NOT_AVAILABLE:
             if choice == 0:
                 self.save_drawing()
                 return self.undo_stack.isClean()
-            return choice == 1  # Abbrechen oder Esc: offen lassen
+            return choice == 1  # cancel or Esc: keep open
         answer = QMessageBox.question(
-            self, "slate", "Das Whiteboard hat ungespeicherte Änderungen. Speichern?",
+            self, "slate", "The whiteboard has unsaved changes. Save?",
             QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
         if answer == QMessageBox.Save:
             self.save_drawing()
-            return self.undo_stack.isClean()  # nur schließen, wenn das Speichern geklappt hat
+            return self.undo_stack.isClean()  # only close if saving worked
         return answer == QMessageBox.Discard

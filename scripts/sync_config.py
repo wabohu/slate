@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Eigene Config auf den Stand der Vorlage bringen: neue Einträge aus config.example.toml
-übernehmen, eigene Werte behalten.
+"""Bring your own config up to date with the template: take over new entries from
+config.example.toml, keep your own values.
 
-    python scripts/sync_config.py            # ~/.config/slate/config.toml aktualisieren
-    python scripts/sync_config.py --dry-run  # nur zeigen, was sich ändern würde
+    python scripts/sync_config.py            # update ~/.config/slate/config.toml
+    python scripts/sync_config.py --dry-run  # only show what would change
 
-Ergebnis = Text der Vorlage (mit allen Kommentaren), darin:
-- jeder eigene Wert, der von der Vorlage abweicht, an seiner Stelle;
-- eigene Schlüssel, die die Vorlage nicht kennt, am Ende ihres Abschnitts (ein
-  auskommentiertes Beispiel "# key = …" wird dabei ersetzt), eigene Abschnitte am Ende;
-- die eigene Kopfzeile (Kommentare ganz oben), falls vorhanden.
-Eigene Kommentare an anderen Stellen gehen verloren.
+Result = text of the template (with all comments), in it:
+- every own value that differs from the template, in its place;
+- own keys the template does not know, at the end of their section (a commented-out
+  example "# key = …" gets replaced by it), own sections at the end;
+- your own header (comments at the very top), if there is one.
+Own comments in other places are lost.
 
-Sicherheit: Vor dem Schreiben wird geprüft, dass das Ergebnis genau "Vorlage + eigene
-Werte" ergibt; sonst wird nichts geschrieben. Die alte Datei bleibt als config.toml.bak.
+Safety: before writing, it checks that the result is exactly "template + own values";
+otherwise nothing is written. The old file stays as config.toml.bak.
 
-Läuft automatisch vor jedem Commit, der config.example.toml ändert (scripts/git-hooks).
+Runs automatically before every commit that changes config.example.toml (scripts/git-hooks).
 """
 import argparse
 import difflib
@@ -47,7 +47,7 @@ def flatten(table, prefix=()):
 
 
 def tables(table, prefix=()):
-    """Alle Abschnitte, auch leere: {('colors',), ('colors', 'light'), …}"""
+    """All sections, including empty ones: {('colors',), ('colors', 'light'), …}"""
     out = set()
     for key, value in table.items():
         if isinstance(value, dict):
@@ -57,26 +57,26 @@ def tables(table, prefix=()):
 
 
 def toml_value(value):
-    """Python-Wert als TOML-Text (Zeichenketten, Zahlen, true/false, Listen)."""
+    """Python value as TOML text (strings, numbers, true/false, lists)."""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, (int, float)):
         return repr(value)
     if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)  # gleiche Escapes wie TOML-Basisstrings
+        return json.dumps(value, ensure_ascii=False)  # same escapes as TOML basic strings
     if isinstance(value, list):
         return "[" + ", ".join(toml_value(v) for v in value) + "]"
-    raise ValueError(f"Wert {value!r} kann nicht geschrieben werden")
+    raise ValueError(f"Cannot write value {value!r}")
 
 
 def split_comment(rest):
-    """'"#fff"   # Kommentar' -> ('"#fff"', '   # Kommentar'); # in Zeichenketten zählt nicht."""
+    """'"#fff"   # comment' -> ('"#fff"', '   # comment'); # inside strings does not count."""
     quote, i = None, 0
     while i < len(rest):
         ch = rest[i]
         if quote:
             if ch == "\\" and quote == '"':
-                i += 2  # Escape wie \" überspringen
+                i += 2  # skip an escape like \"
                 continue
             if ch == quote:
                 quote = None
@@ -90,7 +90,7 @@ def split_comment(rest):
 
 
 def header_block(text):
-    """Kommentarzeilen ganz oben (bis zur ersten Leer- oder Nicht-Kommentarzeile)."""
+    """Comment lines at the very top (up to the first empty or non-comment line)."""
     lines = []
     for line in text.splitlines():
         if not line.startswith("#"):
@@ -100,7 +100,7 @@ def header_block(text):
 
 
 def merge(template_text, user_text):
-    """Rückgabe: (neuer Text, neu übernommene Schlüssel, eigene Werte)."""
+    """Returns: (new text, newly added keys, own values)."""
     template = tomllib.loads(template_text)
     user = tomllib.loads(user_text)
     t_flat, u_flat = flatten(template), flatten(user)
@@ -109,7 +109,7 @@ def merge(template_text, user_text):
     added = [k for k in t_flat if k not in u_flat]
 
     lines = template_text.splitlines()
-    # Kopfzeile: die eigene, falls vorhanden
+    # Header: your own, if there is one
     own_header, template_header = header_block(user_text), header_block(template_text)
     if own_header:
         lines = own_header + lines[len(template_header):]
@@ -117,11 +117,11 @@ def merge(template_text, user_text):
     out, section, pending = [], (), dict(extra)
 
     def flush_section():
-        """Eigene Schlüssel dieses Abschnitts, die noch nicht untergebracht sind, anhängen."""
+        """Append own keys of this section that have not been placed yet."""
         rest = [(k, v) for k, v in pending.items() if k[:-1] == section]
         if not rest:
             return
-        while out and not out[-1].strip():  # vor den Leerzeilen am Abschnittsende einfügen
+        while out and not out[-1].strip():  # insert before the empty lines at the end of the section
             out.pop()
         for k, v in rest:
             out.append(f"{k[-1]} = {toml_value(v)}")
@@ -144,42 +144,42 @@ def merge(template_text, user_text):
             out.append(line)
             continue
         match = COMMENTED_RE.match(line)
-        if match and section + (match.group(1),) in pending:  # Beispiel durch eigenen Wert ersetzen
+        if match and section + (match.group(1),) in pending:  # replace the example with your own value
             key = section + (match.group(1),)
             out.append(f"{match.group(1)} = {toml_value(pending.pop(key))}")
             continue
         out.append(line)
     flush_section()
 
-    # Eigene Abschnitte, die die Vorlage gar nicht kennt
+    # Own sections the template does not know at all
     leftovers = {}
     for key, value in pending.items():
         leftovers.setdefault(key[:-1], []).append((key[-1], value))
     if leftovers:
-        out += ["", "# --- Eigene Einträge (nicht in der Vorlage) ---"]
+        out += ["", "# --- Own entries (not in the template) ---"]
         for table, entries in leftovers.items():
             out.append(f"[{'.'.join(table)}]")
             out += [f"{k} = {toml_value(v)}" for k, v in entries]
             out.append("")
     text = "\n".join(out).rstrip() + "\n"
 
-    # Gegenprobe: Ergebnis = Vorlage + eigene Werte
+    # Cross-check: result = template + own values
     expected = dict(t_flat)
     expected.update(u_flat)
     result = tomllib.loads(text)
     if flatten(result) != expected or not tables(template) <= tables(result):
-        raise ValueError("Zusammenführen ergäbe andere Werte; nichts geschrieben")
+        raise ValueError("Merging would give different values; nothing written")
     return text, added, sorted(set(changed) | set(extra))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dry-run", action="store_true", help="nur anzeigen")
-    parser.add_argument("--config", type=Path, default=None, help="statt ~/.config/slate/config.toml")
+    parser.add_argument("--dry-run", action="store_true", help="only show")
+    parser.add_argument("--config", type=Path, default=None, help="instead of ~/.config/slate/config.toml")
     args = parser.parse_args()
     target = args.config or config_path()
     if not target.is_file():
-        print(f"[sync_config] {target} gibt es nicht, nichts zu tun (Tool nimmt Standardwerte)")
+        print(f"[sync_config] {target} does not exist, nothing to do (the tool uses default values)")
         return 0
     old = target.read_text()
     try:
@@ -188,19 +188,19 @@ def main():
         print(f"[sync_config] {e}", file=sys.stderr)
         return 1
     if new == old:
-        print(f"[sync_config] {target} ist aktuell")
+        print(f"[sync_config] {target} is up to date")
         return 0
-    names = ", ".join(".".join(k) for k in added) or "keine"
-    print(f"[sync_config] neu aus der Vorlage: {names}")
-    print(f"[sync_config] eigene Werte behalten: {len(own)}")
+    names = ", ".join(".".join(k) for k in added) or "none"
+    print(f"[sync_config] new from the template: {names}")
+    print(f"[sync_config] own values kept: {len(own)}")
     if args.dry_run:
         sys.stdout.writelines(difflib.unified_diff(old.splitlines(True), new.splitlines(True),
-                                                   str(target), "neu"))
+                                                   str(target), "new"))
         return 0
     target.with_name(target.name + ".bak").write_text(old)
-    with open(target, "w") as f:  # in place, Rechte bleiben
+    with open(target, "w") as f:  # in place, permissions stay
         f.write(new)
-    print(f"[sync_config] geschrieben, alte Fassung: {target.name}.bak")
+    print(f"[sync_config] written, old version: {target.name}.bak")
     return 0
 
 

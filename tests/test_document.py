@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Test Speichern/Laden: Szene zeichnen, Strg+S, neu laden, pixelgenau vergleichen;
-dazu das Whiteboard (speichern, als Whiteboard laden, Export des benutzten Bereichs).
+"""Save/load test: draw a scene, Ctrl+S, load again, compare pixel by pixel;
+plus the whiteboard (save, load as whiteboard, export of the used area).
 
     python tests/test_document.py
 
-Nutzt die Szene und die isolierte Umgebung aus regress.py (leeres HOME,
-Offscreen-Plattform). Rückgabewert 0 = alles ok, 1 = Fehler.
+Uses the scene and the isolated environment from regress.py (empty HOME,
+offscreen platform). Exit code 0 = all ok, 1 = failures.
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import regress  # noqa: E402  (setzt HOME, Config und QT_QPA_PLATFORM)
+import regress  # noqa: E402  (sets HOME, config and QT_QPA_PLATFORM)
 
 from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
 from PySide6.QtGui import QColor, QGuiApplication, QImage, QPixmap  # noqa: E402
@@ -22,7 +22,7 @@ failures = []
 
 
 def check(name, condition):
-    print(f"{'OK  ' if condition else 'FEHLER'}  {name}")
+    print(f"{'OK  ' if condition else 'FAIL  '}  {name}")
     if not condition:
         failures.append(name)
 
@@ -44,13 +44,13 @@ def main():
     from document import load_document
     from export import default_output_dir
 
-    # Mixins der Canvas (docs/plan-aufteilung.md): Keine Methode darf in zwei Klassen
-    # stehen, sonst überdeckt die eine still die andere
+    # Mixins of the Canvas (docs/plan-aufteilung.md): no method may be in two classes,
+    # otherwise one silently hides the other
     parts = [c for c in Canvas.__mro__ if c.__module__ not in ("builtins",) and
              not c.__module__.startswith(("PySide6", "Shiboken"))]
     names = [{n for n in c.__dict__ if not n.startswith("__")} for c in parts]
     clashes = {n for i, a in enumerate(names) for b in names[i + 1:] for n in a & b}
-    check(f"Canvas-Mixins ohne doppelte Methoden ({', '.join(c.__name__ for c in parts)})", not clashes)
+    check(f"Canvas mixins without duplicate methods ({', '.join(c.__name__ for c in parts)})", not clashes)
 
     background = QPixmap(1100, 500)
     background.fill(QColor("#3b4261"))
@@ -58,47 +58,47 @@ def main():
     regress.draw_scene(canvas, canvas.viewport())
     out = Path(default_output_dir())
 
-    def drawings():  # gespeicherte Zeichnungen, ohne Export-PNGs
+    def drawings():  # saved drawings, without export PNGs
         return sorted(p for p in out.glob("slate_*.png") if not p.stem.endswith("_export"))
 
     QTest.keyClick(canvas, Qt.Key_S, Qt.ControlModifier)
     QTest.keyClick(canvas, Qt.Key_S, Qt.ControlModifier)
     saved = drawings()
-    check("Strg+S zweimal = eine Datei", len(saved) == 1)
+    check("Ctrl+S twice = one file", len(saved) == 1)
     QTest.keyClick(canvas, Qt.Key_E, Qt.ControlModifier)
     exports = sorted(out.glob("*_export.png"))
-    check("Strg+E = zusätzliches Export-PNG", len(exports) == 1)
+    check("Ctrl+E = additional export PNG", len(exports) == 1)
 
     path = saved[0]
     rendered = canvas.render_image()
-    check("gespeichertes PNG zeigt die Zeichnung",
+    check("saved PNG shows the drawing",
           QImage(str(path)).convertToFormat(rendered.format()) == rendered)
-    check("Export-PNG ohne Bearbeitungsdaten", not QImage(str(exports[0])).text("slate"))
+    check("export PNG without editing data", not QImage(str(exports[0])).text("slate"))
 
     bg, elements, is_drawing, message = load_document(path)
-    check(f"als Zeichnung geladen ({message})", is_drawing and len(elements) == len(canvas.elements()))
-    check("Elemente identisch",
+    check(f"loaded as a drawing ({message})", is_drawing and len(elements) == len(canvas.elements()))
+    check("elements identical",
           [e.to_dict() for e in elements] == [e.to_dict() for e in canvas.elements()])
     reopened = make_canvas(QPixmap.fromImage(bg), elements, path)
-    check("neu geladen = pixelgleich", reopened.render_image() == rendered)
-    check("Undo nach dem Laden leer", reopened.undo_stack.count() == 0)
+    check("loaded again = pixel identical", reopened.render_image() == rendered)
+    check("undo empty after loading", reopened.undo_stack.count() == 0)
 
-    # Weiterarbeiten: Element verschieben, speichern, wieder laden
+    # Keep working: move an element, save, load again
     QTest.keyClick(reopened, Qt.Key_W)
     view = reopened.viewport()
-    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(30, 120))       # blaue Linie
+    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(30, 120))       # blue line
     moved = reopened.selected_element()
-    check("Linie nach dem Laden auswählbar", moved is not None)
+    check("line selectable after loading", moved is not None)
     QTest.mousePress(view, Qt.LeftButton, pos=QPoint(30, 120))
     QTest.mouseMove(view, QPoint(130, 220))
     QTest.mouseRelease(view, Qt.LeftButton, pos=QPoint(130, 220))
     QTest.keyClick(reopened, Qt.Key_S, Qt.ControlModifier)
-    check("Speichern überschreibt dieselbe Datei", drawings() == [path])
+    check("saving overwrites the same file", drawings() == [path])
     _, again, _, _ = load_document(path)
     match = [e for e in again if e.id == moved.id]
-    check("Verschiebung gespeichert", match and match[0].pos() == moved.pos())
+    check("move saved", match and match[0].pos() == moved.pos())
 
-    # Mauszeiger: Fadenkreuz ohne Mittelpunkt, Kreis = Strichbreite, Stiftfarbe; Auswahl/Zeigen: Pfeil
+    # Mouse pointer: crosshair without center, circle = stroke width, pen color; select/pointing: arrow
     from tools import Tool
     cur = make_canvas(QPixmap(800, 400))
     cur.set_tool(Tool.FREEHAND)
@@ -112,7 +112,7 @@ def main():
                   and abs(big_cursor.pixelColor(x, y).green() - pen.green()) < 8
                   and abs(big_cursor.pixelColor(x, y).blue() - pen.blue()) < 8 and big_cursor.pixelColor(x, y).alpha() > 200
                   for x in range(big_cursor.width()) for y in range(big_cursor.height()))
-    check("Mauszeiger: wächst mit der Strichstärke, Mitte frei, Stiftfarbe",
+    check("pointer: grows with the stroke width, center free, pen color",
           big_cursor.width() > small_cursor.width() and center.alpha() == 0 and has_pen)
     cur.set_tool(Tool.SELECT)
     select_cursor = cur.viewport().cursor()
@@ -121,23 +121,23 @@ def main():
     cur.toggle_pointer("spotlight")
     hidden_pointer = cur.viewport().cursor().shape() == Qt.BlankCursor
     cur.set_tool(Tool.LINE)
-    check("Mauszeiger: eigener Pfeil im Auswahl-Werkzeug, beim Zeigen ausgeblendet, Werkzeugwechsel beendet Zeigen",
+    check("pointer: own arrow in the select tool, hidden while pointing, tool change ends pointing",
           arrow_select and hidden_pointer and cur.pointer_mode is None
           and cur.viewport().cursor().shape() == Qt.BitmapCursor)
     cur.close()
 
-    # Unschärfe (z): verpixelt den Screenshot darunter; beim Speichern ins Rohbild eingebrannt
+    # Blur (z): pixelates the screenshot below; burned into the raw image when saving
     from PySide6.QtGui import QPainter as _QPainter
     stripes = QImage(800, 400, QImage.Format_RGB32)
     stripes.fill(QColor("white"))
     sp = _QPainter(stripes)
-    for x in range(0, 800, 4):  # feine senkrechte Streifen: nach dem Verpixeln einheitlich grau
+    for x in range(0, 800, 4):  # fine vertical stripes: uniformly gray after pixelating
         sp.fillRect(x, 0, 2, 400, QColor("black"))
     sp.end()
     blur_canvas = make_canvas(QPixmap.fromImage(stripes))
     bview = blur_canvas.viewport()
     QTest.keyClick(blur_canvas, Qt.Key_Z)
-    blur_canvas.set_size(2)  # Stufe 3: Klötze 24 px
+    blur_canvas.set_size(2)  # level 3: 24 px blocks
     QTest.mousePress(bview, Qt.LeftButton, pos=QPoint(100, 100))
     QTest.mouseMove(bview, QPoint(300, 250))
     QTest.mouseRelease(bview, Qt.LeftButton, pos=QPoint(300, 250))
@@ -147,18 +147,18 @@ def main():
     def stripe_contrast(img, y, x0, x1):
         values = [img.pixelColor(x, y).lightness() for x in range(x0, x1)]
         return max(values) - min(values)
-    check("Unschärfe: ein Element, Bereich verpixelt, außerhalb unverändert",
+    check("blur: one element, area pixelated, outside unchanged",
           len(blurs) == 1 and stripe_contrast(shown, 150, 130, 150) < 40 and stripe_contrast(shown, 350, 130, 150) > 200)
     QTest.keyClick(blur_canvas, Qt.Key_S, Qt.ControlModifier)
     saved_bg, saved_elems, _, _ = load_document(blur_canvas.document_path)
-    check("Unschärfe: gespeichertes Rohbild ist dort verpixelt (eingebrannt), Element bleibt",
+    check("blur: saved raw image is pixelated there (burned in), element stays",
           stripe_contrast(saved_bg, 150, 130, 150) < 40 and stripe_contrast(saved_bg, 350, 130, 150) > 200
           and [e.tool for e in saved_elems] == [Tool.BLUR])
-    check("Unschärfe: im laufenden Tool bleibt das Rohbild unverändert",
+    check("blur: in the running tool the raw image stays unchanged",
           stripe_contrast(blur_canvas.background_image, 150, 130, 150) > 200)
     blur_canvas.close()
 
-    # Marker (c): Klick = Kreis, Ziehen = Kreis mit Zeigelinie; neu nummerieren, Buchstaben
+    # Marker (c): click = circle, drag = circle with pointer line; renumber, letters
     mk = make_canvas(QPixmap(800, 400))
     mview = mk.viewport()
 
@@ -175,7 +175,7 @@ def main():
     click(200, 100, 260, 60)
     click(300, 100)
     markers = [e for e in mk.elements() if e.tool == Tool.MARKER]
-    check("Marker: 1 2 3, Klick ohne Linie, Ziehen mit Linie",
+    check("marker: 1 2 3, click without line, drag with line",
           labels() == ["1", "2", "3"] and markers[0].points[0] == markers[0].points[1]
           and markers[1].points[0] != markers[1].points[1])
     mk.scene_.clearSelection()
@@ -183,75 +183,75 @@ def main():
     mk.delete_selected()
     after_delete = labels()
     mk.undo_stack.undo()
-    check("Marker: Löschen nummeriert neu (1 2), Undo stellt 1 2 3 wieder her",
+    check("marker: deleting renumbers (1 2), undo restores 1 2 3",
           after_delete == ["1", "2"] and sorted(labels()) == ["1", "2", "3"] and markers[1].marker_label() == "2")
-    QTest.keyClick(mk, Qt.Key_C)  # zweites c: Buchstaben
+    QTest.keyClick(mk, Qt.Key_C)  # second c: letters
     click(400, 200)
     click(500, 200)
     letters = [e.marker_label() for e in mk.elements() if e.tool == Tool.MARKER and e.marker_kind == "letter"]
-    check("Marker: zweites c schaltet auf A B C, Zahlen zählen getrennt weiter", letters == ["A", "B"]
+    check("marker: second c switches to A B C, numbers count separately", letters == ["A", "B"]
           and mk.tool == Tool.MARKER)
     QTest.keyClick(mk, Qt.Key_S, Qt.ControlModifier)
     _, loaded, _, _ = load_document(mk.document_path)
     reload_canvas = make_canvas(QPixmap(800, 400), loaded)
-    check("Marker: Speichern/Laden behält Art und Nummern",
+    check("marker: save/load keeps kind and numbers",
           sorted(e.marker_label() for e in reload_canvas.elements() if e.tool == Tool.MARKER)
           == ["1", "2", "3", "A", "B"])
     reload_canvas.close()
     mk.close()
 
-    # Ausschnitt (y): nur der Ausschnitt wird ausgegeben, gespeichert bleibt alles + Rahmen
+    # Crop (y): only the crop is output, everything + frame is saved
     cr = make_canvas(QPixmap(800, 400))
     cview = cr.viewport()
 
-    def at(x, y):  # Bildpixel -> Mausposition (das Bild steht mittig im größeren Fenster)
+    def at(x, y):  # image pixels -> mouse position (the image is centered in the larger window)
         return cr.mapFromScene(QPointF(x, y))
     QTest.keyClick(cr, Qt.Key_Y)
     QTest.mousePress(cview, Qt.LeftButton, pos=at(100, 50))
     QTest.mouseMove(cview, at(400, 250))
     QTest.mouseRelease(cview, Qt.LeftButton, pos=at(400, 250))
-    check("Ausschnitt: Ausgabe nur der Ausschnitt (300x200), Auswahl danach beendet",
+    check("crop: output only the crop (300x200), selection ended afterwards",
           cr.render_image().size().toTuple() == (300, 200) and not cr.cropping and cr.crop_rect is not None)
     QTest.keyClick(cr, Qt.Key_S, Qt.ControlModifier)
     saved_png = QImage(str(cr.document_path))
     bg_full, _, _, _, saved_crop = load_document(cr.document_path, with_crop=True)
-    check("Ausschnitt: Datei zeigt den Ausschnitt, enthält ganzen Screenshot und Rahmen",
+    check("crop: file shows the crop, contains the whole screenshot and the frame",
           saved_png.size().toTuple() == (300, 200) and bg_full.size().toTuple() == (800, 400)
           and saved_crop is not None and saved_crop.size().toTuple() == (300.0, 200.0))
     QTest.keyClick(cr, Qt.Key_Y)
-    QTest.keyClick(cr, Qt.Key_Escape)  # Esc während der Auswahl: Ausschnitt aufheben
+    QTest.keyClick(cr, Qt.Key_Escape)  # Esc during the selection: remove the crop
     removed = cr.crop_rect is None and cr.render_image().size().toTuple() == (800, 400)
     cr.undo_stack.undo()
-    check("Ausschnitt: Esc in der Auswahl hebt auf, Undo stellt ihn wieder her",
+    check("crop: Esc in the selection removes it, undo restores it",
           removed and cr.crop_rect is not None)
     QTest.keyClick(cr, Qt.Key_Y)
     QTest.mousePress(cview, Qt.LeftButton, pos=at(10, 10))
-    QTest.mouseRelease(cview, Qt.LeftButton, pos=at(12, 11))  # winzig: gilt als Klick
-    check("Ausschnitt: winziger Rahmen ändert nichts",
+    QTest.mouseRelease(cview, Qt.LeftButton, pos=at(12, 11))  # tiny: counts as a click
+    check("crop: tiny frame changes nothing",
           cr.crop_rect is not None and cr.crop_rect.width() == 300 and not cr.cropping)
 
-    def crop_drag(x1, y1, x2, y2):  # y, dann in Bildpixeln ziehen
+    def crop_drag(x1, y1, x2, y2):  # y, then drag in image pixels
         QTest.keyClick(cr, Qt.Key_Y)
         QTest.mousePress(cview, Qt.LeftButton, pos=at(x1, y1))
         QTest.mouseMove(cview, at(x2, y2))
         QTest.mouseRelease(cview, Qt.LeftButton, pos=at(x2, y2))
         r = cr.crop_rect
         return (round(r.x()), round(r.y()), round(r.width()), round(r.height()))
-    # Ausschnitt ist jetzt (100, 50, 300, 200)
-    corner = crop_drag(400, 250, 500, 300)   # Griff unten rechts
-    edge = crop_drag(100, 175, 150, 175)     # Griff linke Kante (nur waagerecht)
-    moved = crop_drag(300, 150, 320, 170)    # innen: verschieben
-    fresh = crop_drag(600, 320, 700, 380)    # außen: neu aufziehen
-    check(f"Ausschnitt anpassen: Ecke, Kante, verschieben, außen neu ({corner} {edge} {moved} {fresh})",
+    # Crop is now (100, 50, 300, 200)
+    corner = crop_drag(400, 250, 500, 300)   # bottom right handle
+    edge = crop_drag(100, 175, 150, 175)     # left edge handle (horizontal only)
+    moved = crop_drag(300, 150, 320, 170)    # inside: move
+    fresh = crop_drag(600, 320, 700, 380)    # outside: draw a new one
+    check(f"adjust crop: corner, edge, move, new outside ({corner} {edge} {moved} {fresh})",
           corner == (100, 50, 400, 250) and edge == (150, 50, 350, 250) and moved == (170, 70, 350, 250)
           and fresh == (600, 320, 100, 60))
     cr.undo_stack.undo()
-    check("Ausschnitt anpassen: Undo geht schrittweise zurück",
+    check("adjust crop: undo goes back step by step",
           (round(cr.crop_rect.x()), round(cr.crop_rect.width())) == (170, 350))
     cr.close()
 
-    # Mehrfachauswahl: Strg+A, Shift+Klick, Auswahlrahmen; Farbe, Größe, Verschieben, Löschen
-    # wirken auf alle, jeweils ein Undo-Schritt
+    # Multi-selection: Ctrl+A, Shift+click, rubber band; color, size, move, delete
+    # apply to all, one undo step each
     ms = make_canvas(QPixmap(800, 400))
     mv = ms.viewport()
 
@@ -267,42 +267,42 @@ def main():
         drag(x, 50, x + 100, 150)
     rects = ms.elements()
     QTest.keyClick(ms, Qt.Key_A, Qt.ControlModifier)
-    check("Strg+A wählt alles aus", ms.tool == Tool.SELECT and len(ms.selected_elements()) == 3)
+    check("Ctrl+A selects everything", ms.tool == Tool.SELECT and len(ms.selected_elements()) == 3)
     steps_before = ms.undo_stack.count()
     ms.set_color((ms.color_index + 1) % len(ms.settings.colors))
     all_colored = len({r.color.name() for r in rects}) == 1 and rects[0].color == ms.pen_color
     ms.undo_stack.undo()
-    check("Farbe auf alle, ein Undo-Schritt", all_colored and ms.undo_stack.count() == steps_before + 1
+    check("color on all, one undo step", all_colored and ms.undo_stack.count() == steps_before + 1
           and rects[0].color != ms.pen_color)
     ms.undo_stack.redo()
     ms.set_size(3)
-    check("Größe auf alle", all(r.width == ms.pen_width for r in rects))
-    QTest.mouseClick(mv, Qt.LeftButton, Qt.NoModifier, mp(50, 100))  # Klick auf Rand: nur dieses
-    QTest.mouseClick(mv, Qt.LeftButton, Qt.ShiftModifier, mp(450, 100))  # Shift: dazu
-    check("Klick wählt eins, Shift+Klick nimmt dazu", ms.selected_elements() == [rects[0], rects[2]])
-    QTest.mouseClick(mv, Qt.LeftButton, Qt.ShiftModifier, mp(450, 100))  # Shift: wieder heraus
-    check("Shift+Klick nimmt wieder heraus", ms.selected_elements() == [rects[0]])
-    drag(20, 20, 400, 200)  # Rahmen um die ersten beiden
-    check("Auswahlrahmen wählt, was ganz darin liegt", ms.selected_elements() == rects[:2])
+    check("size on all", all(r.width == ms.pen_width for r in rects))
+    QTest.mouseClick(mv, Qt.LeftButton, Qt.NoModifier, mp(50, 100))  # click on the edge: only this one
+    QTest.mouseClick(mv, Qt.LeftButton, Qt.ShiftModifier, mp(450, 100))  # Shift: add
+    check("click selects one, Shift+click adds", ms.selected_elements() == [rects[0], rects[2]])
+    QTest.mouseClick(mv, Qt.LeftButton, Qt.ShiftModifier, mp(450, 100))  # Shift: remove again
+    check("Shift+click removes again", ms.selected_elements() == [rects[0]])
+    drag(20, 20, 400, 200)  # rubber band around the first two
+    check("rubber band selects what lies completely inside", ms.selected_elements() == rects[:2])
     before = [QPointF(r.pos()) for r in rects]
-    drag(250, 100, 280, 120)  # eins der ausgewählten anfassen: beide wandern
+    drag(250, 100, 280, 120)  # grab one of the selected: both move
     moved = [r.pos() - b for r, b in zip(rects, before)]
-    check("Ziehen verschiebt alle ausgewählten", moved[0] == moved[1] == QPointF(30, 20) and moved[2] == QPointF(0, 0))
+    check("dragging moves all selected", moved[0] == moved[1] == QPointF(30, 20) and moved[2] == QPointF(0, 0))
     ms.undo_stack.undo()
-    check("Verschieben: ein Undo-Schritt für alle", all(r.pos() == b for r, b in zip(rects, before)))
+    check("move: one undo step for all", all(r.pos() == b for r, b in zip(rects, before)))
     QTest.keyClick(ms, Qt.Key_L)
     QTest.keyClick(ms, Qt.Key_L)
     hjkl = [r.pos().x() - b.x() for r, b in zip(rects, before)]
     ms.undo_stack.undo()
-    check("hjkl verschiebt alle, Schritte zusammengefasst", hjkl[0] == hjkl[1] > 0 and hjkl[2] == 0
+    check("hjkl moves all, steps merged", hjkl[0] == hjkl[1] > 0 and hjkl[2] == 0
           and all(r.pos() == b for r, b in zip(rects, before)))
     ms.delete_selected()
     gone = len(ms.elements()) == 1
     ms.undo_stack.undo()
-    check("Löschen aller ausgewählten, ein Undo-Schritt", gone and len(ms.elements()) == 3)
+    check("deleting all selected, one undo step", gone and len(ms.elements()) == 3)
     ms.close()
 
-    # Vorder-/Hintergrund: Strg+↑/↓ ein Schritt, Strg+Shift+↑/↓ ganz; Undo; Löschen+Undo behält Platz
+    # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
     zo = make_canvas(QPixmap(800, 400))
     zv = zo.viewport()
     zo.set_tool(Tool.RECT)
@@ -322,28 +322,28 @@ def main():
     top = order()
     zo.undo_stack.undo()
     zo.undo_stack.undo()
-    check(f"Strg+↑ ein Schritt ({one_up}), Strg+Shift+↑ ganz nach vorne ({top}), Undo",
+    check(f"Ctrl+↑ one step ({one_up}), Ctrl+Shift+↑ to the front ({top}), undo",
           one_up == "bacd" and top == "bcda" and order() == "abcd")
     zo.scene_.clearSelection()
     c.setSelected(True)
     d.setSelected(True)
     QTest.keyClick(zo, Qt.Key_Down, Qt.ControlModifier | Qt.ShiftModifier)
-    check(f"Mehrere ganz nach hinten, Reihenfolge untereinander bleibt ({order()})", order() == "cdab")
+    check(f"several to the back, order among them stays ({order()})", order() == "cdab")
     zo.undo_stack.undo()
     zo.scene_.clearSelection()
     b.setSelected(True)
     zo.delete_selected()
     zo.undo_stack.undo()
-    check(f"Gelöschtes per Undo zurück an seinen Platz ({order()})", order() == "abcd")
+    check(f"deleted element back at its place via undo ({order()})", order() == "abcd")
     QTest.keyClick(zo, Qt.Key_S, Qt.ControlModifier)
     b.setSelected(True)
     QTest.keyClick(zo, Qt.Key_Up, Qt.ControlModifier | Qt.ShiftModifier)
     QTest.keyClick(zo, Qt.Key_S, Qt.ControlModifier)
     _, saved, _, _ = load_document(zo.document_path)
-    check("Reihenfolge wird gespeichert", [e.id for e in saved] == [a.id, c.id, d.id, b.id])
+    check("order is saved", [e.id for e in saved] == [a.id, c.id, d.id, b.id])
     zo.close()
 
-    # Kopieren/Einfügen/Duplizieren (Qt-Zwischenablage, nie die echte: xclip abgeschaltet)
+    # Copy/paste/duplicate (Qt clipboard, never the real one: xclip turned off)
     import export as _export
     _export.shutil.which = lambda name: None
     cp = make_canvas(QPixmap(800, 400))
@@ -360,31 +360,31 @@ def main():
     QTest.keyClick(cp, Qt.Key_C, Qt.ControlModifier)
     QTest.keyClick(cp, Qt.Key_V, Qt.ControlModifier)
     pasted = [e for e in cp.elements() if e not in originals]
-    check("Strg+C/Strg+V: Kopien mit neuen IDs, danach ausgewählt, Marker zählt weiter",
+    check("Ctrl+C/Ctrl+V: copies with new IDs, selected afterwards, marker counts on",
           len(pasted) == 3 and not {e.id for e in pasted} & {e.id for e in originals}
           and cp.selected_elements() == pasted
           and [e.marker_label() for e in pasted if e.tool == Tool.MARKER] == ["2"])
     cp.undo_stack.undo()
-    check("Einfügen: ein Undo-Schritt", cp.elements() == originals)
+    check("paste: one undo step", cp.elements() == originals)
     cp.scene_.clearSelection()
     originals[0].setSelected(True)
     QTest.keyClick(cp, Qt.Key_D, Qt.ControlModifier)
     dup = [e for e in cp.elements() if e not in originals]
     offset = dup[0].pos() - originals[0].pos() if dup else QPointF()
-    check("Strg+D: verdoppelt, leicht versetzt", len(dup) == 1 and offset.x() > 0 and offset == QPointF(offset.x(), offset.x()))
+    check("Ctrl+D: duplicated, slightly offset", len(dup) == 1 and offset.x() > 0 and offset == QPointF(offset.x(), offset.x()))
     wb = Canvas(QGuiApplication.primaryScreen(), None, board=True)
     wb.resize(900, 500)
     wb.show_window()
     QApplication.processEvents()
     blur_dict = dict(originals[0].to_dict(), tool="blur")
     wb.insert_copies([originals[0].to_dict(), blur_dict], target=QPointF(0, 0))
-    check("Einfügen im Whiteboard: Unschärfe wird weggelassen",
+    check("paste in the whiteboard: blur is left out",
           [e.tool for e in wb.elements()] == [Tool.RECT])
-    wb.undo_stack.setClean()  # sonst fragt das Whiteboard beim Schließen nach (Dialog ohne Bildschirm)
+    wb.undo_stack.setClean()  # otherwise the whiteboard asks on close (dialog without a screen)
     wb.close()
     cp.close()
 
-    # Bild-Elemente: Ausschnitt mit Markierungen bearbeitbar ins Whiteboard, fremde Bilder einfügen
+    # Image elements: crop with markings editable into the whiteboard, paste foreign images
     from PySide6.QtCore import QByteArray, QMimeData, QRectF
     from elements import ImageElement
     from export import png_bytes
@@ -392,10 +392,10 @@ def main():
     sv = shot.viewport()
     shot.set_tool(Tool.MARKER)
     QTest.mouseClick(sv, Qt.LeftButton, Qt.NoModifier, shot.mapFromScene(QPointF(200, 150)))
-    QTest.mouseClick(sv, Qt.LeftButton, Qt.NoModifier, shot.mapFromScene(QPointF(700, 350)))  # außerhalb
+    QTest.mouseClick(sv, Qt.LeftButton, Qt.NoModifier, shot.mapFromScene(QPointF(700, 350)))  # outside
     shot.set_crop(QRectF(100, 50, 300, 200))
-    shot.copy_image()  # Strg+C ohne Auswahl / Enter
-    # Wie xclip: die PNG-Bytes unverändert in der Zwischenablage (Qt allein kodiert neu)
+    shot.copy_image()  # Ctrl+C without a selection / Enter
+    # Like xclip: the PNG bytes unchanged in the clipboard (Qt alone re-encodes)
     clip = QMimeData()
     clip.setData("image/png", QByteArray(png_bytes(shot.render_image())))
     QGuiApplication.clipboard().setMimeData(clip)
@@ -406,53 +406,53 @@ def main():
     wb2.paste_elements()
     kinds = [type(e).__name__ for e in wb2.elements()]
     image = next((e for e in wb2.elements() if isinstance(e, ImageElement)), None)
-    check(f"Ausschnitt ins Whiteboard: Bild unten, Marker darin bearbeitbar ({kinds})",
+    check(f"crop into the whiteboard: image at the bottom, marker in it editable ({kinds})",
           kinds == ["ImageElement", "ShapeElement"] and image.size.toTuple() == (300.0, 200.0))
     foreign = QImage(120, 80, QImage.Format_RGB32)
     foreign.fill(QColor("orange"))
     QGuiApplication.clipboard().setImage(foreign)
     wb2.paste_elements()
     pasted = wb2.selected_elements()
-    check("fremdes Bild: ein Bild-Element in Originalgröße",
+    check("foreign image: one image element in original size",
           len(pasted) == 1 and isinstance(pasted[0], ImageElement) and pasted[0].size.toTuple() == (120.0, 80.0))
     start = pasted[0].geometry()
     corner = pasted[0].mapToScene(pasted[0].handle_points()[2])
     pasted[0].drag_handle(2, corner + QPointF(60, 0), start)
-    check("Bild: Griff ändert die Größe, Seitenverhältnis bleibt",
+    check("image: handle changes the size, aspect ratio stays",
           abs(pasted[0].size.width() / pasted[0].size.height() - 1.5) < 0.01 and pasted[0].size.width() > 120)
     QTest.keyClick(wb2, Qt.Key_S, Qt.ControlModifier)
     _, saved_board, _, _ = load_document(wb2.document_path)
-    check("Bild-Elemente werden gespeichert und geladen",
+    check("image elements are saved and loaded",
           sum(isinstance(e, ImageElement) for e in saved_board) == 2)
     wb2.undo_stack.setClean()
     wb2.close()
     shot.close()
 
-    # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
-    # gezeichnet und exportiert wird in voller Auflösung
+    # Image from another monitor: larger -> scaled down fully visible, smaller -> 1:1 centered;
+    # drawing and export happen in full resolution
     big = QPixmap(2200, 1000)
     big.fill(QColor("#3b4261"))
     large = make_canvas(big)
-    check("großes Bild: verkleinert", abs(large.zoom() - 0.5) < 0.01)
+    check("large image: scaled down", abs(large.zoom() - 0.5) < 0.01)
     lview = large.viewport()
-    QTest.keyClick(large, Qt.Key_S)  # Linie
+    QTest.keyClick(large, Qt.Key_S)  # line
     QTest.mousePress(lview, Qt.LeftButton, pos=QPoint(100, 100))
     QTest.mouseMove(lview, QPoint(300, 200))
     QTest.mouseRelease(lview, Qt.LeftButton, pos=QPoint(300, 200))
     line = large.elements()[-1]
-    check("großes Bild: Linie in Bildpixeln", abs(line.mapToScene(line.points[1]).x()
+    check("large image: line in image pixels", abs(line.mapToScene(line.points[1]).x()
                                                   - line.mapToScene(line.points[0]).x() - 400) < 2)
-    check("großes Bild: Export in voller Auflösung", large.render_image().size() == big.size())
+    check("large image: export in full resolution", large.render_image().size() == big.size())
     small = QPixmap(400, 300)
     small.fill(QColor("#3b4261"))
     little = make_canvas(small)
     center = little.mapFromScene(little.export_rect.center())
-    check("kleines Bild: 1:1 und mittig", little.zoom() == 1.0
+    check("small image: 1:1 and centered", little.zoom() == 1.0
           and (center - little.viewport().rect().center()).manhattanLength() <= 2)
     large.close()
     little.close()
 
-    # Verlauf (Roadmap 10): jede Sitzung ein Eintrag, mit ← → blättern
+    # History (roadmap 10): one entry per session, browse with ← →
     import history
 
     def draw_rect(c, x):
@@ -468,7 +468,7 @@ def main():
     hdir = first.settings.history_dir
     first.start_history()
     draw_rect(first, 100)
-    first.close()  # beim Beenden gespeichert
+    first.close()  # saved when quitting
     second_bg = QPixmap(900, 400)
     second_bg.fill(QColor("#662244"))
     second = make_canvas(second_bg)
@@ -477,34 +477,34 @@ def main():
     draw_rect(second, 300)
     second.flush_history()
     files = history.entries(hdir)
-    check("Verlauf: zwei Einträge", len(files) == 2 and files[-1] == second.history_path)
+    check("history: two entries", len(files) == 2 and files[-1] == second.history_path)
     QTest.keyClick(second, Qt.Key_Left)
-    check("Verlauf ←: älterer Eintrag geladen", second.history_path == files[0]
+    check("history ←: older entry loaded", second.history_path == files[0]
           and len(second.elements()) == 1 and second.export_size == first_bg.size()
           and second.undo_stack.count() == 0)
-    draw_rect(second, 500)  # älteren Eintrag weiterbearbeiten
+    draw_rect(second, 500)  # keep editing the older entry
     QTest.keyClick(second, Qt.Key_Right)
     _, old_elems, _, _ = load_document(files[0])
-    check("Verlauf: Änderung am älteren Eintrag gespeichert", len(old_elems) == 2)
-    check("Verlauf →: neuerer Eintrag geladen", second.history_path == files[1]
+    check("history: change to the older entry saved", len(old_elems) == 2)
+    check("history →: newer entry loaded", second.history_path == files[1]
           and len(second.elements()) == 2 and second.export_size == second_bg.size())
     QTest.keyClick(second, Qt.Key_Right)
-    check("Verlauf: am Ende bleibt der neueste", second.history_path == files[1])
+    check("history: the newest stays at the end", second.history_path == files[1])
     second.close()
-    check("Verlauf aufräumen: nur die neuesten bleiben",
+    check("history cleanup: only the newest stay",
           history.prune(hdir, 1) == 1 and history.entries(hdir) == [files[1]])
     empty = make_canvas(first_bg)
     empty.start_history()
-    empty.close()  # nichts gezeichnet
-    check("Verlauf: Screenshot ohne Änderung bleibt draußen", history.entries(hdir) == [files[1]])
+    empty.close()  # nothing drawn
+    check("history: screenshot without changes stays out", history.entries(hdir) == [files[1]])
     board_h = Canvas(QGuiApplication.primaryScreen(), None, board=True)
     board_h.start_history()
-    check("Verlauf: nie im Whiteboard", board_h.history_path is None)
+    check("history: never in the whiteboard", board_h.history_path is None)
     board_h.close()
 
-    # Whiteboard: leere Fläche, speichern, als Whiteboard wieder laden
+    # Whiteboard: empty area, save, load again as whiteboard
     import export
-    export.shutil.which = lambda name: None  # nie die echte Zwischenablage anfassen
+    export.shutil.which = lambda name: None  # never touch the real clipboard
     board = Canvas(QGuiApplication.primaryScreen(), None, board=True)
     board.resize(900, 500)
     board.show_window()
@@ -516,40 +516,40 @@ def main():
     QTest.mouseRelease(bview, Qt.LeftButton, pos=QPoint(300, 200))
     QTest.keyClick(board, Qt.Key_Escape)
     QTest.keyClick(board, Qt.Key_Return)
-    check("Whiteboard: Esc und Enter schließen nicht", board.isVisible())
-    check("Whiteboard: ungespeichert erkannt", not board.undo_stack.isClean())
+    check("whiteboard: Esc and Enter do not close", board.isVisible())
+    check("whiteboard: unsaved detected", not board.undo_stack.isClean())
     board_image = board.render_image()
-    check("Whiteboard-Export = benutzter Bereich", board_image.width() < 400 and board_image.height() < 300)
+    check("whiteboard export = used area", board_image.width() < 400 and board_image.height() < 300)
     QTest.keyClick(board, Qt.Key_S, Qt.ControlModifier)
-    check("Whiteboard gespeichert (_board)", board.document_path and "_board" in board.document_path.stem)  # auch _board_2 bei gleicher Sekunde
-    check("nach dem Speichern sauber", board.undo_stack.isClean())
+    check("whiteboard saved (_board)", board.document_path and "_board" in board.document_path.stem)  # also _board_2 in the same second
+    check("clean after saving", board.undo_stack.isClean())
     bbg, belems, _, _ = load_document(board.document_path)
-    check("als Whiteboard geladen", isinstance(bbg, QColor) and bbg == board.board_color and len(belems) == 1)
+    check("loaded as whiteboard", isinstance(bbg, QColor) and bbg == board.board_color and len(belems) == 1)
     board2 = Canvas(QGuiApplication.primaryScreen(), None, belems, board.document_path,
                              board=True, board_color=bbg)
     board2.show_window()
-    check("Whiteboard neu geladen = gleicher Export", board2.render_image() == board_image)
+    check("whiteboard loaded again = same export", board2.render_image() == board_image)
 
-    # Shift+Enter: speichern, absoluten Pfad kopieren; Whiteboard bleibt offen
+    # Shift+Enter: save, copy the absolute path; the whiteboard stays open
     QTest.keyClick(board2, Qt.Key_Return, Qt.ShiftModifier)
     copied = QGuiApplication.clipboard().text()
-    check("Shift+Enter: absoluter Pfad kopiert",
+    check("Shift+Enter: absolute path copied",
           copied == str(Path(board2.document_path).resolve()) and Path(copied).is_absolute()
           and board2.undo_stack.isClean() and board2.isVisible())
 
-    # Hintergrund wechseln (Strg+B): Undo-Schritt, wird mitgespeichert
+    # Change the background (Ctrl+B): undo step, saved with the drawing
     old_bg = QColor(board2.board_color)
     QTest.keyClick(board2, Qt.Key_B, Qt.ControlModifier)
     new_bg = QColor(board2.board_color)
-    check("Strg+B wechselt den Hintergrund", new_bg != old_bg and not board2.undo_stack.isClean())
+    check("Ctrl+B changes the background", new_bg != old_bg and not board2.undo_stack.isClean())
     QTest.keyClick(board2, Qt.Key_R)
-    check("Hintergrund: Undo", board2.board_color == old_bg and board2.undo_stack.isClean())
+    check("background: undo", board2.board_color == old_bg and board2.undo_stack.isClean())
     QTest.keyClick(board2, Qt.Key_B, Qt.ControlModifier | Qt.ShiftModifier)
     QTest.keyClick(board2, Qt.Key_S, Qt.ControlModifier)
     bbg2, _, _, _ = load_document(board2.document_path)
-    check("Hintergrund gespeichert", bbg2 == board2.board_color != old_bg)
+    check("background saved", bbg2 == board2.board_color != old_bg)
 
-    # Heller Hintergrund: Farben werden abgedunkelt gezeigt, gespeichert bleibt die Grundfarbe
+    # Light background: colors are shown darkened, the base color is saved
     from colors import LIGHT_CONTRAST, contrast
     paper = QColor("#f8f6f0")
     light = Canvas(QGuiApplication.primaryScreen(), None, board=True, board_color=paper)
@@ -557,7 +557,7 @@ def main():
     light.show_window()
     QApplication.processEvents()
     lview = light.viewport()
-    # Eine Farbe wählen, die auf Papier zu schwach ist (sonst bliebe sie unverändert)
+    # Pick a color that is too weak on paper (otherwise it would stay unchanged)
     weak = next(i for i, c in enumerate(light.settings.swatches) if contrast(c, paper.name()) < LIGHT_CONTRAST)
     light.set_color(weak)
     QTest.keyClick(light, Qt.Key_F)
@@ -566,18 +566,18 @@ def main():
     QTest.mouseRelease(lview, Qt.LeftButton, pos=QPoint(300, 200))
     rect = light.elements()[0]
     base, shown = rect.color.name(), rect.pen().color().name()
-    check("hell: Form abgedunkelt gezeigt", shown != base and contrast(shown, paper.name()) >= LIGHT_CONTRAST)
-    check("hell: Grundfarbe gespeichert", rect.to_dict()["color"] == base)
+    check("light: shape shown darkened", shown != base and contrast(shown, paper.name()) >= LIGHT_CONTRAST)
+    check("light: base color saved", rect.to_dict()["color"] == base)
     text = TextElement(QPointF(0, 0), QColor(base), 20, text="x")
     light.scene_.addItem(text)
-    check("hell: Text abgedunkelt gezeigt", text.defaultTextColor().name() == shown and text.color.name() == base)
-    check("hell: Farbleiste angepasst", light.palette_bar.colors[light.color_index].name() != light.settings.swatches[light.color_index])
+    check("light: text shown darkened", text.defaultTextColor().name() == shown and text.color.name() == base)
+    check("light: color bar adapted", light.palette_bar.colors[light.color_index].name() != light.settings.swatches[light.color_index])
     light.undo_stack.push(PropertyCommand(light.set_board_color, QColor(paper), QColor("#24283b")))
-    check("dunkel: Grundfarbe gezeigt", rect.pen().color().name() == base and text.defaultTextColor().name() == base)
+    check("dark: base color shown", rect.pen().color().name() == base and text.defaultTextColor().name() == base)
     light.undo_stack.undo()
-    check("Undo: wieder abgedunkelt", rect.pen().color().name() == shown)
+    check("undo: darkened again", rect.pen().color().name() == shown)
 
-    print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
+    print("\nAll OK." if not failures else f"\n{len(failures)} failed.")
     return 1 if failures else 0
 
 

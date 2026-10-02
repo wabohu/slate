@@ -34,7 +34,7 @@ Selbstgebaute Variante von Epic Pen / Tekapoint für Linux. Ein Screenshot des M
 
 ## Weitere Dokumente
 Nicht in jeder Sitzung nötig, bei Bedarf lesen:
-- `docs/bedienung.md`: alle Tasten und Mausaktionen (aktueller Stand). Bei neuen oder geänderten Tasten mitpflegen
+- `docs/usage.md`: alle Tasten und Mausaktionen (aktueller Stand, Englisch). Bei neuen oder geänderten Tasten mitpflegen
 - `docs/roadmap.md`: Roadmap (nummerierte Punkte, „Roadmap 15“ meint dort Punkt 15) und Designentscheidungen D1–D5. Vor einem neuen Roadmap-Punkt lesen, danach abhaken
 - `docs/plan-*.md`: Pläne zu größeren Umbauten (Datenmodell, Bedienung/Leisten, Aufteilung von `annotate.py`, heute `slate.py`)
 
@@ -47,7 +47,7 @@ Nicht in jeder Sitzung nötig, bei Bedarf lesen:
 - Fehlende Konfigurationsdateien oder Werte dürfen nie zum Absturz führen, immer sinnvolle Fallbacks
 - Kein großer Umbau ohne Rückfrage. Bestehendes Verhalten nicht ändern, wenn es nicht Teil der Aufgabe ist
 - Erkläre neue Qt-Konzepte kurz, ich will den Code verstehen, den ich erweitere
-- Sprache im Chat: Deutsch, per Du. Code, Variablennamen und Kommentare dürfen wie bisher gemischt sein, Kommentare bevorzugt Deutsch
+- Sprache im Chat: Deutsch, per Du. Im Repo Englisch (öffentlich): Code, Kommentare, Docstrings, Meldungen und Oberflächentexte, Testnamen, `config.example.toml`, README und `docs/usage.md`. Deutsch bleiben nur meine Arbeitsnotizen in `docs/` (`roadmap.md`, `plan-*.md`) und diese Datei
 
 ## Git
 - Nach jedem funktionierenden Meilenstein ein Commit mit aussagekräftiger Nachricht

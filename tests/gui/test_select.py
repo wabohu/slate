@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""GUI-Test Mehrfachauswahl: drei Rechtecke, Strg+A, Auswahlrahmen, Shift+Klick, alle
-zusammen verschieben und löschen; Verlaufseintrag enthält das Ergebnis.
+"""GUI test multi-selection: three rectangles, Ctrl+A, rubber band, Shift+click, move
+and delete them together; the history entry contains the result.
 
     python tests/gui/test_select.py
 
-Bildschirmfotos: tests/gui/out/select/ (ansehen!). Rückgabewert 0 = alles ok.
+Screenshots: tests/gui/out/select/ (look at them!). Exit code 0 = all ok.
 """
 import sys
 import time
@@ -17,7 +17,7 @@ from harness import Session, check, load_elements, summary, wait  # noqa: E402
 def main():
     with Session("select") as s:
         s.key("alt+Escape")
-        check("Overlay gestartet", wait(lambda: s.slate_pids(), 10))
+        check("overlay started", wait(lambda: s.slate_pids(), 10))
         pid = s.slate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.4)
@@ -26,22 +26,22 @@ def main():
             s.drag(x, 300, x + 200, 450)
         s.key("ctrl+a")
         time.sleep(0.3)
-        s.screenshot("01-alles")
-        s.drag(250, 250, 950, 500)               # Rahmen um die ersten beiden
+        s.screenshot("01-all")
+        s.drag(250, 250, 950, 500)               # rubber band around the first two
         time.sleep(0.3)
-        s.screenshot("02-rahmen")
-        s.drag(500, 375, 520, 425)               # Rand des ersten anfassen: beide wandern
-        s.key("Delete")                          # beide löschen
+        s.screenshot("02-rubber-band")
+        s.drag(500, 375, 520, 425)               # grab the edge of the first: both move
+        s.key("Delete")                          # delete both
         time.sleep(0.3)
-        s.screenshot("03-geloescht")
+        s.screenshot("03-deleted")
         s.key("Return")
-        check("beendet", wait(lambda: not s.slate_pids(), 10))
+        check("quit", wait(lambda: not s.slate_pids(), 10))
         entries = s.history_entries()
         remaining = load_elements(entries[0]) if entries else []
-        check(f"übrig bleibt nur das dritte Rechteck ({len(remaining)})",
+        check(f"only the third rectangle remains ({len(remaining)})",
               len(remaining) == 1 and remaining[0].pos().x() > 1000)
 
-        # Vorder-/Hintergrund: zwei überlappende Marker, den unteren ganz nach vorne holen
+        # Front/back: two overlapping markers, bring the lower one to the front
         s.key("alt+Escape")
         wait(lambda: s.slate_pids(), 10)
         wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
@@ -51,16 +51,16 @@ def main():
             s.move(x, 600)
             s.run(["xdotool", "click", "1"])
         s.key("w")
-        s.move(585, 600)                         # linker Rand: nur der erste Marker
+        s.move(585, 600)                         # left edge: only the first marker
         s.run(["xdotool", "click", "1"])
         s.key("ctrl+shift+Up")
         time.sleep(0.3)
-        s.screenshot("04-marker-vorne")
+        s.screenshot("04-marker-front")
         s.key("Return")
         wait(lambda: not s.slate_pids(), 10)
         entries = s.history_entries()
         markers = [e for e in load_elements(entries[-1])] if entries else []
-        check("Strg+Shift+↑: der erste Marker liegt jetzt oben",
+        check("Ctrl+Shift+↑: the first marker is on top now",
               len(markers) == 2 and markers[-1].points[1].x() + markers[-1].pos().x() < 610)
     return summary()
 

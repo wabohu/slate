@@ -1,19 +1,19 @@
-"""Ausschnitt-Teil der Canvas (Bereichsauswahl, Taste y, nur Screenshot-Modus).
+"""Crop part of the Canvas (area selection, key y, screenshot mode only).
 
-y startet die Auswahl: Rahmen aufziehen, danach geht es mit dem Werkzeug weiter. Gibt es
-schon einen Ausschnitt, zeigt y Griffe: Griff ziehen = Größe, innen ziehen = verschieben,
-außen ziehen = neu aufziehen. Außerhalb
-des Ausschnitts wird abgedunkelt (nur auf dem Bildschirm, drawForeground). Kopieren,
-Speichern, Exportieren und der Verlauf nehmen als sichtbares Bild nur den Ausschnitt
-(output_area); die bearbeitbare Datei behält den ganzen Screenshot und speichert den
-Ausschnitt mit ("crop"), er bleibt also änderbar. Esc während der Auswahl hebt ihn auf.
-Festlegen und Aufheben sind Undo-Schritte (PropertyCommand auf set_crop).
+y starts the selection: draw a rectangle, then the current tool continues. If there
+already is a crop, y shows handles: drag a handle = resize, drag inside = move,
+drag outside = draw a new one. Outside
+the crop everything is darkened (only on screen, drawForeground). Copying,
+saving, exporting and the history only use the crop as the visible image
+(output_area); the editable file keeps the whole screenshot and saves the
+crop with it ("crop"), so it stays changeable. Esc during the selection removes it.
+Setting and removing are undo steps (PropertyCommand on set_crop).
 
-Mixin wie BoardMixin (canvas_board.py). Verwaltet (angelegt in Canvas.__init__):
-crop_rect (QRectF in Szenenkoordinaten oder None), cropping (Auswahl läuft),
-crop_drag (Startpunkt beim Ziehen oder None), crop_drag_end, crop_edit (beim Ziehen:
-("resize", Griff), ("move", None) oder None = neu aufziehen).
-Liest aus der Canvas: board, export_rect, export_size, scene_, undo_stack, ui_scale,
+Mixin like BoardMixin (canvas_board.py). Manages (created in Canvas.__init__):
+crop_rect (QRectF in scene coordinates or None), cropping (selection in progress),
+crop_drag (start point while dragging or None), crop_drag_end, crop_edit (while dragging:
+("resize", handle), ("move", None) or None = draw a new one).
+Reads from the Canvas: board, export_rect, export_size, scene_, undo_stack, ui_scale,
 zoom(), refresh_cursor(), report().
 """
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
@@ -22,50 +22,50 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from commands import PropertyCommand
 from settings import HANDLE_GRAB, HANDLE_SIZE
 
-CROP_DIM = 110         # Abdunklung außerhalb des Ausschnitts, 0-255
-CROP_MIN_SIZE = 5      # kleinere Rahmen (Bildschirm-Pixel) gelten als Klick: nichts ändern
-# Griffe am Ausschnitt (relative Lage): Ecken und Kantenmitten, im Uhrzeigersinn ab oben links
+CROP_DIM = 110         # darkening outside the crop, 0-255
+CROP_MIN_SIZE = 5      # smaller rectangles (screen pixels) count as a click: change nothing
+# Handles on the crop (relative position): corners and edge centers, clockwise from top left
 CROP_HANDLES = ((0, 0), (0.5, 0), (1, 0), (1, 0.5), (1, 1), (0.5, 1), (0, 1), (0, 0.5))
 CROP_CURSORS = (Qt.SizeFDiagCursor, Qt.SizeVerCursor, Qt.SizeBDiagCursor, Qt.SizeHorCursor,
                 Qt.SizeFDiagCursor, Qt.SizeVerCursor, Qt.SizeBDiagCursor, Qt.SizeHorCursor)
 
 
 class CropMixin:
-    # --- Zustand ---
+    # --- State ---
     def set_crop(self, rect):
-        """Setter für PropertyCommand: Ausschnitt (QRectF) oder None = ganzer Screenshot."""
+        """Setter for PropertyCommand: crop (QRectF) or None = whole screenshot."""
         self.crop_rect = QRectF(rect) if rect is not None else None
         self.viewport().update()
 
     def output_area(self):
-        """(Ausschnitt in der Szene, Größe in Bildpixeln) für Rendern und Speichern."""
+        """(area in the scene, size in image pixels) for rendering and saving."""
         if self.crop_rect is None:
             return self.export_rect, self.export_size
         area = self.crop_rect.intersected(self.export_rect)
         factor = self.export_size.width() / max(1.0, self.export_rect.width())
         return area, QSize(max(1, round(area.width() * factor)), max(1, round(area.height() * factor)))
 
-    # --- Taste y und Maus ---
+    # --- Key y and mouse ---
     def crop_key(self):
-        """y: Auswahl starten (mit vorhandenem Ausschnitt: Griffe zum Anpassen);
-        läuft sie schon, abbrechen (Ausschnitt bleibt)."""
+        """y: start the selection (with an existing crop: handles to adjust it);
+        if it is already running, cancel it (the crop stays)."""
         if self.board:
             return
         self.cropping = not self.cropping
         self.crop_drag = None
         if self.cropping:
             self.stop_pointer()
-            self.report("Ausschnitt anpassen: Griffe ziehen, innen verschieben, außen neu (Esc: aufheben)"
-                        if self.crop_rect is not None else "Ausschnitt aufziehen (Esc: Ausschnitt aufheben)")
+            self.report("Adjust crop: drag handles, drag inside to move, outside for a new one (Esc: remove)"
+                        if self.crop_rect is not None else "Draw a crop (Esc: remove crop)")
         self.refresh_cursor()
         self.viewport().update()
 
     def cancel_crop(self):
-        """Esc während der Auswahl: Ausschnitt aufheben (Undo-Schritt), Auswahl beenden."""
+        """Esc during the selection: remove the crop (undo step), end the selection."""
         self.cropping = False
         self.crop_drag = None
         if self.crop_rect is not None:
-            self.undo_stack.push(PropertyCommand(self.set_crop, QRectF(self.crop_rect), None, "Ausschnitt aufheben"))
+            self.undo_stack.push(PropertyCommand(self.set_crop, QRectF(self.crop_rect), None, "Remove crop"))
         self.refresh_cursor()
         self.viewport().update()
 
@@ -73,17 +73,17 @@ class CropMixin:
         return [QPointF(rect.left() + fx * rect.width(), rect.top() + fy * rect.height()) for fx, fy in CROP_HANDLES]
 
     def crop_hit(self, pos):
-        """Was liegt unter pos? ("resize", Griff), ("move", None) oder None (außerhalb: neu aufziehen)."""
+        """What is under pos? ("resize", handle), ("move", None) or None (outside: draw a new one)."""
         if self.crop_rect is None:
             return None
-        grab = HANDLE_GRAB / self.zoom()  # Fangradius auf dem Bildschirm immer gleich
+        grab = HANDLE_GRAB / self.zoom()  # grab radius always the same on screen
         for index, point in enumerate(self.crop_handle_points(self.crop_rect)):
             if abs(point.x() - pos.x()) <= grab and abs(point.y() - pos.y()) <= grab:
                 return ("resize", index)
         return ("move", None) if self.crop_rect.contains(pos) else None
 
     def crop_hover(self, pos):
-        """Mauszeiger während der Auswahl: Größenpfeile über Griffen, Kreuzpfeil innen."""
+        """Mouse cursor during the selection: resize arrows over handles, move arrows inside."""
         hit = self.crop_hit(pos)
         if hit is None:
             cursor = Qt.CrossCursor
@@ -95,14 +95,14 @@ class CropMixin:
 
     def crop_press(self, pos):
         self.crop_drag = self.crop_drag_end = pos
-        self.crop_edit = self.crop_hit(pos)  # None = neu aufziehen
+        self.crop_edit = self.crop_hit(pos)  # None = draw a new one
 
     def crop_move(self, pos):
         self.crop_drag_end = pos
         self.viewport().update()
 
     def crop_preview(self):
-        """Ausschnitt, wie er gerade aussieht (beim Ziehen schon mit der Änderung)."""
+        """The crop as it currently looks (while dragging, already with the change)."""
         if self.crop_drag is None:
             return self.crop_rect
         start, end = self.crop_drag, self.crop_drag_end
@@ -112,7 +112,7 @@ class CropMixin:
         rect = QRectF(self.crop_rect)
         dx, dy = end.x() - start.x(), end.y() - start.y()
         bounds = self.export_rect
-        if mode == "move":  # verschieben, aber im Screenshot bleiben
+        if mode == "move":  # move, but stay inside the screenshot
             dx = min(max(dx, bounds.left() - rect.left()), bounds.right() - rect.right())
             dy = min(max(dy, bounds.top() - rect.top()), bounds.bottom() - rect.bottom())
             return rect.translated(dx, dy)
@@ -136,15 +136,15 @@ class CropMixin:
         if rect is not None and min(rect.width(), rect.height()) * self.zoom() >= CROP_MIN_SIZE \
                 and rect != self.crop_rect:
             old = QRectF(self.crop_rect) if self.crop_rect is not None else None
-            self.undo_stack.push(PropertyCommand(self.set_crop, old, rect, "Ausschnitt"))
+            self.undo_stack.push(PropertyCommand(self.set_crop, old, rect, "Crop"))
         self.viewport().update()
 
-    # --- Anzeige ---
+    # --- Display ---
     def paint_crop(self, painter):
-        """Außerhalb des Ausschnitts abdunkeln, Rahmen und Größe zeigen (nie im Export)."""
+        """Darken outside the crop, show frame and size (never in the export)."""
         if self.board:
             return
-        rect = self.crop_preview()  # beim Ziehen schon mit der Änderung
+        rect = self.crop_preview()  # while dragging, already with the change
         if rect is None:
             return
         rect = rect.intersected(self.export_rect)
@@ -157,14 +157,14 @@ class CropMixin:
         inside.addRect(rect)
         painter.fillPath(outside.subtracted(inside), QColor(0, 0, 0, CROP_DIM))
         painter.setBrush(Qt.NoBrush)
-        # Dunkle Linie unter der hellen gestrichelten: auf hellem und dunklem Grund sichtbar
+        # Dark line under the light dashed one: visible on light and dark backgrounds
         for color, style in ((QColor(0, 0, 0, 170), Qt.SolidLine), (QColor(255, 255, 255, 230), Qt.DashLine)):
             pen = QPen(color, 1.5 * s, style)
-            pen.setCosmetic(True)  # auf dem Bildschirm immer gleich dick, egal wie gezoomt
+            pen.setCosmetic(True)  # always the same thickness on screen, however it is zoomed
             painter.setPen(pen)
             painter.drawRect(rect)
         if self.cropping and self.crop_rect is not None and (self.crop_drag is None or self.crop_edit is not None):
-            line, fill = self.selection_colors()  # wie die Griffe der Auswahl
+            line, fill = self.selection_colors()  # like the handles of the selection
             handle_pen = QPen(line, 1.5)
             handle_pen.setCosmetic(True)
             painter.setPen(handle_pen)
@@ -172,7 +172,7 @@ class CropMixin:
             size = HANDLE_SIZE / self.zoom()
             for p in self.crop_handle_points(rect):
                 painter.drawRect(QRectF(p.x() - size / 2, p.y() - size / 2, size, size))
-        # Größe in Bildpixeln unten rechts am Rahmen, in Bildschirmkoordinaten
+        # Size in image pixels at the bottom right of the frame, in screen coordinates
         factor = self.export_size.width() / max(1.0, self.export_rect.width())
         label = f"{round(rect.width() * factor)} × {round(rect.height() * factor)}"
         corner = self.mapFromScene(rect.bottomRight())
@@ -188,5 +188,3 @@ class CropMixin:
         painter.setPen(QColor("white"))
         painter.drawText(box.adjusted(0, 0, -6 * s, 0), Qt.AlignRight | Qt.AlignVCenter, label)
         painter.restore()
-
-

@@ -1,11 +1,11 @@
-"""Farbpalette aus der Alacritty-Konfiguration lesen.
+"""Read the color palette from the Alacritty configuration.
 
-Bewusst ohne Qt, damit man das Modul direkt in der Konsole testen kann:
+Deliberately without Qt, so the module can be tested directly in the console:
 
     python colors.py
 
-Alles, was schiefgehen kann (Datei fehlt, kaputtes TOML, falsche Werte),
-führt zu einem Fallback auf die Standardpalette, nie zu einer Exception.
+Everything that can go wrong (missing file, broken TOML, wrong values)
+leads to a fallback to the default palette, never to an exception.
 """
 import colorsys
 import os
@@ -17,7 +17,7 @@ from pathlib import Path
 
 COLOR_NAMES = ("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white")
 
-# Ungefähr die Alacritty-Defaults (Tomorrow Night)
+# Roughly the Alacritty defaults (Tomorrow Night)
 DEFAULT_NORMAL = {
     "black": "#1d1f21", "red": "#cc6666", "green": "#b5bd68", "yellow": "#f0c674",
     "blue": "#81a2be", "magenta": "#b294bb", "cyan": "#8abeb7", "white": "#c5c8c6",
@@ -29,7 +29,7 @@ DEFAULT_BRIGHT = {
 DEFAULT_FOREGROUND = "#d8d8d8"
 DEFAULT_BACKGROUND = "#1d1f21"
 
-# Alacritty erlaubt verschachtelte Imports, begrenzt die Tiefe aber auch
+# Alacritty allows nested imports, but also limits the depth
 MAX_IMPORT_DEPTH = 5
 
 _HEX_RE = re.compile(r"^(?:#|0x)([0-9a-fA-F]{6})$")
@@ -40,12 +40,12 @@ class Palette:
     normal: dict = field(default_factory=lambda: dict(DEFAULT_NORMAL))
     bright: dict = field(default_factory=lambda: dict(DEFAULT_BRIGHT))
     foreground: str = DEFAULT_FOREGROUND
-    background: str = DEFAULT_BACKGROUND  # nur für die Oberfläche, nicht in der Farbleiste
-    source: str = "Standardpalette"  # woher die Farben kamen (nur zur Info)
+    background: str = DEFAULT_BACKGROUND  # only for the UI, not in the color bar
+    source: str = "default palette"  # where the colors came from (for information only)
 
     def lookup(self, name):
         """'red' -> normal, 'bright_red' / 'bright red' -> bright, 'foreground',
-        'background' oder direkt ein Farbwert '#rrggbb'. Sonst None."""
+        'background' or a color value '#rrggbb' directly. Otherwise None."""
         direct = normalize_color(name)
         if direct:
             return direct
@@ -59,12 +59,12 @@ class Palette:
         return self.normal.get(key)
 
     def swatches(self, order=None):
-        """Farben für die Leiste.
+        """Colors for the bar.
 
-        Mit order (Liste von Namen, z. B. aus der eigenen Config) genau diese
-        Farben in dieser Reihenfolge. Unbekannte Namen werden übersprungen.
-        Ohne order oder wenn nichts Gültiges übrig bleibt: normal, bright,
-        foreground ohne Duplikate.
+        With order (list of names, e.g. from the own config) exactly these
+        colors in this order. Unknown names are skipped.
+        Without order or if nothing valid is left: normal, bright,
+        foreground without duplicates.
         """
         if order:
             result = []
@@ -73,7 +73,7 @@ class Palette:
                 if color:
                     result.append(color)
                 else:
-                    print(f"[colors] Unbekannter Farbname: {name!r}", file=sys.stderr)
+                    print(f"[colors] Unknown color name: {name!r}", file=sys.stderr)
             if result:
                 return result
         result = []
@@ -82,12 +82,12 @@ class Palette:
         for name in COLOR_NAMES:
             result.append(self.bright[name])
         result.append(self.foreground)
-        return list(dict.fromkeys(result))  # Reihenfolge bleibt erhalten
+        return list(dict.fromkeys(result))  # keeps the order
 
 
-# Helle Hintergründe: Farben so weit abdunkeln, bis dieser Kontrast erreicht ist
-# (WCAG-Kontrastverhältnis; 3.0 bleibt nah am Original und ist für Striche und fette
-# Schrift gut lesbar, 4.5 wäre auch für dünne Schrift sicher, wirkt aber dunkler und greller)
+# Light backgrounds: darken colors until this contrast is reached
+# (WCAG contrast ratio; 3.0 stays close to the original and is easy to read for strokes and bold
+# text, 4.5 would be safe even for thin text, but looks darker and harsher)
 LIGHT_CONTRAST = 3.0
 
 
@@ -96,25 +96,25 @@ def _channels(hex_color):
 
 
 def luminance(hex_color):
-    """Relative Helligkeit nach WCAG, 0 (schwarz) bis 1 (weiß)."""
+    """Relative luminance according to WCAG, 0 (black) to 1 (white)."""
     linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in _channels(hex_color)]
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
 
 
 def contrast(a, b):
-    """Kontrastverhältnis zweier Farben, 1 (gleich) bis 21 (schwarz/weiß)."""
+    """Contrast ratio of two colors, 1 (equal) to 21 (black/white)."""
     high, low = sorted((luminance(a), luminance(b)), reverse=True)
     return (high + 0.05) / (low + 0.05)
 
 
 def is_light(hex_color):
-    """Heller Hintergrund = schwarze Schrift wäre besser lesbar als weiße."""
+    """Light background = black text would be easier to read than white."""
     return contrast(hex_color, "#000000") > contrast(hex_color, "#ffffff")
 
 
 def darken_for(hex_color, background, target=LIGHT_CONTRAST):
-    """Farbe abdunkeln, bis sie auf background den Kontrast target hat.
-    Farbton und Sättigung bleiben, nur die Helligkeit sinkt (HLS-Farbmodell)."""
+    """Darken a color until it has the contrast target on background.
+    Hue and saturation stay, only the lightness drops (HLS color model)."""
     if contrast(hex_color, background) >= target:
         return hex_color
     hue, light, sat = colorsys.rgb_to_hls(*_channels(hex_color))
@@ -127,9 +127,9 @@ def darken_for(hex_color, background, target=LIGHT_CONTRAST):
 
 
 def adapt_color(hex_color, background, overrides=None):
-    """Farbe, wie sie auf background gezeigt wird. Dunkler Hintergrund: unverändert
-    (die Alacritty-Palette ist dafür gemacht). Heller: eigener Wert aus overrides
-    (Grundfarbe -> helle Variante, aus [colors.light]) oder automatisch abgedunkelt."""
+    """Color as it is shown on background. Dark background: unchanged
+    (the Alacritty palette is made for it). Light: own value from overrides
+    (base color -> light variant, from [colors.light]) or darkened automatically."""
     if not is_light(background):
         return hex_color
     if overrides and hex_color in overrides:
@@ -138,7 +138,7 @@ def adapt_color(hex_color, background, overrides=None):
 
 
 def normalize_color(value):
-    """'#RRGGBB' oder '0xRRGGBB' -> '#rrggbb'. Alles andere -> None."""
+    """'#RRGGBB' or '0xRRGGBB' -> '#rrggbb'. Anything else -> None."""
     if not isinstance(value, str):
         return None
     match = _HEX_RE.match(value.strip())
@@ -146,7 +146,7 @@ def normalize_color(value):
 
 
 def find_config():
-    """Erste existierende Alacritty-Config in der offiziellen Suchreihenfolge."""
+    """First existing Alacritty config in the official search order."""
     candidates = []
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
@@ -165,12 +165,12 @@ def _read_toml(path):
         with open(path, "rb") as f:
             return tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError) as e:
-        print(f"[colors] Kann {path} nicht lesen: {e}", file=sys.stderr)
+        print(f"[colors] Cannot read {path}: {e}", file=sys.stderr)
         return {}
 
 
 def _import_list(data):
-    """Imports aus general.import (neu) bzw. top-level import (alt)."""
+    """Imports from general.import (new) or top-level import (old)."""
     general = data.get("general")
     imports = general.get("import") if isinstance(general, dict) else None
     if imports is None:
@@ -183,7 +183,7 @@ def _import_list(data):
 
 
 def _resolve_import(entry, base_dir):
-    """~ und $VARS expandieren, relative Pfade relativ zur importierenden Datei."""
+    """Expand ~ and $VARS, relative paths relative to the importing file."""
     path = Path(os.path.expandvars(os.path.expanduser(entry)))
     if not path.is_absolute():
         path = base_dir / path
@@ -191,7 +191,7 @@ def _resolve_import(entry, base_dir):
 
 
 def _merge_colors(target, data):
-    """Farbwerte aus einer geparsten Datei in target übernehmen (überschreibt)."""
+    """Take color values from a parsed file into target (overwrites)."""
     colors = data.get("colors")
     if not isinstance(colors, dict):
         return
@@ -212,7 +212,7 @@ def _merge_colors(target, data):
 
 
 def _load_file(path, target, depth, seen):
-    """Erst alle Imports (in Reihenfolge), dann die Datei selbst -> Datei gewinnt."""
+    """First all imports (in order), then the file itself -> the file wins."""
     path = path.resolve()
     if depth > MAX_IMPORT_DEPTH or path in seen:
         return
@@ -223,12 +223,12 @@ def _load_file(path, target, depth, seen):
         if imported.is_file():
             _load_file(imported, target, depth + 1, seen)
         else:
-            print(f"[colors] Import nicht gefunden: {imported}", file=sys.stderr)
+            print(f"[colors] Import not found: {imported}", file=sys.stderr)
     _merge_colors(target, data)
 
 
 def load_palette(config_path=None):
-    """Palette aus der Alacritty-Config; fehlende Werte kommen aus den Defaults."""
+    """Palette from the Alacritty config; missing values come from the defaults."""
     palette = Palette()
     try:
         path = Path(config_path) if config_path else find_config()
@@ -241,19 +241,19 @@ def load_palette(config_path=None):
         palette.foreground = target.get("foreground", palette.foreground)
         palette.background = target.get("background", palette.background)
         palette.source = str(path)
-    except Exception as e:  # letzte Sicherung: Farben sind nie ein Grund abzustürzen
-        print(f"[colors] Fehler beim Laden der Palette: {e}", file=sys.stderr)
+    except Exception as e:  # last safety net: colors are never a reason to crash
+        print(f"[colors] Error loading the palette: {e}", file=sys.stderr)
         return Palette()
     return palette
 
 
 if __name__ == "__main__":
     p = load_palette(sys.argv[1] if len(sys.argv) > 1 else None)
-    print(f"Quelle: {p.source}")
+    print(f"Source: {p.source}")
     for name in COLOR_NAMES:
         print(f"  {name:8} normal {p.normal[name]}   bright {p.bright[name]}")
     print(f"  foreground {p.foreground}   background {p.background}")
-    print(f"Leiste ({len(p.swatches())}): {' '.join(p.swatches())}")
+    print(f"Bar ({len(p.swatches())}): {' '.join(p.swatches())}")
     paper = "#f8f6f0"
-    print(f"Auf hellem Hintergrund ({paper}): "
+    print(f"On a light background ({paper}): "
           f"{' '.join(adapt_color(c, paper) for c in p.swatches())}")

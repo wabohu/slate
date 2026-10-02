@@ -1,12 +1,12 @@
-"""Undo/Redo-Befehle für die Zeichenfläche.
+"""Undo/redo commands for the drawing surface.
 
-Qt-Konzept: Jede Änderung ist ein QUndoCommand mit redo() und undo().
-QUndoStack.push(cmd) ruft sofort cmd.redo() auf und legt den Befehl ab;
-stack.undo() / stack.redo() laufen dann rückwärts bzw. vorwärts durch.
-Wer nach einem Undo etwas Neues macht, verwirft damit die Redo-Schritte.
+Qt concept: every change is a QUndoCommand with redo() and undo().
+QUndoStack.push(cmd) calls cmd.redo() right away and stores the command;
+stack.undo() / stack.redo() then walk backwards or forwards through them.
+Doing something new after an undo discards the redo steps.
 
-Die Befehle müssen darum so geschrieben sein, dass redo() auch dann stimmt,
-wenn die Änderung schon passiert ist (z. B. Item liegt schon in der Szene).
+The commands must therefore be written so that redo() is also correct
+when the change has already happened (e.g. the item is already in the scene).
 """
 import time
 
@@ -15,12 +15,12 @@ from PySide6.QtGui import QUndoCommand
 
 
 class AddItemCommand(QUndoCommand):
-    """Neues Objekt (Form oder Text) in der Szene."""
+    """New object (shape or text) in the scene."""
 
-    def __init__(self, scene, item, text="Objekt hinzufügen"):
+    def __init__(self, scene, item, text="Add object"):
         super().__init__(text)
         self.scene = scene
-        self.item = item  # Referenz halten, auch wenn das Item gerade nicht in der Szene ist
+        self.item = item  # keep a reference, even while the item is not in the scene
 
     def redo(self):
         if self.item.scene() is None:
@@ -31,7 +31,7 @@ class AddItemCommand(QUndoCommand):
 
 
 def item_above(item):
-    """Das Element direkt über item (gleiche Ebene der Szene) oder None, wenn es ganz oben liegt."""
+    """The element directly above item (same level of the scene) or None if it is at the top."""
     scene = item.scene()
     if scene is None:
         return None
@@ -41,25 +41,25 @@ def item_above(item):
 
 
 def apply_order(order):
-    """Elemente in die Reihenfolge order bringen (unten -> oben).
+    """Bring elements into the order order (bottom -> top).
 
-    Qt-Konzept: Bei gleichem zValue zeichnet die Szene in der Reihenfolge der Geschwister;
-    stackBefore(b) legt ein Element direkt unter b. Von oben nach unten angewendet ergibt
-    das die ganze Reihenfolge; andere Items (z. B. der Screenshot) bleiben, wo sie sind.
+    Qt concept: with equal zValue the scene draws in the order of the siblings;
+    stackBefore(b) puts an element directly below b. Applied from top to bottom this gives
+    the whole order; other items (e.g. the screenshot) stay where they are.
     """
     for lower, upper in reversed(list(zip(order, order[1:]))):
         lower.stackBefore(upper)
 
 
 class RemoveItemCommand(QUndoCommand):
-    """Objekt entfernen – das Gegenstück zu AddItemCommand. Undo legt es wieder an
-    seinen alten Platz in der Reihenfolge (nicht obenauf)."""
+    """Remove an object – the counterpart to AddItemCommand. Undo puts it back at
+    its old place in the stacking order (not on top)."""
 
-    def __init__(self, scene, item, text="Objekt entfernen"):
+    def __init__(self, scene, item, text="Remove object"):
         super().__init__(text)
         self.scene = scene
         self.item = item
-        self.above = None  # Element, unter dem es lag (beim Entfernen gemerkt)
+        self.above = None  # element it was below (remembered when removing)
 
     def redo(self):
         if self.item.scene() is not None:
@@ -73,9 +73,9 @@ class RemoveItemCommand(QUndoCommand):
 
 
 class ReorderCommand(QUndoCommand):
-    """Reihenfolge (Vorder-/Hintergrund) geändert; old/new: Elemente unten -> oben."""
+    """Stacking order (front/back) changed; old/new: elements bottom -> top."""
 
-    def __init__(self, old, new, text="Reihenfolge"):
+    def __init__(self, old, new, text="Reorder"):
         super().__init__(text)
         self.old = list(old)
         self.new = list(new)
@@ -88,22 +88,22 @@ class ReorderCommand(QUndoCommand):
 
 
 class MoveItemCommand(QUndoCommand):
-    """Ein oder mehrere Objekte verschoben (Mehrfachauswahl = ein Undo-Schritt).
+    """One or more objects moved (multi-selection = one undo step).
 
-    items, old_positions, new_positions: je ein Objekt bzw. Listen gleicher Länge.
-    mergeable=True (Verschieben per Taste): Schritte kurz hintereinander an denselben
-    Objekten werden zu einem Undo-Schritt zusammengefasst (siehe PropertyCommand).
+    items, old_positions, new_positions: one object each or lists of equal length.
+    mergeable=True (moving by key): steps in quick succession on the same
+    objects are merged into one undo step (see PropertyCommand).
     """
 
     MERGE_ID = 2
     MERGE_WINDOW = 1.0
 
-    def __init__(self, items, old_positions, new_positions, text="Verschieben", mergeable=False):
+    def __init__(self, items, old_positions, new_positions, text="Move", mergeable=False):
         super().__init__(text)
-        if not isinstance(items, (list, tuple)):  # ein einzelnes Objekt
+        if not isinstance(items, (list, tuple)):  # a single object
             items, old_positions, new_positions = [items], [old_positions], [new_positions]
         self.items = list(items)
-        self.old_positions = [QPointF(p) for p in old_positions]  # Kopien: sicher ist sicher
+        self.old_positions = [QPointF(p) for p in old_positions]  # copies: better safe than sorry
         self.new_positions = [QPointF(p) for p in new_positions]
         self.mergeable = mergeable
         self.time = time.monotonic()
@@ -129,12 +129,12 @@ class MoveItemCommand(QUndoCommand):
 
 
 class EditTextCommand(QUndoCommand):
-    """Inhalt, Farbe und Schriftgröße eines Textobjekts geändert."""
+    """Content, color and font size of a text object changed."""
 
-    def __init__(self, item, old, new, text="Text bearbeiten"):
+    def __init__(self, item, old, new, text="Edit text"):
         super().__init__(text)
         self.item = item
-        self.old = old  # (Text, QColor, Schriftgröße)
+        self.old = old  # (text, QColor, font size)
         self.new = new
 
     def apply(self, state):
@@ -151,21 +151,21 @@ class EditTextCommand(QUndoCommand):
 
 
 class PropertyCommand(QUndoCommand):
-    """Eine Eigenschaft geändert, z. B. Farbe oder Größe eines ausgewählten Elements.
+    """A property changed, e.g. color or size of a selected element.
 
-    setter ist die Methode, die den Wert setzt (z. B. item.set_color).
+    setter is the method that sets the value (e.g. item.set_color).
 
-    mergeable=True (z. B. beim Mausrad): Folgen kurz hintereinander Änderungen
-    derselben Eigenschaft, fasst der Undo-Stack sie zu einem Schritt zusammen.
-    Qt-Konzept: push() ruft mergeWith() des obersten Befehls auf, wenn beide
-    dieselbe id() >= 0 haben; gibt mergeWith True zurück, wird der neue Befehl
-    nicht einzeln abgelegt.
+    mergeable=True (e.g. for the mouse wheel): if changes to the same property
+    follow in quick succession, the undo stack merges them into one step.
+    Qt concept: push() calls mergeWith() of the topmost command if both
+    have the same id() >= 0; if mergeWith returns True, the new command
+    is not stored separately.
     """
 
     MERGE_ID = 1
-    MERGE_WINDOW = 1.0  # Sekunden; längere Pause = neuer Undo-Schritt
+    MERGE_WINDOW = 1.0  # seconds; a longer pause = new undo step
 
-    def __init__(self, setter, old, new, text="Eigenschaft ändern", mergeable=False):
+    def __init__(self, setter, old, new, text="Change property", mergeable=False):
         super().__init__(text)
         self.setter = setter
         self.old = old
@@ -174,13 +174,13 @@ class PropertyCommand(QUndoCommand):
         self.time = time.monotonic()
 
     def id(self):
-        return self.MERGE_ID if self.mergeable else -1  # -1 = nie zusammenfassen
+        return self.MERGE_ID if self.mergeable else -1  # -1 = never merge
 
     def mergeWith(self, other):
-        # Gleiche Methode am gleichen Objekt (gebundene Methoden vergleichen beides)
+        # Same method on the same object (bound methods compare both)
         if other.setter != self.setter or other.time - self.time > self.MERGE_WINDOW:
             return False
-        self.new = other.new   # alter Wert bleibt, neuer Wert wird übernommen
+        self.new = other.new   # the old value stays, the new value is taken over
         self.time = other.time
         return True
 
@@ -192,16 +192,16 @@ class PropertyCommand(QUndoCommand):
 
 
 class MultiPropertyCommand(QUndoCommand):
-    """Dieselbe Art Änderung an mehreren Objekten, ein Undo-Schritt (Mehrfachauswahl).
+    """The same kind of change on several objects, one undo step (multi-selection).
 
-    changes: Liste von (setter, alt, neu), z. B. [(a.set_color, rot, blau), (b.set_color, …)].
-    mergeable wie bei PropertyCommand: gleiche Setter kurz hintereinander = ein Schritt.
+    changes: list of (setter, old, new), e.g. [(a.set_color, red, blue), (b.set_color, …)].
+    mergeable as with PropertyCommand: same setters in quick succession = one step.
     """
 
     MERGE_ID = 3
     MERGE_WINDOW = PropertyCommand.MERGE_WINDOW
 
-    def __init__(self, changes, text="Eigenschaft ändern", mergeable=False):
+    def __init__(self, changes, text="Change property", mergeable=False):
         super().__init__(text)
         self.changes = list(changes)
         self.mergeable = mergeable
@@ -228,7 +228,7 @@ class MultiPropertyCommand(QUndoCommand):
 
 
 def property_command(changes, text, mergeable=False):
-    """Ein Objekt: PropertyCommand, mehrere: MultiPropertyCommand (gleiches Verhalten)."""
+    """One object: PropertyCommand, several: MultiPropertyCommand (same behavior)."""
     if len(changes) == 1:
         setter, old, new = changes[0]
         return PropertyCommand(setter, old, new, text, mergeable)

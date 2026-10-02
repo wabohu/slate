@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""GUI-Test Whiteboard: Start per Hotkey, Esc/Enter schließen nicht, Strg+B (hell),
-Strg+Q mit rofi-Nachfrage (Abbrechen, Speichern), wieder öffnen, Verwerfen.
+"""GUI test whiteboard: start via hotkey, Esc/Enter do not close, Ctrl+B (light),
+Ctrl+Q with rofi prompt (Cancel, Save), open again, Discard.
 
     python tests/gui/test_board.py
 
-Läuft in einem eigenen unsichtbaren X-Server (harness.py), deine Sitzung bleibt
-unberührt. Bildschirmfotos: tests/gui/out/board/. Rückgabewert 0 = alles ok.
+Runs in a separate invisible X server (harness.py), your session stays
+untouched. Screenshots: tests/gui/out/board/. Exit code 0 = all ok.
 """
 import sys
 import time
@@ -14,12 +14,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness import SLATE, Session, check, load_drawing, summary, wait  # noqa: E402
 
-PAPER = "#f8f6f0"         # heller Hintergrund aus DEFAULT_BOARD_BACKGROUNDS
-EMPTY = (960, 120)        # Bildschirmpunkt, an dem nichts gezeichnet wird
+PAPER = "#f8f6f0"         # light background from DEFAULT_BOARD_BACKGROUNDS
+EMPTY = (960, 120)        # screen point where nothing is drawn
 
 
 def board_window(s):
-    """(PID, Fenster) des laufenden Whiteboards oder (None, None)."""
+    """(PID, window) of the running whiteboard or (None, None)."""
     for pid in s.slate_pids():
         wins = s.windows_of(pid)
         if wins:
@@ -28,8 +28,8 @@ def board_window(s):
 
 
 def ask_rofi(s, text):
-    """Warten, bis die rofi-Nachfrage offen ist, text tippen, Enter."""
-    if not check(f"rofi-Nachfrage erscheint (für '{text}')", wait(lambda: s.rofi_open(), 5)):
+    """Wait until the rofi prompt is open, type text, Enter."""
+    if not check(f"rofi prompt appears (for '{text}')", wait(lambda: s.rofi_open(), 5)):
         return
     time.sleep(0.2)
     s.type(text)
@@ -39,61 +39,61 @@ def ask_rofi(s, text):
 
 def main():
     with Session("board") as s:
-        # Start per Hotkey, normales Fenster von herbstluftwm
+        # Start via hotkey, normal window managed by herbstluftwm
         s.key("alt+Delete")
-        check("Start per Hotkey: Whiteboard-Fenster da", wait(lambda: board_window(s)[1], 10))
+        check("start via hotkey: whiteboard window there", wait(lambda: board_window(s)[1], 10))
         pid, win = board_window(s)
-        check("Whiteboard hat den Fokus", wait(lambda: s.focus_id() == win))
-        check("Titel: neu", "Whiteboard – neu" in (s.window_name(win) or ""))
-        dark = s.pixel(*EMPTY, name="01-gestartet")
+        check("whiteboard has the focus", wait(lambda: s.focus_id() == win))
+        check("title: new", "Whiteboard – new" in (s.window_name(win) or ""))
+        dark = s.pixel(*EMPTY, name="01-started")
 
         s.key("f")
         s.drag(500, 400, 900, 700)
         s.key("Escape")
         s.key("Return")
         time.sleep(0.5)
-        check("Esc und Enter schließen das Whiteboard nicht", pid in s.slate_pids())
+        check("Esc and Enter do not close the whiteboard", pid in s.slate_pids())
 
-        # Strg+B: heller Hintergrund
+        # Ctrl+B: light background
         s.key("ctrl+b")
-        check("Strg+B: Hintergrund hell", wait(lambda: s.pixel(*EMPTY, name="02-hell") == PAPER, 3))
-        check("vorher war er dunkel", dark != PAPER)
+        check("Ctrl+B: background light", wait(lambda: s.pixel(*EMPTY, name="02-light") == PAPER, 3))
+        check("it was dark before", dark != PAPER)
 
-        # Strg+Q, ungespeichert: rofi fragt. "ab" = Abbrechen, Fenster bleibt
+        # Ctrl+Q, unsaved: rofi asks. "can" = Cancel, the window stays
         s.key("ctrl+q")
         time.sleep(0.3)
         s.screenshot("03-rofi")
-        ask_rofi(s, "ab")
+        ask_rofi(s, "can")
         time.sleep(0.5)
-        check("rofi 'ab' (Abbrechen): Whiteboard bleibt offen", pid in s.slate_pids())
+        check("rofi 'can' (Cancel): whiteboard stays open", pid in s.slate_pids())
 
-        # Strg+Q, "sp" = Speichern: Datei angelegt, Fenster zu
+        # Ctrl+Q, "sa" = Save: file created, window closed
         s.key("ctrl+q")
-        ask_rofi(s, "sp")
-        check("rofi 'sp' (Speichern): Whiteboard geschlossen", wait(lambda: pid not in s.slate_pids(), 5))
+        ask_rofi(s, "sa")
+        check("rofi 'sa' (Save): whiteboard closed", wait(lambda: pid not in s.slate_pids(), 5))
         saved = sorted((s.tmp / "output").glob("*_board.png"))
-        check("gespeichert als …_board.png", len(saved) == 1)
+        check("saved as …_board.png", len(saved) == 1)
         if not saved:
             return summary()
         background, elements = load_drawing(saved[0])
-        check("gespeichert: heller Hintergrund, ein Rechteck",
+        check("saved: light background, one rectangle",
               hasattr(background, "name") and background.name() == PAPER
               and [e.tool.name for e in elements] == ["RECT"])
 
-        # Wieder öffnen (wie python slate.py datei.png): als Whiteboard, hell, Titel = Datei
+        # Open again (like python slate.py file.png): as whiteboard, light, title = file
         s.spawn([str(SLATE), str(saved[0])], log="reopen")
-        check("wieder geöffnet", wait(lambda: board_window(s)[1], 10))
+        check("opened again", wait(lambda: board_window(s)[1], 10))
         pid, win = board_window(s)
-        check("Titel nennt die Datei", saved[0].name in (s.window_name(win) or ""))
-        check("wieder geöffnet: Hintergrund hell", wait(lambda: s.pixel(*EMPTY, name="04-wieder-offen") == PAPER, 3))
+        check("title names the file", saved[0].name in (s.window_name(win) or ""))
+        check("opened again: background light", wait(lambda: s.pixel(*EMPTY, name="04-reopened") == PAPER, 3))
 
-        # Ohne Änderung: Strg+Q schließt ohne Nachfrage
+        # Without changes: Ctrl+Q closes without asking
         s.key("ctrl+q")
         time.sleep(0.5)
-        check("unverändert: Strg+Q ohne Nachfrage", not s.rofi_open())
-        check("unverändert: geschlossen", wait(lambda: pid not in s.slate_pids(), 5))
+        check("unchanged: Ctrl+Q without prompt", not s.rofi_open())
+        check("unchanged: closed", wait(lambda: pid not in s.slate_pids(), 5))
 
-        # Ändern und verwerfen: Datei bleibt wie gespeichert
+        # Change and discard: the file stays as saved
         s.spawn([str(SLATE), str(saved[0])], log="reopen2")
         wait(lambda: board_window(s)[1], 10)
         pid, win = board_window(s)
@@ -101,10 +101,10 @@ def main():
         s.key("g")
         s.drag(1100, 400, 1400, 700)
         s.key("ctrl+q")
-        ask_rofi(s, "vw")
-        check("rofi 'vw' (Verwerfen): geschlossen", wait(lambda: pid not in s.slate_pids(), 5))
+        ask_rofi(s, "di")
+        check("rofi 'di' (Discard): closed", wait(lambda: pid not in s.slate_pids(), 5))
         _, elements = load_drawing(saved[0])
-        check("verworfen: Datei unverändert (nur das Rechteck)", [e.tool.name for e in elements] == ["RECT"])
+        check("discarded: file unchanged (only the rectangle)", [e.tool.name for e in elements] == ["RECT"])
     return summary()
 
 

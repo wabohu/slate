@@ -1,15 +1,15 @@
-"""Harness für GUI-Tests: eigener unsichtbarer X-Server mit herbstluftwm und sxhkd.
+"""Harness for GUI tests: a separate invisible X server with herbstluftwm and sxhkd.
 
-Deine echte Sitzung bleibt unberührt: Alles läuft auf einem eigenen Display (Xvfb),
-mit eigenem HOME (Config, Verlauf, Ausgabeordner in einem Temp-Ordner) und ohne
-Verbindung zum Session-D-Bus (keine Benachrichtigungen auf deinem Desktop).
+Your real session stays untouched: everything runs on a separate display (Xvfb),
+with a separate HOME (config, history, output folder in a temp folder) and without
+a connection to the session D-Bus (no notifications on your desktop).
 
     with Session("name") as s:
-        s.key("alt+Escape")          # Taste(n) über xdotool, landet bei sxhkd bzw. im Fokus
-        s.drag(100, 100, 300, 200)   # Maus ziehen
-        s.screenshot("01-schritt")   # Bild nach tests/gui/out/<name>/
+        s.key("alt+Escape")          # key(s) via xdotool, goes to sxhkd or the focus
+        s.drag(100, 100, 300, 200)   # drag the mouse
+        s.screenshot("01-step")     # image to tests/gui/out/<name>/
 
-Ablage der Bildschirmfotos: tests/gui/out/ (nicht im Git). Claude kann sie lesen.
+Screenshots are stored in tests/gui/out/ (not in Git). Claude can read them.
 """
 import os
 import shutil
@@ -25,8 +25,8 @@ OUT = Path(__file__).resolve().parent / "out"
 SLATE = REPO / "slate.py"
 KEYSINK = Path(__file__).resolve().parent / "keysink.py"
 
-# Belegung im Test: Start wie bei dir per Alt+Escape (über das ausführbare slate.py,
-# prüft also auch das Ausführbar-Bit), dazu zwei Test-Hotkeys
+# Bindings in the test: start via Alt+Escape as in real use (via the executable slate.py,
+# so it also checks the executable bit), plus two test hotkeys
 SXHKDRC = """\
 alt + Escape
   {slate}
@@ -43,30 +43,30 @@ super + j
 
 SLATE_CONFIG = """\
 [ui]
-messages = "toast"   # kein dunst im Test
+messages = "toast"   # no dunst in the test
 
 [output]
 dir = "{tmp}/output"
 """
 
 failures = []
-_app = None  # QGuiApplication für load_elements
+_app = None  # QGuiApplication for load_elements
 
 
 def check(name, condition):
-    print(f"{'OK  ' if condition else 'FEHLER'}  {name}", flush=True)
+    print(f"{'OK  ' if condition else 'FAIL  '}  {name}", flush=True)
     if not condition:
         failures.append(name)
     return condition
 
 
 def summary():
-    print("\nAlles OK." if not failures else f"\n{len(failures)} Fehler.")
+    print("\nAll OK." if not failures else f"\n{len(failures)} failed.")
     return 1 if failures else 0
 
 
 def wait(condition, timeout=5.0, step=0.05):
-    """condition() wiederholt prüfen, bis wahr oder Zeit um. Rückgabe: wahr/falsch."""
+    """Check condition() repeatedly until true or time is up. Returns: true/false."""
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         try:
@@ -82,7 +82,7 @@ def _free_display():
     for n in range(90, 140):
         if not Path(f"/tmp/.X11-unix/X{n}").exists() and not Path(f"/tmp/.X{n}-lock").exists():
             return f":{n}"
-    raise RuntimeError("kein freies Display gefunden")
+    raise RuntimeError("no free display found")
 
 
 class Session:
@@ -94,7 +94,7 @@ class Session:
         self.procs = []
         self.display = _free_display()
 
-    # --- Aufbau / Abbau ---
+    # --- setup / teardown ---
     def __enter__(self):
         try:
             self.start()
@@ -127,12 +127,12 @@ class Session:
 
         self.spawn(["Xvfb", self.display, "-screen", "0", f"{self.size}x24", "-nolisten", "tcp"])
         if not wait(lambda: self.run(["xdotool", "getdisplaygeometry"]).returncode == 0, 10):
-            raise RuntimeError("Xvfb startet nicht")
+            raise RuntimeError("Xvfb does not start")
         self.spawn(["herbstluftwm", "--autostart", str(autostart)])
         if not wait(lambda: self.run(["herbstclient", "get", "focus_follows_mouse"]).stdout.strip() == "true", 10):
-            raise RuntimeError("herbstluftwm startet nicht")
-        self.spawn(["sxhkd", "-c", str(sxhkdrc)], log="sxhkd")  # inkl. Ausgaben von slate
-        time.sleep(0.5)  # sxhkd meldet nicht, wann es bereit ist
+            raise RuntimeError("herbstluftwm does not start")
+        self.spawn(["sxhkd", "-c", str(sxhkdrc)], log="sxhkd")  # including the output of slate
+        time.sleep(0.5)  # sxhkd does not report when it is ready
 
     def stop(self):
         for pid in self.slate_pids():
@@ -154,9 +154,9 @@ class Session:
     def run(self, cmd):
         return subprocess.run(cmd, env=self.env, capture_output=True, text=True, timeout=10)
 
-    # --- Prozesse und Fenster ---
+    # --- processes and windows ---
     def slate_pids(self):
-        """PIDs von slate.py auf DIESEM Display (nie deine echten Instanzen)."""
+        """PIDs of slate.py on THIS display (never your real instances)."""
         pids = []
         for proc in Path("/proc").iterdir():
             if not proc.name.isdigit():
@@ -186,14 +186,14 @@ class Session:
         return result.stdout.strip() if result.returncode == 0 else None
 
     def rofi_open(self):
-        """Ist gerade ein rofi-Fenster sichtbar?"""
+        """Is a rofi window visible right now?"""
         return bool(self.run(["xdotool", "search", "--onlyvisible", "--class", "rofi"]).stdout.strip())
 
     def focus_id(self):
         result = self.run(["xdotool", "getwindowfocus"])
         return int(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
 
-    # --- Eingabe ---
+    # --- input ---
     def key(self, *keys):
         self.run(["xdotool", "key", "--clearmodifiers", *keys])
 
@@ -208,14 +208,14 @@ class Session:
                   "mousemove", str((x1 + x2) // 2), str((y1 + y2) // 2),
                   "mousemove", str(x2), str(y2), "mouseup", "1"])
 
-    # --- Ergebnisse ---
+    # --- results ---
     def screenshot(self, name):
         path = self.out / f"{name}.png"
         self.run(["import", "-window", "root", str(path)])
         return path
 
     def pixel(self, x, y, name="pixel"):
-        """Farbe eines Bildschirmpunkts als "#rrggbb" (über ein Bildschirmfoto)."""
+        """Color of a screen point as "#rrggbb" (via a screenshot)."""
         return _qt_image(self.screenshot(name)).pixelColor(x, y).name()
 
     def history_entries(self):
@@ -223,16 +223,16 @@ class Session:
         return sorted(directory.glob("slate_*.png")) if directory.exists() else []
 
     def start_keysink(self):
-        """Testfenster starten, warten bis es da ist und den Fokus hat. Rückgabe: Ausgabedatei."""
+        """Start the test window, wait until it is there and has the focus. Returns: output file."""
         out = self.tmp / "keysink.txt"
         self.spawn([sys.executable, str(KEYSINK), str(out)], log="keysink")
         if not wait(lambda: self.window_named("keysink") is not None, 10):
-            raise RuntimeError("keysink-Fenster erscheint nicht")
+            raise RuntimeError("keysink window does not appear")
         return out
 
 
 def _qt():
-    """Qt im Test-Prozess selbst, ohne Bildschirm (zum Lesen von Bildern und Dateien)."""
+    """Qt in the test process itself, without a screen (to read images and files)."""
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     if str(REPO) not in sys.path:
         sys.path.insert(0, str(REPO))
@@ -248,8 +248,8 @@ def _qt_image(path):
 
 
 def load_drawing(path):
-    """Gespeicherte Zeichnung lesen: (Hintergrund, Elemente). Hintergrund ist ein QImage
-    (Screenshot) oder eine QColor (Whiteboard)."""
+    """Read a saved drawing: (background, elements). The background is a QImage
+    (screenshot) or a QColor (whiteboard)."""
     _qt()
     from document import load_document
     background, elements, _, _ = load_document(path)
@@ -257,5 +257,5 @@ def load_drawing(path):
 
 
 def load_elements(path):
-    """Elemente einer gespeicherten Zeichnung."""
+    """Elements of a saved drawing."""
     return load_drawing(path)[1]

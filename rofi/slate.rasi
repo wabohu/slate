@@ -1,9 +1,9 @@
 /**
- * Kompakte Nachfrage für slate (z. B. "Speichern / Verwerfen / Abbrechen").
+ * Compact prompt for slate (e.g. "Save / Discard / Cancel").
  *
- * Farben: Deine ~/.config/rofi/colors.rasi wird beim Aufruf zusätzlich geladen,
- * falls vorhanden (slate übergibt sie per -theme-str). Fehlt sie, gelten die
- * Werte hinter dem Komma in var(...) (Tokyo Night Storm).
+ * Colors: your ~/.config/rofi/colors.rasi is additionally loaded on each call,
+ * if it exists (slate passes it via -theme-str). If it is missing, the
+ * values after the comma in var(...) apply (Tokyo Night Storm).
  */
 * {
     background:     var(base03, #24283b);
@@ -40,7 +40,7 @@ textbox {
     background-color: transparent;
 }
 
-/* Eingabezeile für die Fuzzy-Suche: tippen filtert die Auswahl, Enter nimmt die oberste */
+/* Input line for the fuzzy search: typing filters the choices, Enter takes the top one */
 inputbar {
     children:         [ entry ];
     padding:          7px 12px;
@@ -49,7 +49,7 @@ inputbar {
 }
 
 entry {
-    placeholder:       "tippen zum Filtern …";
+    placeholder:       "type to filter …";
     placeholder-color: @dimmed;
     text-color:        @foreground;
     background-color:  transparent;

@@ -1,32 +1,32 @@
-"""Zentrale Tastenbelegung: Aktion -> Taste, mit Overrides aus der Config.
+"""Central key bindings: action -> key, with overrides from the config.
 
-Jede Aktion hat einen Namen (z. B. "undo", "tool_1", "color_3") und eine
-Standardtaste. In der Config überschreibt [keys] einzelne Einträge:
+Every action has a name (e.g. "undo", "tool_1", "color_3") and a
+default key. In the config, [keys] overrides individual entries:
 
     [keys]
     undo = "r"
     tool_6 = "t"
-    color_next = ""      # leer = Aktion ohne Taste
-    delete = ["delete", "backspace"]   # Liste = mehrere Tasten für eine Aktion
+    color_next = ""      # empty = action without a key
+    delete = ["delete", "backspace"]   # list = several keys for one action
 
-Neue Funktion mit Taste: Eintrag in DEFAULT_KEYS + Handler in Canvas.actions.
+New feature with a key: entry in DEFAULT_KEYS + handler in Canvas.actions.
 
-Qt-Konzept: QKeySequence("shift+r") wandelt Text in Tasten um. Ein Eintrag davon
-ist eine QKeyCombination (Taste + Modifier); toCombined() macht daraus eine Zahl,
-die sich als Dict-Schlüssel eignet.
+Qt concept: QKeySequence("shift+r") turns text into keys. One entry of it
+is a QKeyCombination (key + modifiers); toCombined() turns that into a number
+that works as a dict key.
 """
 import sys
 
 from PySide6.QtCore import QKeyCombination, Qt
 from PySide6.QtGui import QKeySequence
 
-# Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order
+# Tool slots: tool_i selects the tool at position i of [tools] order
 TOOL_SLOT_KEYS = ("a", "s", "d", "f", "g", "t")
-TOOL_SLOTS = 9    # tool_7 … tool_9 haben keine Standardtaste, sind aber per Config belegbar
-# Farb-Plätze: color_i wählt Feld i der Farbleiste
+TOOL_SLOTS = 9    # tool_7 … tool_9 have no default key, but can be bound in the config
+# Color slots: color_i selects field i of the color bar
 COLOR_SLOT_KEYS = ("a", "s", "d", "f", "g", "z", "x", "c", "v", "b")
-COLOR_SLOTS = 17  # so viele Felder kann die Leiste höchstens haben (8 + 8 + Vordergrund)
-# Größen-Stufen: size_i = Strichstärke bzw. Schriftgröße Stufe i
+COLOR_SLOTS = 17  # the bar can have at most this many fields (8 + 8 + foreground)
+# Size levels: size_i = stroke width or font size level i
 SIZE_SLOT_KEYS = ("a", "s", "d", "f")
 
 
@@ -37,57 +37,57 @@ def _slots(prefix, count, keys, modifier=""):
 
 DEFAULT_KEYS = {
     "tool_select": "w",
-    "select_all": "ctrl+a",    # alles auswählen (Auswahl-Werkzeug)
-    "raise": "ctrl+up",               # Auswahl einen Schritt nach vorne
-    "lower": "ctrl+down",             # Auswahl einen Schritt nach hinten
-    "raise_top": "ctrl+shift+up",     # Auswahl ganz nach vorne
-    "lower_bottom": "ctrl+shift+down",  # Auswahl ganz nach hinten
-    "tool_blur": "z",          # Unschärfe (verpixeln), nur Screenshot-Modus
-    "tool_marker": "c",        # Marker; erneut c: 1 2 3 / A B C umschalten
-    "crop": "y",               # Ausschnitt aufziehen (Esc dabei: aufheben), nur Screenshot-Modus
-    "delete": ("delete", "backspace"),  # ausgewähltes Element löschen
+    "select_all": "ctrl+a",    # select everything (select tool)
+    "raise": "ctrl+up",               # selection one step forward
+    "lower": "ctrl+down",             # selection one step back
+    "raise_top": "ctrl+shift+up",     # selection all the way to the front
+    "lower_bottom": "ctrl+shift+down",  # selection all the way to the back
+    "tool_blur": "z",          # blur (pixelate), screenshot mode only
+    "tool_marker": "c",        # marker; c again: toggle 1 2 3 / A B C
+    "crop": "y",               # draw a crop (Esc meanwhile: remove it), screenshot mode only
+    "delete": ("delete", "backspace"),  # delete the selected element
     "undo": "r",
     "redo": "shift+r",
     "color_next": "tab",
     "color_prev": "shift+tab",
-    "copy_quit": "return",     # Bild in die Zwischenablage und beenden
-    "copy_path_quit": "shift+return",  # speichern (wie Strg+S), absoluten Pfad kopieren, beenden
-    "copy_image": "ctrl+c",    # mit Auswahl: Elemente kopieren, sonst Bild in die Zwischenablage
-    "paste": "ctrl+v",         # kopierte Elemente einfügen (an der Maus), auch aus anderem Fenster
-    "duplicate": "ctrl+d",     # Auswahl verdoppeln (leicht versetzt)
-    "zoom_reset": "ctrl+0",    # Whiteboard: Zoom auf 100 %
-    "overview": "ctrl+w",      # Whiteboard: ganzes Dokument ins Fenster einpassen
-    "background_next": "ctrl+b",        # Whiteboard: nächster Hintergrund aus [board] backgrounds
-    "background_prev": "ctrl+shift+b",  # Whiteboard: voriger Hintergrund
-    # Auswahl verschieben (Schrittweiten in [move]); Shift = feine Schritte
+    "copy_quit": "return",     # image to the clipboard and quit
+    "copy_path_quit": "shift+return",  # save (like Ctrl+S), copy the absolute path, quit
+    "copy_image": "ctrl+c",    # with a selection: copy elements, otherwise image to the clipboard
+    "paste": "ctrl+v",         # paste copied elements (at the mouse), also from another window
+    "duplicate": "ctrl+d",     # duplicate the selection (slightly offset)
+    "zoom_reset": "ctrl+0",    # whiteboard: zoom to 100 %
+    "overview": "ctrl+w",      # whiteboard: fit the whole document into the window
+    "background_next": "ctrl+b",        # whiteboard: next background from [board] backgrounds
+    "background_prev": "ctrl+shift+b",  # whiteboard: previous background
+    # Move the selection (step sizes in [move]); Shift = fine steps
     "move_left": "h", "move_down": "j", "move_up": "k", "move_right": "l",
     "move_left_fine": "shift+h", "move_down_fine": "shift+j",
     "move_up_fine": "shift+k", "move_right_fine": "shift+l",
-    "quit": "ctrl+q",          # beenden (im Whiteboard die einzige Taste dafür, Esc schließt dort nicht)
-    "save": "ctrl+s",          # bearbeitbare Zeichnung (PNG mit eingebetteten Daten)
-    "export_png": "ctrl+e",    # sauberes PNG ohne Bearbeitungsdaten
-    "history_prev": "left",    # Verlauf: älterer Screenshot (nur Screenshot-Modus)
-    "history_next": "right",   # Verlauf: neuerer Screenshot
-    "help": "shift+?",         # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
-    "toggle_bar": "b",         # Leiste ein-/ausblenden
-    "spotlight": "e",          # Zeigen: Spotlight an/aus (alles abgedunkelt außer um die Maus)
-    "magnifier": "shift+e",    # Zeigen: Lupe an/aus
+    "quit": "ctrl+q",          # quit (on the whiteboard the only key for it, Esc does not close there)
+    "save": "ctrl+s",          # editable drawing (PNG with embedded data)
+    "export_png": "ctrl+e",    # clean PNG without editing data
+    "history_prev": "left",    # history: older screenshot (screenshot mode only)
+    "history_next": "right",   # history: newer screenshot
+    "help": "shift+?",         # overview of all shortcuts (? = Shift+/ on the US layout)
+    "toggle_bar": "b",         # show/hide the bar
+    "spotlight": "e",          # pointing: spotlight on/off (everything darkened except around the mouse)
+    "magnifier": "shift+e",    # pointing: magnifier on/off
     **_slots("tool", TOOL_SLOTS, TOOL_SLOT_KEYS),
     **_slots("color", COLOR_SLOTS, COLOR_SLOT_KEYS, modifier="shift+"),
     **_slots("size", len(SIZE_SLOT_KEYS), SIZE_SLOT_KEYS, modifier="alt+"),
 }
 
-# Umbenannte Aktionen: Hinweis statt "unbekannt", der alte Eintrag wird ignoriert
+# Renamed actions: a hint instead of "unknown", the old entry is ignored
 LEGACY_ACTIONS = {
-    "save_png": "heißt jetzt export_png (Standard Strg+E); Strg+S speichert die bearbeitbare Zeichnung",
+    "save_png": "is now called export_png (default Ctrl+E); Ctrl+S saves the editable drawing",
 }
 
-# Nur diese Modifier zählen; z. B. KeypadModifier (Ziffernblock) wird ignoriert
+# Only these modifiers count; e.g. KeypadModifier (number pad) is ignored
 _MODIFIERS = Qt.ShiftModifier | Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier
 
 
 def parse_shortcut(text):
-    """'r', 'shift+r', 'ctrl+z', 'tab' -> QKeyCombination; ungültig -> None."""
+    """'r', 'shift+r', 'ctrl+z', 'tab' -> QKeyCombination; invalid -> None."""
     seq = QKeySequence(text.strip())
     if seq.count() != 1 or seq[0].key() == Qt.Key_unknown:
         return None
@@ -95,13 +95,13 @@ def parse_shortcut(text):
 
 
 def _normalize(combo):
-    """Vergleichbare Form: nur relevante Modifier, Shift+Tab statt 'Backtab'."""
+    """Comparable form: only relevant modifiers, Shift+Tab instead of 'Backtab'."""
     key = combo.key()
     mods = combo.keyboardModifiers() & _MODIFIERS
-    if key == Qt.Key_Backtab:  # Qt meldet Shift+Tab als eigene Taste "Backtab"
+    if key == Qt.Key_Backtab:  # Qt reports Shift+Tab as a separate key "Backtab"
         key = Qt.Key_Tab
         mods |= Qt.ShiftModifier
-    elif key == Qt.Key_Enter:  # Enter am Ziffernblock wie die normale Enter-Taste
+    elif key == Qt.Key_Enter:  # Enter on the number pad like the normal Enter key
         key = Qt.Key_Return
     return QKeyCombination(mods, key)
 
@@ -114,9 +114,9 @@ def _as_list(value):
 class KeyMap:
     def __init__(self, config):
         keys_table = config.get("keys") if isinstance(config.get("keys"), dict) else {}
-        user = {}  # vom Benutzer gesetzte Einträge: action -> Text oder Liste von Texten
+        user = {}  # entries set by the user: action -> text or list of texts
 
-        # Alte Schreibweise [tools] keys = ["a", "s", …] -> tool_1, tool_2, …
+        # Old notation [tools] keys = ["a", "s", …] -> tool_1, tool_2, …
         tools_table = config.get("tools") if isinstance(config.get("tools"), dict) else {}
         legacy = tools_table.get("keys")
         if isinstance(legacy, list):
@@ -128,57 +128,57 @@ class KeyMap:
             if action in LEGACY_ACTIONS:
                 print(f"[keys] {action} {LEGACY_ACTIONS[action]}", file=sys.stderr)
             elif action not in DEFAULT_KEYS:
-                print(f"[keys] Unbekannte Aktion: {action!r}", file=sys.stderr)
+                print(f"[keys] Unknown action: {action!r}", file=sys.stderr)
             elif not (isinstance(value, str)
                       or isinstance(value, list) and all(isinstance(v, str) for v in value)):
-                print(f"[keys] {action}: Wert muss Text oder Liste von Texten sein, nicht {value!r}",
+                print(f"[keys] {action}: value must be text or a list of texts, not {value!r}",
                       file=sys.stderr)
             else:
                 user[action] = value
 
-        self.texts = {}     # action -> erster Tastentext (für Anzeigen)
-        self.all_texts = {}  # action -> alle Tastentexte (für die Tastenübersicht)
-        self._lookup = {}   # Taste (als Zahl) -> action
-        # Erst die Einträge des Benutzers, dann die Standardwerte: bei doppelter
-        # Belegung gewinnt, was ausdrücklich in der Config steht
+        self.texts = {}     # action -> first key text (for display)
+        self.all_texts = {}  # action -> all key texts (for the shortcut overview)
+        self._lookup = {}   # key (as a number) -> action
+        # The user's entries first, then the defaults: if a key is bound twice,
+        # whatever is explicitly in the config wins
         ordered = [(a, user[a], True) for a in user] + [
             (a, t, False) for a, t in DEFAULT_KEYS.items() if a not in user
         ]
         for action, value, from_config in ordered:
             for text in _as_list(value):
                 if not text.strip():
-                    continue  # bewusst ohne Taste
+                    continue  # deliberately without a key
                 combo = parse_shortcut(text)
                 if combo is None:
-                    print(f"[keys] {action}: ungültige Taste {text!r}, wird ignoriert", file=sys.stderr)
+                    print(f"[keys] {action}: invalid key {text!r}, ignored", file=sys.stderr)
                     continue
                 self._bind(action, text, combo)
-            # Hat der Benutzer nur Ungültiges eingetragen, bleibt der Standard
+            # If the user only entered invalid keys, the default stays
             if from_config and action not in self.texts:
                 for text in _as_list(DEFAULT_KEYS[action]):
                     if text and (combo := parse_shortcut(text)) is not None:
-                        print(f"[keys] {action}: nehme Standard {text!r}", file=sys.stderr)
+                        print(f"[keys] {action}: using default {text!r}", file=sys.stderr)
                         self._bind(action, text, combo)
 
     def _bind(self, action, text, combo):
         code = combo.toCombined()
         if code in self._lookup:
-            print(f"[keys] {text!r} ist doppelt belegt: {self._lookup[code]} behält sie, "
-                  f"{action} hat sie nicht", file=sys.stderr)
+            print(f"[keys] {text!r} is bound twice: {self._lookup[code]} keeps it, "
+                  f"{action} does not get it", file=sys.stderr)
             return
         self._lookup[code] = action
         self.texts.setdefault(action, text)
         self.all_texts.setdefault(action, []).append(text)
 
     def action_for(self, event):
-        """Aktion für ein QKeyEvent oder None."""
+        """Action for a QKeyEvent or None."""
         return self._lookup.get(_normalize(event.keyCombination()).toCombined())
 
     def label(self, action):
-        """Kurzer Anzeigetext, z. B. 'A' oder 'Shift+T'; '' wenn ohne Taste."""
+        """Short display text, e.g. 'A' or 'Shift+T'; '' if without a key."""
         text = self.texts.get(action)
         return QKeySequence(text).toString() if text else ""
 
     def labels(self, action):
-        """Anzeigetexte aller Tasten einer Aktion, z. B. ['Del', 'Backspace']."""
+        """Display texts of all keys of an action, e.g. ['Del', 'Backspace']."""
         return [QKeySequence(text).toString() for text in self.all_texts.get(action, [])]

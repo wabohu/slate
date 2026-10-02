@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""GUI-Test Screenshot-Overlay: Start per Hotkey, Fokus, sxhkd-Hotkeys, Zeichnen,
-Fokus zurück nach Esc, Verlaufseintrag.
+"""GUI test screenshot overlay: start via hotkey, focus, sxhkd hotkeys, drawing,
+focus back after Esc, history entry.
 
     python tests/gui/test_overlay.py
 
-Läuft in einem eigenen unsichtbaren X-Server (harness.py), deine Sitzung bleibt
-unberührt. Bildschirmfotos: tests/gui/out/overlay/. Rückgabewert 0 = alles ok.
+Runs in a separate invisible X server (harness.py), your session stays
+untouched. Screenshots: tests/gui/out/overlay/. Exit code 0 = all ok.
 """
 import sys
 import time
@@ -18,66 +18,66 @@ from harness import SLATE, Session, check, load_elements, summary, wait  # noqa:
 def main():
     with Session("overlay") as s:
         empty = s.run([str(SLATE), "--last"])
-        check("--last bei leerem Verlauf: Fehlercode 1, kein Fenster", empty.returncode == 1 and not s.slate_pids())
+        check("--last with empty history: exit code 1, no window", empty.returncode == 1 and not s.slate_pids())
         sink_out = s.start_keysink()
         sink = s.window_named("keysink")
-        check("Ausgangslage: Testfenster hat den Fokus", wait(lambda: s.focus_id() == sink))
+        check("initial state: test window has the focus", wait(lambda: s.focus_id() == sink))
         s.type("a")
-        check("Ausgangslage: Tasten kommen im Testfenster an", wait(lambda: sink_out.read_text() == "a"))
+        check("initial state: keys arrive in the test window", wait(lambda: sink_out.read_text() == "a"))
 
-        # Start per Hotkey (sxhkd -> slate.py)
+        # Start via hotkey (sxhkd -> slate.py)
         s.key("alt+Escape")
-        check("Start per Hotkey: slate läuft", wait(lambda: s.slate_pids(), 10))
+        check("start via hotkey: slate running", wait(lambda: s.slate_pids(), 10))
         pid = (s.slate_pids() or [0])[0]
-        check("Start per Hotkey: Overlay sichtbar", wait(lambda: s.windows_of(pid), 10))
+        check("start via hotkey: overlay visible", wait(lambda: s.windows_of(pid), 10))
         overlay = s.windows_of(pid)
-        check("Overlay hat sofort den Fokus", wait(lambda: s.focus_id() in overlay))
-        s.screenshot("01-gestartet")
+        check("overlay has the focus right away", wait(lambda: s.focus_id() in overlay))
+        s.screenshot("01-started")
 
-        # Zeichnen: Rechteck (Taste F), Maus bleibt danach über dem Overlay
+        # Draw: rectangle (key F), the mouse stays over the overlay afterwards
         s.key("f")
         s.drag(500, 300, 900, 600)
         time.sleep(0.3)
-        s.screenshot("02-rechteck")
+        s.screenshot("02-rectangle")
 
-        # sxhkd-Hotkeys kommen an, obwohl das Overlay offen ist
+        # sxhkd hotkeys arrive although the overlay is open
         s.key("super+k")
-        check("Hotkey bei offenem Overlay ausgeführt",
+        check("hotkey run while the overlay is open",
               wait(lambda: (s.tmp / "hotkey-fired").exists()))
 
-        # Hotkey legt den Fokus auf ein anderes Fenster, Maus steht über dem Overlay:
-        # Overlay holt ihn zurück, Tasten wirken ohne Klick
+        # A hotkey puts the focus on another window, the mouse is over the overlay:
+        # the overlay takes it back, keys work without a click
         s.key("super+j")
         time.sleep(0.5)
-        check("Fokus nach Hotkey ohne Klick zurück beim Overlay", wait(lambda: s.focus_id() in overlay, 2))
-        s.key("g")  # Ellipse: wirkt nur, wenn die Taste beim Overlay ankommt
+        check("focus back at the overlay after a hotkey without a click", wait(lambda: s.focus_id() in overlay, 2))
+        s.key("g")  # ellipse: only works if the key arrives at the overlay
         s.drag(1000, 300, 1300, 600)
         time.sleep(0.3)
-        s.screenshot("03-ellipse-nach-hotkey")
-        check("Testfenster hat nichts abbekommen", sink_out.read_text() == "a")
+        s.screenshot("03-ellipse-after-hotkey")
+        check("test window got nothing", sink_out.read_text() == "a")
 
-        # Esc: beenden, Fokus zurück ans Testfenster
+        # Esc: quit, focus back to the test window
         s.key("Escape")
-        check("Esc beendet das Overlay", wait(lambda: not s.slate_pids(), 10))
-        check("Fokus nach Esc zurück beim Testfenster", wait(lambda: s.focus_id() == sink))
+        check("Esc quits the overlay", wait(lambda: not s.slate_pids(), 10))
+        check("focus back at the test window after Esc", wait(lambda: s.focus_id() == sink))
         s.type("b")
-        check("Tasten kommen danach wieder im Testfenster an", wait(lambda: sink_out.read_text() == "ab"))
-        s.screenshot("04-nach-esc")
+        check("keys arrive in the test window again afterwards", wait(lambda: sink_out.read_text() == "ab"))
+        s.screenshot("04-after-esc")
 
-        # Verlauf: ein Eintrag mit Rechteck und Ellipse
+        # History: one entry with rectangle and ellipse
         entries = s.history_entries()
-        check("Verlauf: ein Eintrag", len(entries) == 1)
+        check("history: one entry", len(entries) == 1)
         tools = sorted(e.tool.name for e in load_elements(entries[0])) if entries else []
-        check(f"Verlauf: Rechteck und Ellipse gespeichert ({', '.join(tools)})", tools == ["ELLIPSE", "RECT"])
+        check(f"history: rectangle and ellipse saved ({', '.join(tools)})", tools == ["ELLIPSE", "RECT"])
 
-        # --last öffnet den neuesten Verlaufseintrag (z. B. per Hotkey)
+        # --last opens the newest history entry (e.g. via a hotkey)
         s.spawn([str(SLATE), "--last"], log="last")
-        check("--last öffnet den letzten Screenshot", wait(lambda: s.slate_pids(), 10))
+        check("--last opens the latest screenshot", wait(lambda: s.slate_pids(), 10))
         wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
         time.sleep(0.4)
         s.screenshot("05-last")
         s.key("Escape")
-        check("--last: Esc beendet", wait(lambda: not s.slate_pids(), 5))
+        check("--last: Esc quits", wait(lambda: not s.slate_pids(), 5))
     return summary()
 
 

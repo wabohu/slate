@@ -1,23 +1,23 @@
-"""Zeichnungen speichern und laden: ein normales PNG mit eingebetteten Bearbeitungsdaten.
+"""Save and load drawings: a normal PNG with embedded editing data.
 
-Das PNG zeigt die Zeichnung mit allen Markierungen, so wie jeder Bildbetrachter sie
-anzeigt. Zusätzlich steckt in einem PNG-Text-Chunk (Metadaten, Schlüssel "slate")
-ein JSON-Dokument:
+The PNG shows the drawing with all markings, just as any image viewer
+displays it. In addition, a PNG text chunk (metadata, key "slate") holds
+a JSON document:
 
     {
       "format": "slate", "version": 1,
-      "background": {"type": "image", "png": "<Base64 des rohen Screenshots>"}
-                 oder {"type": "color", "color": "#24283b"}   (Whiteboard),
-      "elements": [ {"type": "shape", ...}, {"type": "text", ...} ],  # von unten nach oben
-      "crop": [x, y, breite, höhe]   (optional: Ausschnitt in Szenenkoordinaten, Taste y)
+      "background": {"type": "image", "png": "<Base64 of the raw screenshot>"}
+                 or {"type": "color", "color": "#24283b"}   (whiteboard),
+      "elements": [ {"type": "shape", ...}, {"type": "text", ...} ],  # bottom to top
+      "crop": [x, y, width, height]   (optional: crop in scene coordinates, key y)
     }
 
-Öffnet man so ein PNG mit slate, ist alles wieder bearbeitbar. Ein PNG ohne diese
-Daten öffnet sich als Hintergrund. Programme, die das Bild neu speichern, verwerfen
-die Metadaten oft; die eigene Datei bleibt davon unberührt.
+Opening such a PNG with slate makes everything editable again. A PNG without this
+data opens as a background. Programs that save the image again often discard
+the metadata; the own file stays untouched by that.
 
-Qt-Konzept: QImage.setText(key, text) schreibt Text-Chunks beim Speichern als PNG,
-QImage.text(key) liest sie nach dem Laden wieder aus.
+Qt concept: QImage.setText(key, text) writes text chunks when saving as PNG,
+QImage.text(key) reads them again after loading.
 """
 import base64
 import json
@@ -36,14 +36,14 @@ VERSION = 1
 PNG_KEY = "slate"
 ELEMENT_TYPES = {"shape": ShapeElement, "text": TextElement, "image": ImageElement}
 
-# Große eingebettete Bilder erlauben (Qt begrenzt Bildgrößen sonst auf 256 MB Speicher)
+# Allow large embedded images (otherwise Qt limits image sizes to 256 MB of memory)
 QImageReader.setAllocationLimit(1024)
 
 
 def build_document(background, elements, crop=None):
-    """Dokument-Daten aus Hintergrund und Elementen (unten -> oben).
+    """Document data from background and elements (bottom -> top).
 
-    background: QImage (roher Screenshot) oder QColor (Whiteboard); crop: QRectF oder None.
+    background: QImage (raw screenshot) or QColor (whiteboard); crop: QRectF or None.
     """
     if isinstance(background, QColor):
         background_data = {"type": "color", "color": background.name()}
@@ -59,88 +59,88 @@ def build_document(background, elements, crop=None):
 
 
 def crop_from_data(value):
-    """[x, y, w, h] -> QRectF; fehlt oder unbrauchbar -> None (mit Warnung, kein Absturz)."""
+    """[x, y, w, h] -> QRectF; missing or unusable -> None (with a warning, no crash)."""
     if value is None:
         return None
     try:
         x, y, w, h = (float(v) for v in value)
         if w <= 0 or h <= 0:
-            raise ValueError("Breite/Höhe müssen positiv sein")
+            raise ValueError("width/height must be positive")
     except (TypeError, ValueError) as e:
-        print(f"[document] Ausschnitt ignoriert ({e}): {value!r}", file=sys.stderr)
+        print(f"[document] crop ignored ({e}): {value!r}", file=sys.stderr)
         return None
     return QRectF(x, y, w, h)
 
 
 def save_document(path, rendered, document):
-    """rendered (QImage mit Markierungen) samt Dokument-Daten als PNG speichern.
+    """Save rendered (QImage with markings) together with the document data as PNG.
 
-    Erst in eine Hilfsdatei schreiben und dann umbenennen: Geht etwas schief,
-    bleibt eine vorhandene Datei unbeschädigt. Rückgabe: (ok, Meldung).
+    Write to a temporary file first and then rename it: if something goes wrong,
+    an existing file stays intact. Returns: (ok, message).
     """
     image = QImage(rendered)
     image.setText(PNG_KEY, json.dumps(document, separators=(",", ":")))
     tmp = Path(path).with_suffix(".tmp.png")
     try:
         if not image.save(str(tmp), "PNG"):
-            raise OSError("QImage.save hat nicht geklappt")
-        os.replace(tmp, path)  # ersetzt atomar, auch eine vorhandene Datei
+            raise OSError("QImage.save did not work")
+        os.replace(tmp, path)  # replaces atomically, including an existing file
     except OSError as e:
         tmp.unlink(missing_ok=True)
-        print(f"[document] Speichern fehlgeschlagen: {e}", file=sys.stderr)
-        return False, f"Speichern fehlgeschlagen: {e}"
-    return True, f"Gespeichert: {short_path(path)}"
+        print(f"[document] Saving failed: {e}", file=sys.stderr)
+        return False, f"Saving failed: {e}"
+    return True, f"Saved: {short_path(path)}"
 
 
 def load_document(path, with_crop=False):
-    """PNG laden. Rückgabe: (Hintergrund oder None, Elemente, ist_zeichnung, Meldung),
-    mit with_crop=True zusätzlich der gespeicherte Ausschnitt (QRectF oder None).
+    """Load a PNG. Returns: (background or None, elements, is_drawing, message),
+    with with_crop=True also the saved crop (QRectF or None).
 
-    Hintergrund ist ein QImage (Screenshot) oder eine QColor (Whiteboard).
+    The background is a QImage (screenshot) or a QColor (whiteboard).
 
-    ist_zeichnung = True: eigene Zeichnung mit Bearbeitungsdaten, Strg+S darf sie
-    überschreiben. Sonst ist es ein fremdes Bild (Hintergrund, Speichern als neue Datei).
+    is_drawing = True: own drawing with editing data, Ctrl+S may
+    overwrite it. Otherwise it is a foreign image (background, saved as a new file).
     """
     image = QImageReader(str(path)).read()
     if image.isNull():
-        result = None, [], False, f"Kann {path} nicht als Bild öffnen"
+        result = None, [], False, f"Cannot open {path} as an image"
         return result + (None,) if with_crop else result
     raw = image.text(PNG_KEY)
     if not raw:
-        result = image, [], False, f"Bild geöffnet: {short_path(path)}"
+        result = image, [], False, f"Image opened: {short_path(path)}"
         return result + (None,) if with_crop else result
     try:
         document = json.loads(raw)
         if document.get("format") != FORMAT:
-            raise ValueError("kein slate-Dokument")
+            raise ValueError("not a slate document")
         if document.get("version", 0) > VERSION:
-            print(f"[document] Version {document['version']} ist neuer als dieses Tool ({VERSION}), "
-                  "versuche es trotzdem", file=sys.stderr)
+            print(f"[document] Version {document['version']} is newer than this tool ({VERSION}), "
+                  "trying anyway", file=sys.stderr)
         spec = document["background"]
         if spec.get("type") == "color":
             background = QColor(spec["color"])
             if not background.isValid():
-                raise ValueError(f"ungültige Hintergrundfarbe {spec['color']!r}")
+                raise ValueError(f"invalid background color {spec['color']!r}")
         else:
             background = QImage.fromData(base64.b64decode(spec["png"]))
             if background.isNull():
-                raise ValueError("eingebetteter Hintergrund unlesbar")
+                raise ValueError("embedded background unreadable")
     except (ValueError, KeyError, TypeError, AttributeError) as e:
-        print(f"[document] Bearbeitungsdaten unbrauchbar ({e}), öffne als Bild", file=sys.stderr)
-        result = image, [], False, "Bearbeitungsdaten fehlerhaft, als Bild geöffnet"
+        print(f"[document] Editing data unusable ({e}), opening as an image", file=sys.stderr)
+        result = image, [], False, "Editing data broken, opened as an image"
         return result + (None,) if with_crop else result
     elements = elements_from_dicts(document.get("elements", []))
-    result = background, elements, True, f"Geöffnet: {short_path(path)}"
+    result = background, elements, True, f"Opened: {short_path(path)}"
     return result + (crop_from_data(document.get("crop")),) if with_crop else result
 
 
 def elements_from_dicts(dicts):
-    """Elemente erzeugen; unbekannte oder fehlerhafte Einträge überspringen (mit Warnung)."""
+    """Create elements; skip unknown or broken entries (with a warning)."""
     result = []
     for data in dicts:
         try:
             result.append(ELEMENT_TYPES[data["type"]].from_dict(data))
         except (KeyError, ValueError, TypeError) as e:
-            print(f"[document] Element übersprungen ({type(e).__name__}: {e}): {str(data)[:80]}",
+            print(f"[document] Element skipped ({type(e).__name__}: {e}): {str(data)[:80]}",
                   file=sys.stderr)
     return result

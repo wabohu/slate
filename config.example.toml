@@ -1,123 +1,123 @@
-# Beispiel-Config für slate.py
-# Kopieren nach ~/.config/slate/config.toml
-# Fehlt die Datei oder ein Wert, nimmt das Tool sinnvolle Standardwerte.
+# Example config for slate.py
+# Copy to ~/.config/slate/config.toml
+# If the file or a value is missing, the tool uses sensible defaults.
 
 [tools]
-# Reihenfolge der Werkzeuge; das Werkzeug an Position i bekommt die Taste von tool_i ([keys]).
-# Namen: freehand line arrow rect ellipse text
+# Order of the tools; the tool at position i gets the key of tool_i ([keys]).
+# Names: freehand line arrow rect ellipse text
 order = ["freehand", "line", "arrow", "rect", "ellipse", "text"]
-# Werkzeug beim Start
+# Tool at startup
 default = "freehand"
 
 [colors]
-# Reihenfolge der Farbleiste = Reihenfolge der Kürzel Shift+A S D F G Z X C V B.
-# Namen: black red green yellow blue magenta cyan white,
-#        dieselben mit "bright_" davor (z. B. "bright_red"), und "foreground".
-# Die Farbwerte selbst kommen aus der Alacritty-Config.
+# Order of the color bar = order of the shortcuts Shift+A S D F G Z X C V B.
+# Names: black red green yellow blue magenta cyan white,
+#        the same with "bright_" in front (e.g. "bright_red"), and "foreground".
+# The color values themselves come from the Alacritty config.
 order = ["yellow", "magenta", "cyan", "green", "red", "blue", "white", "bright_black", "foreground"]
-# Farbe beim Start (gleiche Namen wie oben)
+# Color at startup (same names as above)
 default = "yellow"
 
-# Whiteboard mit hellem Hintergrund (z. B. Papierweiß, Strg+B): Die Alacritty-Farben sind für
-# dunklen Hintergrund gemacht, darum zeigt das Tool sie dort automatisch abgedunkelt (gleicher
-# Farbton, Kontrast mindestens 3.0). Gespeichert wird die Grundfarbe; zurück auf dunklem
-# Hintergrund ist alles wieder wie vorher. Hier lassen sich einzelne helle Varianten
-# selbst festlegen: Name wie oben = "#rrggbb" (oder ein anderer Farbname).
-# Ansehen, was automatisch herauskommt: python colors.py
+# Whiteboard with a light background (e.g. paper white, Ctrl+B): the Alacritty colors are made
+# for a dark background, so the tool automatically shows them darkened there (same hue,
+# contrast at least 3.0). The base color is what gets saved; back on a dark background
+# everything is as before. Here you can set individual light variants yourself:
+# name as above = "#rrggbb" (or another color name).
+# See what comes out automatically: python colors.py
 [colors.light]
 # yellow = "#8f5e15"
 # foreground = "#343b58"
 
 [size]
-# Größe in 4 Stufen, Alt+A S D F wählt Stufe 1-4 (auch per Klick auf die Leiste).
-# Gilt als Strichstärke für Formen und als Schriftgröße für Text, Werte in Pixeln.
-default = 2                  # Stufe beim Start
-stroke = [2, 4, 8, 12]       # Strichstärke, je 1-100
-text = [16, 28, 40, 64]      # Schriftgröße, je 6-300
+# Size in 4 levels, Alt+A S D F picks level 1-4 (also by clicking the bar).
+# Used as stroke width for shapes and as font size for text, values in pixels.
+default = 2                  # level at startup
+stroke = [2, 4, 8, 12]       # stroke width, each 1-100
+text = [16, 28, 40, 64]      # font size, each 6-300
 
 [ui]
-# Farben der Leiste und der Einblendungen. Namen wie in [colors] plus "background"
-# (Hintergrund aus Alacritty colors.primary) oder direkt "#rrggbb".
+# Colors of the bar and the overlays. Names as in [colors] plus "background"
+# (background from Alacritty colors.primary) or directly "#rrggbb".
 bar_background = "background"
-bar_foreground = "foreground"   # Symbole, Rahmen, Beschriftung
-bar_accent = "blue"             # Hervorhebungen, z. B. Tasten in der Übersicht (?)
-bar_heading = "magenta"         # Überschriften, z. B. WERKZEUGE in der Übersicht (?)
-bar_opacity = 0.9               # Deckkraft des Hintergrunds, 0-1
-show_bar = false                # Leiste beim Start im Screenshot-Modus zeigen? (b schaltet um)
-show_bar_board = true           # dasselbe im Whiteboard
-# Kurze Meldungen (Gespeichert, Kopiert, Fehler): "dunst" (notify-send) oder "toast"
-# (Einblendung im Fenster). Fehlt notify-send, wird automatisch "toast" genommen.
+bar_foreground = "foreground"   # icons, frames, labels
+bar_accent = "blue"             # highlights, e.g. keys in the overview (?)
+bar_heading = "magenta"         # headings, e.g. TOOLS in the overview (?)
+bar_opacity = 0.9               # opacity of the background, 0-1
+show_bar = false                # show the bar at startup in screenshot mode? (b toggles)
+show_bar_board = true           # the same in the whiteboard
+# Short messages (saved, copied, errors): "dunst" (notify-send) or "toast"
+# (overlay in the window). If notify-send is missing, "toast" is used automatically.
 messages = "dunst"
-# Nachfragen (z. B. "Speichern?" beim Schließen des Whiteboards): "rofi" (rofi -dmenu,
-# Auswahl mit Pfeiltasten oder Fuzzy-Eingabe) oder "qt" (Qt-Dialog). Fehlt rofi: "qt".
+# Prompts (e.g. "Save?" when closing the whiteboard): "rofi" (rofi -dmenu,
+# choose with arrow keys or fuzzy input) or "qt" (Qt dialog). If rofi is missing: "qt".
 dialogs = "rofi"
-# Eigenes rofi-Theme für die Nachfragen; ohne Angabe rofi/slate.rasi im Projekt
-# (lädt zusätzlich ~/.config/rofi/colors.rasi, falls vorhanden)
+# Own rofi theme for the prompts; if not set, rofi/slate.rasi in the project
+# (additionally loads ~/.config/rofi/colors.rasi, if it exists)
 # rofi_theme = "~/.config/rofi/themes/slate.rasi"
 
 [board]
-# Whiteboard (python slate.py --board): Hintergrundfarbe. Name wie in [colors],
-# "background" (Alacritty-Hintergrund) oder "#rrggbb"
+# Whiteboard (python slate.py --board): background color. Name as in [colors],
+# "background" (Alacritty background) or "#rrggbb"
 background = "background"
-# Hintergründe zum Durchblättern mit Strg+B / Strg+Shift+B (Undo-Schritt, wird mitgespeichert).
-# Namen wie oben. Steht der Start-Hintergrund nicht in der Liste, geht es beim ersten los.
-backgrounds = ["background", "#f8f6f0"]   # Alacritty (dunkel), Papierweiß (hell)
+# Backgrounds to cycle through with Ctrl+B / Ctrl+Shift+B (undo step, saved with the drawing).
+# Names as above. If the start background is not in the list, cycling starts with the first one.
+backgrounds = ["background", "#f8f6f0"]   # Alacritty (dark), paper white (light)
 
 [rect]
-# Eckenradius neuer Rechtecke in Pixeln (0 = spitze Ecken, höchstens 200).
-# Bei kleinen Rechtecken verkleinert sich die Rundung von selbst. Jedes Rechteck
-# speichert seinen Radius; eine Änderung hier gilt nur für neu gezeichnete.
-radius = 8          # Screenshot-Modus
-radius_board = 20   # Whiteboard
+# Corner radius of new rectangles in pixels (0 = sharp corners, at most 200).
+# For small rectangles the rounding shrinks by itself. Every rectangle
+# stores its radius; a change here only applies to newly drawn ones.
+radius = 8          # screenshot mode
+radius_board = 20   # whiteboard
 
 [move]
-# Ausgewähltes Element mit h j k l verschieben: Bildschirm-Pixel pro Tastendruck (1-500)
+# Move the selected element with h j k l: screen pixels per key press (1-500)
 step = 10          # h j k l
 step_fine = 1      # Shift+h j k l
 
 [output]
-# Ordner für Strg+S (Zeichnung) und Strg+E (Export), PNG mit Zeitstempel. ~ ist erlaubt.
-# Standard: ~/Pictures/slate
+# Folder for Ctrl+S (drawing) and Ctrl+E (export), PNG with a timestamp. ~ is allowed.
+# Default: ~/Pictures/slate
 dir = "~/Pictures/slate"
 
 [pointer]
-# Zeigen im Unterricht: e = Spotlight, Shift+E = Lupe. Radien in Pixeln für einen
-# 1080-px-Bildschirm, auf größeren Monitoren wachsen sie mit (4K = doppelt), je 20-600.
-spotlight_radius = 90   # Kreis, der beim Spotlight hell bleibt
-lens_radius = 100       # Größe der Lupe
-spotlight_dim = 45      # Abdunklung außerhalb des Spotlights in Prozent (0-100)
-lens_zoom = 2.0         # Vergrößerung der Lupe (1.1-10)
+# Pointing while teaching: e = spotlight, Shift+E = magnifier. Radii in pixels for a
+# 1080 px screen, they grow on larger monitors (4K = double), each 20-600.
+spotlight_radius = 90   # circle that stays bright with the spotlight
+lens_radius = 100       # size of the magnifier
+spotlight_dim = 45      # darkening outside the spotlight in percent (0-100)
+lens_zoom = 2.0         # magnification of the magnifier (1.1-10)
 
 [history]
-# Verlauf: Jeder Screenshot, auf dem du etwas änderst, wird automatisch als bearbeitbares
-# PNG gespeichert (kurz nach jeder Änderung und beim Beenden) und lässt sich mit ← / →
-# wieder aufrufen. Screenshots ohne Änderung und Whiteboards landen nicht im Verlauf.
-# Ein Eintrag enthält den Screenshot zweimal (fertig + roh), bei 4K etwa 2-6 MB;
-# 100 Einträge also bis zu einige hundert MB.
+# History: every screenshot you change something on is saved automatically as an editable
+# PNG (shortly after each change and when quitting) and can be brought back with ← / →.
+# Screenshots without changes and whiteboards do not end up in the history.
+# An entry contains the screenshot twice (finished + raw), about 2-6 MB at 4K;
+# so 100 entries take up to a few hundred MB.
 enabled = true
 dir = "~/.local/share/slate/history"
-keep = 100          # so viele Einträge bleiben, ältere werden beim Anlegen eines neuen gelöscht (1-100000)
+keep = 100          # this many entries stay, older ones get deleted when a new one is created (1-100000)
 
 [keys]
-# Aktion = Taste. Nur eintragen, was vom Standard abweichen soll; hier stehen alle Standardwerte.
-# Schreibweise wie in Qt-Menüs: "r", "shift+r", "ctrl+z", "alt+a", "tab", "f1".
-# Mehrere Tasten für eine Aktion als Liste: ["delete", "backspace"].
-# "" = Aktion ohne Taste. Esc ist fest (Texteingabe beenden bzw. Tool beenden).
-# Doppelt belegt: Was hier steht, gewinnt; die andere Aktion verliert ihre Taste (Warnung im Terminal).
-tool_select = "w"            # Auswahl-Werkzeug (steht in der Leiste immer vorne)
-delete = ["delete", "backspace"]   # Auswahl löschen; Liste = mehrere Tasten
+# Action = key. Only add what should differ from the default; all default values are listed here.
+# Spelling as in Qt menus: "r", "shift+r", "ctrl+z", "alt+a", "tab", "f1".
+# Several keys for one action as a list: ["delete", "backspace"].
+# "" = action without a key. Esc is fixed (end text input or quit the tool).
+# Bound twice: what is written here wins; the other action loses its key (warning in the terminal).
+tool_select = "w"            # select tool (always first in the bar)
+delete = ["delete", "backspace"]   # delete the selection; list = several keys
 undo = "r"
 redo = "shift+r"
 color_next = "tab"
 color_prev = "shift+tab"
-copy_quit = "return"       # Bild in die Zwischenablage und beenden (Whiteboard: nur kopieren)
-copy_path_quit = "shift+return"  # speichern wie Strg+S, absoluten Pfad kopieren, beenden (Whiteboard: offen)
-quit = "ctrl+q"            # beenden; im Whiteboard die einzige Taste dafür
-zoom_reset = "ctrl+0"      # Whiteboard: Zoom zurück auf 100 %
-overview = "ctrl+w"        # Whiteboard: Übersicht (alles einpassen), erneut = zurück
-background_next = "ctrl+b"        # Whiteboard: nächster Hintergrund aus [board] backgrounds
-background_prev = "ctrl+shift+b"  # Whiteboard: voriger Hintergrund
-# Auswahl verschieben (Schrittweiten in [move]), Shift = fein
+copy_quit = "return"       # image to the clipboard and quit (whiteboard: only copy)
+copy_path_quit = "shift+return"  # save like Ctrl+S, copy the absolute path, quit (whiteboard: stays open)
+quit = "ctrl+q"            # quit; in the whiteboard the only key for it
+zoom_reset = "ctrl+0"      # whiteboard: zoom back to 100 %
+overview = "ctrl+w"        # whiteboard: overview (fit everything), again = back
+background_next = "ctrl+b"        # whiteboard: next background from [board] backgrounds
+background_prev = "ctrl+shift+b"  # whiteboard: previous background
+# Move the selection (step sizes in [move]), Shift = fine
 move_left = "h"
 move_down = "j"
 move_up = "k"
@@ -126,33 +126,33 @@ move_left_fine = "shift+h"
 move_down_fine = "shift+j"
 move_up_fine = "shift+k"
 move_right_fine = "shift+l"
-copy_image = "ctrl+c"       # mit Auswahl: Elemente kopieren, sonst das Bild (bleibt offen)
-paste = "ctrl+v"            # kopierte Elemente an der Maus einfügen (auch aus anderem Fenster)
-duplicate = "ctrl+d"        # Auswahl verdoppeln (leicht versetzt)
-save = "ctrl+s"            # bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten)
-export_png = "ctrl+e"      # sauberes PNG ohne Bearbeitungsdaten
-history_prev = "left"      # Verlauf: älterer Screenshot
-history_next = "right"     # Verlauf: neuerer Screenshot
-help = "shift+?"           # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
-toggle_bar = "b"           # Leiste ein-/ausblenden
-tool_blur = "z"            # Werkzeug Unschärfe (verpixeln), nur Screenshot-Modus
-select_all = "ctrl+a"      # alles auswählen
-raise = "ctrl+up"                  # Auswahl einen Schritt nach vorne
-lower = "ctrl+down"                # Auswahl einen Schritt nach hinten
-raise_top = "ctrl+shift+up"        # Auswahl ganz nach vorne
-lower_bottom = "ctrl+shift+down"   # Auswahl ganz nach hinten
-tool_marker = "c"          # Marker (nummerierte Kreise); erneut drücken: 1 2 3 / A B C
-crop = "y"                 # Ausschnitt aufziehen; Esc dabei: Ausschnitt aufheben (nur Screenshot-Modus)
-spotlight = "e"            # Zeigen: Spotlight an/aus (alles abgedunkelt außer um die Maus)
-magnifier = "shift+e"      # Zeigen: Lupe an/aus
-# Werkzeug-Plätze: tool_i wählt das Werkzeug an Position i von [tools] order (tool_7-9 ohne Standard)
+copy_image = "ctrl+c"       # with a selection: copy elements, otherwise the image (stays open)
+paste = "ctrl+v"            # paste copied elements at the mouse (also from another window)
+duplicate = "ctrl+d"        # duplicate the selection (slightly offset)
+save = "ctrl+s"            # save the editable drawing (PNG with embedded data)
+export_png = "ctrl+e"      # clean PNG without editing data
+history_prev = "left"      # history: older screenshot
+history_next = "right"     # history: newer screenshot
+help = "shift+?"           # overview of all shortcuts (? = Shift+/ on the US layout)
+toggle_bar = "b"           # show/hide the bar
+tool_blur = "z"            # blur tool (pixelate), screenshot mode only
+select_all = "ctrl+a"      # select all
+raise = "ctrl+up"                  # bring the selection one step forward
+lower = "ctrl+down"                # send the selection one step backward
+raise_top = "ctrl+shift+up"        # bring the selection to the front
+lower_bottom = "ctrl+shift+down"   # send the selection to the back
+tool_marker = "c"          # marker (numbered circles); press again: 1 2 3 / A B C
+crop = "y"                 # draw a crop; Esc meanwhile: remove the crop (screenshot mode only)
+spotlight = "e"            # pointing: spotlight on/off (everything darkened except around the mouse)
+magnifier = "shift+e"      # pointing: magnifier on/off
+# Tool slots: tool_i picks the tool at position i of [tools] order (tool_7-9 without a default)
 tool_1 = "a"
 tool_2 = "s"
 tool_3 = "d"
 tool_4 = "f"
 tool_5 = "g"
 tool_6 = "t"
-# Farb-Plätze: color_i wählt Feld i der Farbleiste (color_11-17 ohne Standard)
+# Color slots: color_i picks field i of the color bar (color_11-17 without a default)
 color_1 = "shift+a"
 color_2 = "shift+s"
 color_3 = "shift+d"
@@ -163,7 +163,7 @@ color_7 = "shift+x"
 color_8 = "shift+c"
 color_9 = "shift+v"
 color_10 = "shift+b"
-# Größen-Stufen ([size])
+# Size levels ([size])
 size_1 = "alt+a"
 size_2 = "alt+s"
 size_3 = "alt+d"

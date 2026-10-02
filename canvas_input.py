@@ -1,14 +1,14 @@
-"""Eingabe-Teil der Canvas: Maus (zeichnen, auswählen, verschieben, Griffe ziehen),
-Texteingabe, Auswahlrahmen mit Griffen, Mausrad (Größe fein, im Whiteboard verschieben/
-zoomen über BoardMixin), Auswahl mit hjkl verschieben und löschen.
+"""Input part of the Canvas: mouse (draw, select, move, drag handles),
+text input, selection frame with handles, mouse wheel (fine size, on the whiteboard pan/
+zoom via BoardMixin), moving the selection with hjkl and deleting.
 
-Mixin wie BoardMixin (canvas_board.py): kein eigenes __init__, Canvas erbt davon.
-super().mousePressEvent(event) usw. landet bei QGraphicsView (Qts Standardverhalten,
-z. B. Cursor setzen im Text-Editor).
+Mixin like BoardMixin (canvas_board.py): no __init__ of its own, Canvas inherits from it.
+super().mousePressEvent(event) etc. ends up in QGraphicsView (Qt's default behavior,
+e.g. setting the cursor in the text editor).
 
-Verwaltet (angelegt in Canvas.__init__): current_item, start_pos, editing_text,
+Manages (created in Canvas.__init__): current_item, start_pos, editing_text,
 editing_old, dragging, drag_offset, drag_start, passthrough, wheel_rest, resizing, panning.
-Liest aus der Canvas: tool, board, board_color, pen_color, pen_width, text_size, scene_,
+Reads from the Canvas: tool, board, board_color, pen_color, pen_width, text_size, scene_,
 settings, toast, undo_stack, selected_element(), element_at(), zoom(), update_bars(),
 pan_by(), pan_by_wheel(), zoom_by_wheel().
 """
@@ -25,20 +25,20 @@ from tools import Tool
 
 
 class InputMixin:
-    # --- Maus: zeichnen, auswählen, verschieben, Griffe ziehen ---
+    # --- Mouse: draw, select, move, drag handles ---
     def mousePressEvent(self, event):
         if not self.board and not self.isActiveWindow():
-            self.take_focus()  # ein Hotkey hat den Fokus woanders hingelegt: per Klick zurück
-        if self.help_panel.isVisible():  # Klick neben die Tastenübersicht schließt nur sie
+            self.take_focus()  # a hotkey moved the focus elsewhere: take it back on click
+        if self.help_panel.isVisible():  # a click next to the shortcut overview only closes it
             self.help_panel.hide()
             return
         if self.pointer_mode and event.button() == Qt.LeftButton:
-            return  # Spotlight/Lupe: Klicks zeichnen nichts (mittlere Taste verschiebt weiter)
+            return  # spotlight/magnifier: clicks draw nothing (middle button still pans)
         if self.cropping and event.button() == Qt.LeftButton:
-            self.crop_press(self.mapToScene(event.position().toPoint()))  # Ausschnitt aufziehen
+            self.crop_press(self.mapToScene(event.position().toPoint()))  # draw the crop
             return
         if event.button() == Qt.MiddleButton and self.board:
-            self.panning = event.position()  # Ansicht verschieben beginnt
+            self.panning = event.position()  # panning the view starts
             self.viewport().setCursor(Qt.ClosedHandCursor)
             return
         if event.button() != Qt.LeftButton:
@@ -47,32 +47,32 @@ class InputMixin:
 
         if self.editing_text:
             if self.editing_text.contains(self.editing_text.mapFromScene(pos)):
-                # Klick in den gerade bearbeiteten Text: Qt setzt Cursor bzw. markiert
+                # Click into the text being edited: Qt sets the cursor or selects
                 self.passthrough = True
                 super().mousePressEvent(event)
                 return
-            # Klick daneben beendet die Eingabe nur
+            # A click next to it only ends the input
             self.finish_text()
             if self.tool in (Tool.TEXT, Tool.SELECT):
                 return
 
         if self.tool == Tool.SELECT:
             handle = self.handle_at(pos)
-            if handle is not None:  # Griff anfassen = Größe ändern
+            if handle is not None:  # grabbing a handle = resize
                 item = self.selected_element()
                 self.resizing = (item, handle, item.geometry())
                 return
             item = self.element_at(pos)
             shift = bool(event.modifiers() & Qt.ShiftModifier)
-            if item and shift:  # Shift+Klick: Element zur Auswahl dazu bzw. heraus
+            if item and shift:  # Shift+click: add element to the selection or remove it
                 item.setSelected(not item.isSelected())
-            elif item:  # anklicken = auswählen und anfassen; Teil einer Auswahl: ziehen bewegt alle
+            elif item:  # click = select and grab; part of a selection: dragging moves all
                 if not item.isSelected():
                     self.scene_.clearSelection()
                     item.setSelected(True)
                 self.start_drag(self.selected_elements(), pos)
-                self.click_only = item  # Loslassen ohne Ziehen: nur dieses Element auswählen
-            else:  # leere Stelle: Auswahlrahmen aufziehen (Shift: zur Auswahl dazu)
+                self.click_only = item  # release without dragging: select only this element
+            else:  # empty spot: draw a selection rectangle (Shift: add to the selection)
                 before = self.selected_elements() if shift else []
                 if not shift:
                     self.scene_.clearSelection()
@@ -82,13 +82,13 @@ class InputMixin:
 
         if self.tool == Tool.TEXT:
             item = self.text_at(pos)
-            if item:  # vorhandenen Text anfassen zum Verschieben
+            if item:  # grab existing text to move it
                 self.start_drag([item], pos)
             else:
                 self.start_text(pos)
             return
 
-        if self.current_item is not None:  # vorige Form ohne Loslassen (z. B. Doppelklick)
+        if self.current_item is not None:  # previous shape without release (e.g. double click)
             self.finish_shape(pos)
         self.start_pos = pos
         self.current_item = ShapeElement(self.tool, pos, self.pen_color, self.pen_width,
@@ -99,14 +99,14 @@ class InputMixin:
         self.scene_.addItem(self.current_item)
 
     def mouseDoubleClickEvent(self, event):
-        # Qt schickt beim zweiten Klick statt mousePressEvent ein DoubleClick-Event
+        # On the second click Qt sends a DoubleClick event instead of mousePressEvent
         pos = self.mapToScene(event.position().toPoint())
         if self.editing_text:
             if self.editing_text.contains(self.editing_text.mapFromScene(pos)):
                 self.passthrough = True
-                super().mouseDoubleClickEvent(event)  # im Editor: Wort markieren
+                super().mouseDoubleClickEvent(event)  # in the editor: select a word
             else:
-                self.mousePressEvent(event)  # daneben: Eingabe beenden wie bei einem Klick
+                self.mousePressEvent(event)  # next to it: end input like a click
             return
         item = self.text_at(pos) if self.tool in (Tool.TEXT, Tool.SELECT) else None
         left = event.button() == Qt.LeftButton
@@ -114,12 +114,12 @@ class InputMixin:
             self.dragging = None
             self.edit_text(item, old=(item.toPlainText(), item.color, item.font_size))
         elif left and self.tool == Tool.SELECT and self.element_at(pos) is None:
-            # Auswahl-Werkzeug, Doppelklick auf leere Stelle: neuer Text (wie Excalidraw).
-            # Nur hier, in Zeichenwerkzeugen hätte der erste Klick schon etwas gezeichnet
+            # Select tool, double click on an empty spot: new text (like Excalidraw).
+            # Only here, in drawing tools the first click would already have drawn something
             self.dragging = None
             self.start_text(pos)
         else:
-            self.mousePressEvent(event)  # sonst wie ein normaler Klick behandeln
+            self.mousePressEvent(event)  # otherwise treat it like a normal click
 
     def mouseMoveEvent(self, event):
         if self.panning is not None:
@@ -128,12 +128,12 @@ class InputMixin:
             self.pan_by(delta.x(), delta.y())
             return
         if self.pointer_mode:
-            self.viewport().update()  # Spotlight/Lupe folgen der Maus
+            self.viewport().update()  # spotlight/magnifier follow the mouse
             return
         if self.crop_drag is not None:
             self.crop_move(self.mapToScene(event.position().toPoint()))
             return
-        if self.cropping:  # Zeiger über Griffen bzw. im Ausschnitt anpassen
+        if self.cropping:  # adjust the cursor over handles or inside the crop
             self.crop_hover(self.mapToScene(event.position().toPoint()))
             return
         if self.passthrough:
@@ -152,7 +152,7 @@ class InputMixin:
             delta = pos - self.drag_origin
             for item, start in zip(self.dragging, self.drag_starts):
                 item.setPos(start + delta)
-            self.viewport().update()  # Griffe wandern mit
+            self.viewport().update()  # handles move along
             return
         if self.rubber is not None:
             start, _, before = self.rubber
@@ -160,9 +160,9 @@ class InputMixin:
             self.select_in_rubber()
             return
         if self.current_item is None:
-            self.update_cursor(pos)  # nur Bewegung ohne Taste
+            self.update_cursor(pos)  # only movement without a button
             return
-        # Werkzeug des Elements, nicht self.tool: ein Tastendruck mitten im Ziehen ändert nichts mehr
+        # Tool of the element, not self.tool: a key press in the middle of dragging changes nothing
         if self.current_item.tool == Tool.FREEHAND:
             self.current_item.add_point(pos)
         else:
@@ -185,15 +185,15 @@ class InputMixin:
         if self.resizing:
             item, _, start = self.resizing
             self.resizing = None
-            if item.geometry() != start:  # nur echte Änderung ist ein Undo-Schritt
-                self.undo_stack.push(PropertyCommand(item.set_geometry, start, item.geometry(), "Größe ändern"))
+            if item.geometry() != start:  # only a real change is an undo step
+                self.undo_stack.push(PropertyCommand(item.set_geometry, start, item.geometry(), "Resize"))
             return
         if self.dragging:
             items, starts, only = self.dragging, self.drag_starts, self.click_only
             self.dragging = self.drag_starts = self.drag_origin = self.click_only = None
-            if any(item.pos() != start for item, start in zip(items, starts)):  # nur echtes Verschieben
+            if any(item.pos() != start for item, start in zip(items, starts)):  # only real moving
                 self.undo_stack.push(MoveItemCommand(items, starts, [i.pos() for i in items]))
-            elif only is not None and len(items) > 1:  # bloßer Klick in eine Mehrfachauswahl
+            elif only is not None and len(items) > 1:  # a plain click into a multi-selection
                 self.scene_.clearSelection()
                 only.setSelected(True)
                 self.update_bars()
@@ -207,13 +207,13 @@ class InputMixin:
         self.finish_shape(self.mapToScene(event.position().toPoint()))
 
     def start_drag(self, items, pos):
-        """Elemente zum Verschieben anfassen (ein Undo-Schritt beim Loslassen)."""
+        """Grab elements for moving (one undo step on release)."""
         self.dragging = list(items)
         self.drag_origin = QPointF(pos)
         self.drag_starts = [QPointF(i.pos()) for i in items]
 
     def select_in_rubber(self):
-        """Auswahl = was ganz im Rahmen liegt (plus Auswahl davor bei Shift)."""
+        """Selection = whatever lies completely inside the rectangle (plus the previous selection with Shift)."""
         start, end, before = self.rubber
         rect = QRectF(start, end).normalized()
         for item in self.elements():
@@ -221,11 +221,11 @@ class InputMixin:
         self.update_bars()
 
     def finish_shape(self, pos):
-        """Aufgezogene Form abschließen: als Undo-Schritt ablegen oder, wenn zu klein, verwerfen."""
-        # Versehentlicher Klick ohne Ziehen: leere Form wieder wegwerfen
+        """Finish the drawn shape: push it as an undo step or, if too small, discard it."""
+        # Accidental click without dragging: throw the empty shape away again
         too_small = (pos - self.start_pos).manhattanLength() < 3
         if self.current_item.tool == Tool.MARKER and too_small:
-            self.current_item.set_end(self.start_pos)  # Klick: nur der Kreis, ohne Zeigelinie
+            self.current_item.set_end(self.start_pos)  # click: only the circle, without a pointer line
         if self.current_item.tool not in (Tool.FREEHAND, Tool.MARKER) and too_small:
             self.scene_.removeItem(self.current_item)
         else:
@@ -235,36 +235,36 @@ class InputMixin:
 
     # --- Text ---
     def start_text(self, pos):
-        """Neues Textobjekt an pos anlegen und direkt zum Tippen fokussieren."""
+        """Create a new text object at pos and focus it right away for typing."""
         item = TextElement(pos, self.pen_color, self.text_size)
-        # Klickpunkt ungefähr auf Höhe der Zeilenmitte
+        # Click point roughly at the height of the middle of the line
         item.setPos(pos - QPointF(0, item.boundingRect().height() / 2))
         self.scene_.addItem(item)
         self.edit_text(item, old=None)
 
     def edit_text(self, item, old):
-        """Item zum Tippen öffnen. old = (Text, Farbe, Größe) vorher, None bei neuem Text."""
-        self.scene_.clearSelection()  # beim Tippen keinen Auswahlrahmen zeigen
+        """Open item for typing. old = (text, color, size) before, None for new text."""
+        self.scene_.clearSelection()  # do not show a selection frame while typing
         item.start_editing()
         self.editing_text = item
         self.editing_old = old
 
     def finish_text(self):
-        """Eingabe beenden und als Undo-Schritt ablegen; leerer Text verschwindet."""
+        """End the input and push it as an undo step; empty text disappears."""
         item, old = self.editing_text, self.editing_old
         self.editing_text = self.editing_old = None
         item.stop_editing()
         new = (item.toPlainText(), item.color, item.font_size)
         empty = not new[0].strip()
 
-        if old is None:  # neuer Text
+        if old is None:  # new text
             if empty:
                 self.scene_.removeItem(item)
             else:
-                self.undo_stack.push(AddItemCommand(self.scene_, item, "Text hinzufügen"))
+                self.undo_stack.push(AddItemCommand(self.scene_, item, "Add text"))
         elif empty:
-            # Makro: mehrere Befehle, die mit einem Undo gemeinsam zurückgenommen werden
-            self.undo_stack.beginMacro("Text löschen")
+            # Macro: several commands that are undone together with one undo
+            self.undo_stack.beginMacro("Delete text")
             self.undo_stack.push(EditTextCommand(item, old, new))
             self.undo_stack.push(RemoveItemCommand(self.scene_, item))
             self.undo_stack.endMacro()
@@ -272,19 +272,19 @@ class InputMixin:
             self.undo_stack.push(EditTextCommand(item, old, new))
 
     def text_at(self, pos):
-        """Oberstes Textobjekt an der Szenenposition pos oder None."""
-        for item in self.scene_.items(pos):  # sortiert von oben nach unten
+        """Topmost text object at scene position pos or None."""
+        for item in self.scene_.items(pos):  # sorted top to bottom
             if isinstance(item, TextElement):
                 return item
         return None
 
-    # --- Griffe und Auswahlrahmen ---
+    # --- Handles and selection frame ---
     def handle_at(self, pos):
-        """Nummer des Griffs der Auswahl an Szenenposition pos oder None."""
+        """Number of the selection's handle at scene position pos or None."""
         item = self.selected_element()
         if item is None or self.tool != Tool.SELECT or self.editing_text:
             return None
-        grab = HANDLE_GRAB / self.zoom()  # Fangradius in Szenen-Einheiten
+        grab = HANDLE_GRAB / self.zoom()  # grab radius in scene units
         for i, local in enumerate(item.handle_points()):
             point = item.mapToScene(local)
             if abs(point.x() - pos.x()) <= grab and abs(point.y() - pos.y()) <= grab:
@@ -292,7 +292,7 @@ class InputMixin:
         return None
 
     def update_cursor(self, pos):
-        """Mauszeiger im Auswahl-Werkzeug: eigener Pfeil, über Griffen ein Größen-Pfeil."""
+        """Mouse cursor in the select tool: own arrow, a resize arrow over handles."""
         if self.tool != Tool.SELECT:
             return
         handle = self.handle_at(pos)
@@ -301,27 +301,27 @@ class InputMixin:
             cursor = self.tool_cursor()
         elif isinstance(item, ShapeElement) and item.tool in (Tool.LINE, Tool.ARROW):
             cursor = Qt.SizeAllCursor
-        else:  # Ecken 0/2 diagonal ↖↘, 1/3 diagonal ↗↙
+        else:  # corners 0/2 diagonal ↖↘, 1/3 diagonal ↗↙
             cursor = Qt.SizeFDiagCursor if handle in (0, 2) else Qt.SizeBDiagCursor
         self.viewport().setCursor(cursor)
 
     def drawForeground(self, painter, rect):
-        """Rahmen und Griffe der Auswahl über allem zeichnen.
+        """Draw the frame and handles of the selection on top of everything.
 
-        Qt-Konzept: drawForeground gehört zur Ansicht, nicht zur Szene. Was hier
-        gezeichnet wird, landet darum nie im exportierten Bild (scene.render).
+        Qt concept: drawForeground belongs to the view, not the scene. Whatever is
+        drawn here therefore never ends up in the exported image (scene.render).
         """
         self.paint_selection(painter)
-        self.paint_crop(painter)     # Ausschnitt: außerhalb abdunkeln (canvas_crop.py)
-        self.paint_pointer(painter)  # Spotlight/Lupe über allem (canvas_pointer.py)
+        self.paint_crop(painter)     # crop: darken outside (canvas_crop.py)
+        self.paint_pointer(painter)  # spotlight/magnifier on top of everything (canvas_pointer.py)
 
     def paint_selection(self, painter):
-        """Rahmen und Griffe der Auswahl (nur im Auswahl-Werkzeug). Ein Element: Rahmen mit
-        Griffen; mehrere: je ein gestrichelter Rahmen ohne Griffe; dazu der Auswahlrahmen."""
+        """Frame and handles of the selection (only in the select tool). One element: frame with
+        handles; several: a dashed frame each without handles; plus the selection rectangle."""
         if self.tool != Tool.SELECT or self.editing_text:
             return
         line, fill = self.selection_colors()
-        if self.rubber is not None:  # Auswahlrahmen beim Aufziehen
+        if self.rubber is not None:  # selection rectangle while dragging
             start, end, _ = self.rubber
             band = QPen(line, 1, Qt.DashLine)
             band.setCosmetic(True)
@@ -345,9 +345,9 @@ class InputMixin:
             return
         points = [item.mapToScene(p) for p in item.handle_points()]
         painter.setRenderHint(QPainter.Antialiasing)
-        if len(points) == 4:  # Rahmen durch die Ecken (bei Linien nur die Endpunkte)
+        if len(points) == 4:  # frame through the corners (for lines only the end points)
             frame = QPen(line, 1, Qt.DashLine)
-            frame.setCosmetic(True)  # immer 1 Pixel, unabhängig von Zoom/Transformation
+            frame.setCosmetic(True)  # always 1 pixel, regardless of zoom/transformation
             painter.setPen(frame)
             painter.setBrush(Qt.NoBrush)
             painter.drawPolygon(QPolygonF(points))
@@ -355,13 +355,13 @@ class InputMixin:
         outline.setCosmetic(True)
         painter.setPen(outline)
         painter.setBrush(QBrush(fill))
-        size = HANDLE_SIZE / self.zoom()  # auf dem Bildschirm immer gleich groß
+        size = HANDLE_SIZE / self.zoom()  # always the same size on screen
         for p in points:
             painter.drawRect(QRectF(p.x() - size / 2, p.y() - size / 2, size, size))
 
     def selection_colors(self):
-        """(Linie, Füllung) für Auswahlrahmen und Griffe: die Leistenfarbe mit mehr
-        Kontrast zum Whiteboard-Hintergrund als Linie, damit sie auf hell und dunkel sichtbar ist."""
+        """(line, fill) for selection frame and handles: the bar color with more
+        contrast to the whiteboard background as the line, so it is visible on light and dark."""
         line, fill = QColor(self.settings.theme.foreground), QColor(self.settings.theme.background)
         if self.board and contrast(fill.name(), self.board_color.name()) > \
                 contrast(line.name(), self.board_color.name()):
@@ -370,9 +370,9 @@ class InputMixin:
         line.setAlpha(255)
         return line, fill
 
-    # --- Mausrad und Tasten für die Auswahl ---
+    # --- Mouse wheel and keys for the selection ---
     def wheelEvent(self, event):
-        """Alt+Mausrad: Größe fein einstellen. Whiteboard: Mausrad verschiebt, Strg+Mausrad zoomt."""
+        """Alt+wheel: fine size adjustment. Whiteboard: wheel pans, Ctrl+wheel zooms."""
         mods = event.modifiers()
         if self.board and not mods & Qt.AltModifier:
             event.accept()
@@ -385,26 +385,26 @@ class InputMixin:
             super().wheelEvent(event)
             return
         event.accept()
-        # Mit Alt meldet Qt das Mausrad unter Linux als waagerecht, darum beide Achsen
+        # With Alt, Qt on Linux reports the mouse wheel as horizontal, so use both axes
         delta = event.angleDelta()
         self.wheel_rest += delta.y() or delta.x()
-        steps = int(self.wheel_rest / 120)  # 120 = eine Raste
+        steps = int(self.wheel_rest / 120)  # 120 = one notch
         if steps == 0:
             return
         self.wheel_rest -= steps * 120
         self.adjust_size(steps)
 
     def adjust_size(self, steps):
-        """Größe um steps Rasten ändern, unabhängig von den Stufen."""
-        if self.editing_text:  # Undo-Schritt entsteht beim Beenden der Eingabe
+        """Change the size by steps notches, independent of the levels."""
+        if self.editing_text:  # the undo step is created when the input ends
             item = self.editing_text
             item.set_font_size(clamp(item.font_size + steps * WHEEL_TEXT_STEP, TEXT_SIZE_RANGE))
             return
         items = self.selected_elements()
         if not items:
-            self.toast.show_message("Alt+Mausrad: erst etwas auswählen (W)")
+            self.toast.show_message("Alt+wheel: select something first (W)")
             return
-        changes = []  # jedes Element um dieselben Rasten, ein Undo-Schritt
+        changes = []  # every element by the same notches, one undo step
         for item in items:
             if isinstance(item, TextElement):
                 old = item.font_size
@@ -413,24 +413,24 @@ class InputMixin:
                 old = item.width
                 changes.append((item.set_width, old, clamp(old + steps * WHEEL_STROKE_STEP, STROKE_WIDTH_RANGE)))
         if changes and any(old != new for _, old, new in changes):
-            self.undo_stack.push(property_command(changes, "Größe ändern", mergeable=True))
-            self.update_bars()  # beim Zusammenfassen meldet der Stack keine Änderung
+            self.undo_stack.push(property_command(changes, "Change size", mergeable=True))
+            self.update_bars()  # when merging, the stack reports no change
 
     def move_selected(self, dx, dy, fine):
-        """Auswahl um einen Schritt (Bildschirm-Pixel, zoomunabhängig) verschieben."""
+        """Move the selection by one step (screen pixels, independent of zoom)."""
         items = self.selected_elements()
         if not items:
             return
         step = self.settings.move_steps[fine] / self.zoom()
         olds = [QPointF(i.pos()) for i in items]
         news = [p + QPointF(dx * step, dy * step) for p in olds]
-        self.undo_stack.push(MoveItemCommand(items, olds, news, "Verschieben", mergeable=True))
-        self.update_bars()  # Griffe mitbewegen; beim Zusammenfassen meldet der Stack nichts
+        self.undo_stack.push(MoveItemCommand(items, olds, news, "Move", mergeable=True))
+        self.update_bars()  # move the handles along; when merging, the stack reports nothing
 
     def restack(self, step):
-        """Auswahl in der Reihenfolge verschieben: step +1/-1 = ein Element weiter nach
-        vorne/hinten, +2/-2 = ganz nach vorne/hinten. Die Auswahl behält ihre Reihenfolge."""
-        order = self.elements()  # unten -> oben
+        """Move the selection in the stacking order: step +1/-1 = one element further
+        forward/back, +2/-2 = all the way to the front/back. The selection keeps its order."""
+        order = self.elements()  # bottom -> top
         chosen = [e for e in order if e.isSelected()]
         if not chosen:
             return
@@ -439,22 +439,22 @@ class InputMixin:
             rest = [e for e in order if not e.isSelected()]
             new = rest + chosen if step > 0 else chosen + rest
         else:
-            # Ein Schritt: jedes ausgewählte Element tauscht mit dem nächsten nicht ausgewählten
-            # Nachbarn in Richtung step (von der Spitze her, damit Gruppen zusammenbleiben)
+            # One step: every selected element swaps with the next unselected
+            # neighbor in direction step (starting from the tip, so groups stay together)
             indices = range(len(new) - 1, -1, -1) if step > 0 else range(len(new))
             for i in indices:
                 j = i + step
                 if new[i].isSelected() and 0 <= j < len(new) and not new[j].isSelected():
                     new[i], new[j] = new[j], new[i]
         if new != order:
-            self.undo_stack.push(ReorderCommand(order, new, "Nach vorne" if step > 0 else "Nach hinten"))
+            self.undo_stack.push(ReorderCommand(order, new, "Bring forward" if step > 0 else "Send backward"))
 
     def delete_selected(self):
         items = self.selected_elements()
         if not items:
             return
-        self.undo_stack.beginMacro("Löschen")  # mehrere Befehle = ein Undo-Schritt
+        self.undo_stack.beginMacro("Delete")  # several commands = one undo step
         for item in items:
-            item.setSelected(False)  # sonst wäre es nach einem Undo noch markiert
-            self.undo_stack.push(RemoveItemCommand(self.scene_, item, "Löschen"))
+            item.setSelected(False)  # otherwise it would still be selected after an undo
+            self.undo_stack.push(RemoveItemCommand(self.scene_, item, "Delete"))
         self.undo_stack.endMacro()

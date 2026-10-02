@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Regressionstest: zeichnet eine feste Szene ohne Bildschirm und vergleicht das Bild.
+"""Regression test: draws a fixed scene without a screen and compares the image.
 
-    python tests/regress.py            # vergleichen mit tests/regress_reference.png
-    python tests/regress.py --update   # Referenz neu schreiben (nach gewollter Optikänderung)
+    python tests/regress.py            # compare with tests/regress_reference.png
+    python tests/regress.py --update   # rewrite the reference (after an intended visual change)
 
-Die Szene deckt alle Formen, Farben und Größen per Taste, eine verworfene Mini-Form, Text,
-Verschieben von Text, das Auswahl-Werkzeug (Treffer nur am Rand, umfärben, verschieben, Griff ziehen)
-sowie Undo/Redo ab. Läuft über Qts Offscreen-Plattform und
-mit leerem HOME/XDG_CONFIG_HOME: Weder die eigene Config noch das Alacritty-Theme
-beeinflussen das Ergebnis (es gilt die Standardpalette).
+The scene covers all shapes, colors and sizes via keys, a discarded tiny shape, text,
+moving text, the select tool (hit only on the edge, recolor, move, drag a handle)
+and undo/redo. Runs on Qt's offscreen platform and
+with an empty HOME/XDG_CONFIG_HOME: neither your own config nor the Alacritty theme
+affect the result (the default palette applies).
 
-Rückgabewert 0 = Bild identisch, 1 = Abweichung (Differenzbild wird gespeichert).
+Exit code 0 = image identical, 1 = difference (a diff image is saved).
 """
 import os
 import sys
@@ -20,18 +20,18 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 REFERENCE = Path(__file__).resolve().parent / "regress_reference.png"
 
-# Muss vor dem ersten Qt-Import passieren
+# Must happen before the first Qt import
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 _home = tempfile.mkdtemp(prefix="slate-test-")
 os.environ["HOME"] = _home
 os.environ["XDG_CONFIG_HOME"] = str(Path(_home) / ".config")
-os.environ["XDG_RUNTIME_DIR"] = str(Path(_home) / "run")  # z. B. bearbeitbare Kopie (Strg+C), nie die echte
+os.environ["XDG_RUNTIME_DIR"] = str(Path(_home) / "run")  # e.g. editable copy (Ctrl+C), never the real one
 (Path(_home) / "run").mkdir()
 (Path(_home) / ".config" / "slate").mkdir(parents=True)
 (Path(_home) / ".config" / "slate" / "config.toml").write_text(
     '[tools]\norder = ["freehand", "line", "arrow", "rect", "ellipse", "text"]\n'
     'default = "freehand"\n[colors]\ndefault = "red"\n'
-    '[ui]\nshow_bar = true\n'  # Leiste im Bild, damit die Referenz sie mit abdeckt
+    '[ui]\nshow_bar = true\n'  # bar in the image, so the reference covers it too
 )
 sys.path.insert(0, str(REPO))
 
@@ -46,47 +46,47 @@ def draw_scene(canvas, view):
         QTest.mousePress(view, Qt.LeftButton, pos=QPoint(*p1))
         for i in range(1, steps + 1):
             x = p1[0] + (p2[0] - p1[0]) * i // steps
-            y = p1[1] + (p2[1] - p1[1]) * i // steps + (15 if i % 2 else 0)  # Zickzack für Freihand
+            y = p1[1] + (p2[1] - p1[1]) * i // steps + (15 if i % 2 else 0)  # zigzag for freehand
             QTest.mouseMove(view, QPoint(x, y))
         QTest.mouseRelease(view, Qt.LeftButton, pos=QPoint(*p2))
 
     key = lambda k, mod=Qt.NoModifier: QTest.keyClick(canvas, k, mod)  # noqa: E731
-    key(Qt.Key_A); drag((30, 40), (200, 60))                                        # Freihand
-    key(Qt.Key_S); key(Qt.Key_G, Qt.ShiftModifier); drag((30, 120), (200, 170))     # Linie
-    key(Qt.Key_D); key(Qt.Key_D, Qt.ShiftModifier); drag((250, 170), (400, 60))     # Pfeil
-    key(Qt.Key_F); key(Qt.Key_F, Qt.ShiftModifier); key(Qt.Key_D, Qt.AltModifier)  # Rechteck, Stufe 3
+    key(Qt.Key_A); drag((30, 40), (200, 60))                                        # freehand
+    key(Qt.Key_S); key(Qt.Key_G, Qt.ShiftModifier); drag((30, 120), (200, 170))     # line
+    key(Qt.Key_D); key(Qt.Key_D, Qt.ShiftModifier); drag((250, 170), (400, 60))     # arrow
+    key(Qt.Key_F); key(Qt.Key_F, Qt.ShiftModifier); key(Qt.Key_D, Qt.AltModifier)  # rectangle, level 3
     drag((450, 40), (600, 160))
-    key(Qt.Key_S, Qt.AltModifier)                                                   # zurück auf Stufe 2
-    key(Qt.Key_G); key(Qt.Key_Z, Qt.ShiftModifier); drag((620, 40), (780, 160))     # Ellipse
-    key(Qt.Key_F); drag((50, 250), (51, 251))                                       # zu klein
-    key(Qt.Key_T)                                                                   # Text
+    key(Qt.Key_S, Qt.AltModifier)                                                   # back to level 2
+    key(Qt.Key_G); key(Qt.Key_Z, Qt.ShiftModifier); drag((620, 40), (780, 160))     # ellipse
+    key(Qt.Key_F); drag((50, 250), (51, 251))                                       # too small
+    key(Qt.Key_T)                                                                   # text
     QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(60, 300))
     QTest.keyClicks(canvas, "Hallo Welt")
     key(Qt.Key_Escape)
     from elements import TextElement
     text = next(i for i in canvas.scene_.items() if isinstance(i, TextElement))
-    start = canvas.mapFromScene(text.pos() + text.boundingRect().center())          # Text verschieben
+    start = canvas.mapFromScene(text.pos() + text.boundingRect().center())          # move the text
     QTest.mousePress(view, Qt.LeftButton, pos=start)
     QTest.mouseMove(view, start + QPoint(200, 80))
     QTest.mouseRelease(view, Qt.LeftButton, pos=start + QPoint(200, 80))
-    key(Qt.Key_W)                                                                   # Auswahl:
-    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(525, 100))                     # Inneres trifft nicht
-    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(525, 42))                      # Rand trifft
-    key(Qt.Key_X, Qt.ShiftModifier); key(Qt.Key_A, Qt.AltModifier)                 # umfärben, dünner
-    drag((525, 42), (845, 202))                                                     # verschieben
-    key(Qt.Key_Escape)                                                              # abwählen
-    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(700, 42))                      # Ellipse am Rand
+    key(Qt.Key_W)                                                                   # select:
+    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(525, 100))                     # the inside does not hit
+    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(525, 42))                      # the edge hits
+    key(Qt.Key_X, Qt.ShiftModifier); key(Qt.Key_A, Qt.AltModifier)                 # recolor, thinner
+    drag((525, 42), (845, 202))                                                     # move
+    key(Qt.Key_Escape)                                                              # deselect
+    QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(700, 42))                      # ellipse on the edge
     ellipse = canvas.selected_element()
-    assert ellipse is not None, "Ellipse nicht getroffen"
-    corner = canvas.mapFromScene(ellipse.mapToScene(ellipse.handle_points()[2]))    # Griff unten rechts
-    drag((corner.x(), corner.y()), (corner.x() + 60, corner.y() + 60), steps=2)     # Griff: größer
+    assert ellipse is not None, "ellipse not hit"
+    corner = canvas.mapFromScene(ellipse.mapToScene(ellipse.handle_points()[2]))    # bottom right handle
+    drag((corner.x(), corner.y()), (corner.x() + 60, corner.y() + 60), steps=2)     # handle: larger
     key(Qt.Key_Escape)
-    key(Qt.Key_S); drag((500, 300), (700, 450))                                     # Linie …
-    key(Qt.Key_R); key(Qt.Key_R); key(Qt.Key_R, Qt.ShiftModifier)                  # … Undo, Undo, Redo
+    key(Qt.Key_S); drag((500, 300), (700, 450))                                     # line …
+    key(Qt.Key_R); key(Qt.Key_R); key(Qt.Key_R, Qt.ShiftModifier)                  # … undo, undo, redo
 
 
 def main():
-    app = QApplication(sys.argv)  # noqa: F841  (muss existieren)
+    app = QApplication(sys.argv)  # noqa: F841  (must exist)
     from canvas import Canvas
 
     background = QPixmap(1100, 500)
@@ -98,22 +98,22 @@ def main():
     draw_scene(canvas, canvas.viewport())
     image = canvas.grab().toImage()
 
-    stats = f"Objekte: {len(canvas.scene_.items()) - 1}, Undo-Stack: {canvas.undo_stack.count()}, Index: {canvas.undo_stack.index()}"
+    stats = f"Objects: {len(canvas.scene_.items()) - 1}, undo stack: {canvas.undo_stack.count()}, Index: {canvas.undo_stack.index()}"
     if "--update" in sys.argv:
         image.save(str(REFERENCE))
-        print(f"Referenz geschrieben: {REFERENCE}\n{stats}")
+        print(f"Reference written: {REFERENCE}\n{stats}")
         return 0
 
     reference = QImage(str(REFERENCE))
     if reference.isNull():
-        print(f"Keine Referenz gefunden. Erst anlegen mit: python {Path(__file__).name} --update")
+        print(f"No reference found. Create it first with: python {Path(__file__).name} --update")
         return 1
     image = image.convertToFormat(reference.format())
     if image == reference:
-        print(f"OK: Bild identisch mit der Referenz. {stats}")
+        print(f"OK: image identical to the reference. {stats}")
         return 0
 
-    # Abweichung: Differenzbild (rote Pixel) zur Fehlersuche speichern
+    # Difference: save a diff image (red pixels) for debugging
     diff = QImage(reference)
     changed = 0
     if image.size() == reference.size():
@@ -125,8 +125,8 @@ def main():
     out_dir = Path(tempfile.gettempdir())
     image.save(str(out_dir / "regress_actual.png"))
     diff.save(str(out_dir / "regress_diff.png"))
-    print(f"ABWEICHUNG: {changed} Pixel anders (Größe {image.size().toTuple()} vs. {reference.size().toTuple()}). {stats}")
-    print(f"Ist-Bild: {out_dir / 'regress_actual.png'}, Differenz: {out_dir / 'regress_diff.png'}")
+    print(f"DIFFERENCE: {changed} pixels differ (size {image.size().toTuple()} vs. {reference.size().toTuple()}). {stats}")
+    print(f"Actual image: {out_dir / 'regress_actual.png'}, diff: {out_dir / 'regress_diff.png'}")
     return 1
 
 

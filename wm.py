@@ -1,14 +1,14 @@
-"""Fokus zurückgeben nach dem Screenshot-Overlay (herbstluftwm).
+"""Give the focus back after the screenshot overlay (herbstluftwm).
 
-Das Overlay läuft am Window-Manager vorbei und holt sich den Tastaturfokus selbst
-(activateWindow). Früher hatte danach kein Fenster mehr den Fokus, weil herbstluftwm
-von diesem Fokuswechsel nichts mitbekommt und ihn beim Schließen nicht zurückgibt.
-Darum gibt das Tool ihn beim Schließen selbst zurück: an das Fenster, das herbstluftwm
-in diesem Moment als fokussiert führt. So passt es auch, wenn du per Hotkey inzwischen
-den Tag oder das Fenster gewechselt hast.
+The overlay bypasses the window manager and takes the keyboard focus itself
+(activateWindow). Earlier, no window had the focus afterwards, because herbstluftwm
+does not notice this focus change and does not give it back on close.
+So the tool gives it back itself on close: to the window herbstluftwm considers
+focused at that moment. This also works if you have switched the tag or window
+via a hotkey in the meantime.
 
-Ohne herbstluftwm (herbstclient fehlt) oder ohne fokussiertes Fenster passiert nichts.
-Ohne Bildschirm (Tests, QT_QPA_PLATFORM=offscreen) werden nie externe Programme gestartet.
+Without herbstluftwm (herbstclient missing) or without a focused window nothing happens.
+Without a screen (tests, QT_QPA_PLATFORM=offscreen) no external programs are ever started.
 """
 import os
 import shutil
@@ -17,20 +17,20 @@ import sys
 
 
 def _run(cmd):
-    """Befehl ausführen, Ausgabe zurück; bei jedem Problem None."""
+    """Run a command, return its output; None on any problem."""
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=2, check=True)
     except (OSError, subprocess.SubprocessError) as e:
-        print(f"[wm] {' '.join(cmd)} fehlgeschlagen: {e}", file=sys.stderr)
+        print(f"[wm] {' '.join(cmd)} failed: {e}", file=sys.stderr)
         return None
     return result.stdout.strip()
 
 
 def focused_window():
-    """X-Fenster-ID des Fensters, das herbstluftwm gerade fokussiert hat, sonst None."""
+    """X window ID of the window herbstluftwm has focused right now, otherwise None."""
     if os.environ.get("QT_QPA_PLATFORM") == "offscreen" or not shutil.which("herbstclient"):
         return None
-    # Ohne fokussiertes Fenster (leerer Tag) gibt es das Attribut nicht -> Fehler, None
+    # Without a focused window (empty tag) the attribute does not exist -> error, None
     try:
         result = subprocess.run(["herbstclient", "attr", "clients.focus.winid"],
                                 capture_output=True, text=True, timeout=2)
@@ -41,11 +41,11 @@ def focused_window():
 
 
 def restore_focus():
-    """Tastaturfokus an das von herbstluftwm fokussierte Fenster zurückgeben."""
+    """Give the keyboard focus back to the window herbstluftwm has focused."""
     winid = focused_window()
     if winid is None:
         return
     if shutil.which("xdotool"):
-        _run(["xdotool", "windowfocus", winid])  # setzt den X-Fokus direkt
+        _run(["xdotool", "windowfocus", winid])  # sets the X focus directly
     else:
         _run(["herbstclient", "jumpto", winid])

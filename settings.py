@@ -1,10 +1,10 @@
-"""Einstellungen: Standardwerte und alles, was beim Start aus der Config gelesen wird.
+"""Settings: default values and everything read from the config at startup.
 
-Settings sammelt die Werte, die sich während einer Sitzung nicht ändern (Größen-Stufen,
-Palette, Leistenfarben, Schrittweiten …). Was sich ändert (aktuelles Werkzeug, Farbe,
-Stufe, Whiteboard-Hintergrund), gehört der Canvas; sie startet mit den default_*-Werten.
+Settings collects the values that do not change during a session (size levels,
+palette, bar colors, step sizes …). What changes (current tool, color, level,
+whiteboard background) belongs to the Canvas; it starts with the default_* values.
 
-Fehlende oder unbrauchbare Werte führen nie zum Absturz: Hinweis auf stderr, Standardwert.
+Missing or unusable values never cause a crash: a hint on stderr, then the default value.
 """
 import sys
 from pathlib import Path
@@ -19,68 +19,68 @@ from keymap import KeyMap
 from tools import RECT_RADIUS, Tool, parse_tool, tool_order
 from ui import Theme
 
-# Fallbacks, wenn die eigene Config fehlt oder unbrauchbare Werte enthält
+# Fallbacks if your own config is missing or contains unusable values
 DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
 
-# Griffe am Auswahlrahmen: Kantenlänge beim Zeichnen und Fangradius beim Anklicken.
-# Alle drei Werte in Bildschirm-Pixeln, unabhängig vom Zoom
+# Handles on the selection frame: edge length when drawing and grab radius when clicking.
+# All three values in screen pixels, independent of the zoom
 HANDLE_SIZE = 8
 HANDLE_GRAB = 7
-HIT_TOLERANCE = 6  # so weit neben einem Strich zählt ein Klick noch als Treffer (D2)
+HIT_TOLERANCE = 6  # a click this far next to a stroke still counts as a hit (D2)
 
-# Whiteboard-Ansicht: Zoomgrenzen, Faktor pro Mausrad-Raste, Pixel pro Raste beim Verschieben
+# Whiteboard view: zoom limits, factor per wheel notch, pixels per notch when panning
 ZOOM_RANGE = (0.1, 8.0)
 ZOOM_STEP = 1.07
 WHEEL_PAN_STEP = 80
 
-# Whiteboard: halbe Kantenlänge der "unendlichen" Fläche, Rand um den Export ([board] background)
+# Whiteboard: half the edge length of the "infinite" area, margin around the export ([board] background)
 BOARD_EXTENT = 1_000_000
 BOARD_EXPORT_MARGIN = 32
 DEFAULT_BOARD_BACKGROUND = "background"
-# Hintergründe zum Durchblättern (Strg+B): Alacritty-Hintergrund (dunkel), Papierweiß (hell)
+# Backgrounds to cycle through (Ctrl+B): Alacritty background (dark), paper white (light)
 DEFAULT_BOARD_BACKGROUNDS = ("background", "#f8f6f0")
 
-# Auswahl mit hjkl verschieben ([move]): Bildschirm-Pixel pro Tastendruck, normal und fein (Shift)
+# Move the selection with hjkl ([move]): screen pixels per key press, normal and fine (Shift)
 DEFAULT_MOVE_STEP = 10
 DEFAULT_MOVE_STEP_FINE = 1
 MOVE_STEP_RANGE = (1, 500)
 
-# Eckenradius neuer Rechtecke ([rect] in der Config): Screenshot bzw. Whiteboard
+# Corner radius of new rectangles ([rect] in the config): screenshot and whiteboard
 DEFAULT_RECT_RADIUS_BOARD = 20
 RECT_RADIUS_RANGE = (0, 200)
 
-# Feineinstellung per Alt+Mausrad: Pixel pro Raste
+# Fine adjustment via Alt+wheel: pixels per notch
 WHEEL_TEXT_STEP = 2
 WHEEL_STROKE_STEP = 1
 
-# Farben der Leiste ([ui]): Namen wie in [colors] plus "background", oder "#rrggbb"
-DEFAULT_BAR_BACKGROUND = "background"  # Hintergrund aus Alacritty colors.primary
+# Bar colors ([ui]): names as in [colors] plus "background", or "#rrggbb"
+DEFAULT_BAR_BACKGROUND = "background"  # background from Alacritty colors.primary
 DEFAULT_BAR_FOREGROUND = "foreground"
-DEFAULT_BAR_ACCENT = "blue"  # Hervorhebungen, z. B. Tasten in der Übersicht (?)
-DEFAULT_BAR_HEADING = "magenta"  # Überschriften, z. B. in der Übersicht (?)
+DEFAULT_BAR_ACCENT = "blue"  # highlights, e.g. keys in the overview (?)
+DEFAULT_BAR_HEADING = "magenta"  # headings, e.g. in the overview (?)
 DEFAULT_BAR_OPACITY = 0.9
 
-# Größe in Stufen ([size]): Alt+A S D F wählt Stufe 1-4, gilt als Strichstärke
-# für Formen und als Schriftgröße für Text (Werte in Pixeln)
+# Size in levels ([size]): Alt+A S D F picks level 1-4, used as stroke width
+# for shapes and as font size for text (values in pixels)
 SIZE_LEVELS = 4
-DEFAULT_SIZE_LEVEL = 2  # 1-basiert wie in der Config
+DEFAULT_SIZE_LEVEL = 2  # 1-based as in the config
 DEFAULT_STROKE_WIDTHS = (2, 4, 8, 12)
 DEFAULT_TEXT_SIZES = (16, 28, 40, 64)
 STROKE_WIDTH_RANGE = (1, 100)
 TEXT_SIZE_RANGE = (6, 300)
 
-# Zeigen ([pointer]): Radien von Spotlight (e) und Lupe (Shift+E), für 1080 px Bildschirmhöhe
+# Pointing ([pointer]): radii of spotlight (e) and magnifier (Shift+E), for 1080 px screen height
 DEFAULT_SPOTLIGHT_RADIUS = 90
 DEFAULT_LENS_RADIUS = 100
 POINTER_RADIUS_RANGE = (20, 600)
-DEFAULT_SPOTLIGHT_DIM = 45    # Abdunklung außerhalb des Spotlights in Prozent
+DEFAULT_SPOTLIGHT_DIM = 45    # darkening outside the spotlight in percent
 SPOTLIGHT_DIM_RANGE = (0, 100)
-DEFAULT_LENS_ZOOM = 2.0       # Vergrößerung der Lupe
+DEFAULT_LENS_ZOOM = 2.0       # magnification of the magnifier
 LENS_ZOOM_RANGE = (1.1, 10.0)
 
-# Verlauf ([history]): jeden Screenshot automatisch speichern, mit ← → blättern
-DEFAULT_HISTORY_KEEP = 100   # so viele Einträge bleiben, ältere werden beim Anlegen eines neuen gelöscht
+# History ([history]): save every screenshot automatically, browse with ← →
+DEFAULT_HISTORY_KEEP = 100   # this many entries stay, older ones get deleted when a new one is created
 HISTORY_KEEP_RANGE = (1, 100_000)
 
 
@@ -90,44 +90,44 @@ def clamp(value, value_range):
 
 
 def size_values(values, default, value_range, name):
-    """Genau SIZE_LEVELS Zahlen im erlaubten Bereich, sonst die Standardwerte."""
+    """Exactly SIZE_LEVELS numbers in the allowed range, otherwise the default values."""
     if values is None:
         return list(default)
     low, high = value_range
     if len(values) != SIZE_LEVELS or not all(low <= v <= high for v in values):
-        print(f"[size] {name} braucht {SIZE_LEVELS} Werte zwischen {low} und {high}, "
-              f"nehme {list(default)}", file=sys.stderr)
+        print(f"[size] {name} needs {SIZE_LEVELS} values between {low} and {high}, "
+              f"using {list(default)}", file=sys.stderr)
         return list(default)
     return list(values)
 
 class Settings:
     def __init__(self, config, board):
-        """config: geparste config.toml (dict, darf leer sein); board: Whiteboard statt Screenshot."""
-        # Werkzeuge: Reihenfolge, Tasten und Startwerkzeug aus der Config
+        """config: parsed config.toml (dict, may be empty); board: whiteboard instead of screenshot."""
+        # Tools: order, keys and start tool from the config
         self.tools = tool_order(get_list(config, "tools", "order"))
         self.default_tool = parse_tool(get_str(config, "tools", "default") or "") or DEFAULT_TOOL
-        # Tastenbelegung zentral in keymap.py, Overrides aus [keys] der Config
+        # Key bindings central in keymap.py, overrides from [keys] of the config
         self.keymap = KeyMap(config)
 
-        # Größen-Stufen aus [size]; Strichstärke und Schriftgröße ergeben sich aus der Stufe
+        # Size levels from [size]; stroke width and font size follow from the level
         self.stroke_widths = size_values(
             get_int_list(config, "size", "stroke"), DEFAULT_STROKE_WIDTHS, STROKE_WIDTH_RANGE, "stroke")
         self.text_sizes = size_values(
             get_int_list(config, "size", "text"), DEFAULT_TEXT_SIZES, TEXT_SIZE_RANGE, "text")
         level = get_int(config, "size", "default") or DEFAULT_SIZE_LEVEL
         if not 1 <= level <= SIZE_LEVELS:
-            print(f"[size] default={level} außerhalb 1-{SIZE_LEVELS}, nehme {DEFAULT_SIZE_LEVEL}", file=sys.stderr)
+            print(f"[size] default={level} outside 1-{SIZE_LEVELS}, using {DEFAULT_SIZE_LEVEL}", file=sys.stderr)
             level = DEFAULT_SIZE_LEVEL
-        self.default_size_level = level - 1  # intern 0-basiert
-        # Alte Schreibweise [text] size: gilt als Schriftgröße der Startstufe
+        self.default_size_level = level - 1  # 0-based internally
+        # Old spelling [text] size: counts as the font size of the start level
         legacy = get_int(config, "text", "size")
         if legacy is not None and get_int_list(config, "size", "text") is None:
             low, high = TEXT_SIZE_RANGE
             if low <= legacy <= high:
                 self.text_sizes[self.default_size_level] = legacy
 
-        # Farbwerte aus der Alacritty-Config (Fallback: Standardpalette),
-        # Auswahl, Reihenfolge und Startfarbe aus der eigenen Config
+        # Color values from the Alacritty config (fallback: default palette),
+        # choice, order and start color from your own config
         self.palette = load_palette()
         self.swatches = self.palette.swatches(get_list(config, "colors", "order"))
         self.colors = [QColor(c) for c in self.swatches]
@@ -136,35 +136,35 @@ class Settings:
         self.theme = self.load_theme(config)
         self.light_overrides = self.load_light_overrides(config)
 
-        # Whiteboard: Start-Hintergrund und Liste für Strg+B (im Screenshot-Modus None)
+        # Whiteboard: start background and list for Ctrl+B (None in screenshot mode)
         self.board_background = self.board_backgrounds = None
         if board:
             self.board_background = self.config_color(config, "board", "background", DEFAULT_BOARD_BACKGROUND)
             self.board_backgrounds = self.load_board_backgrounds(config)
 
-        # Meldungen und Nachfragen: dunst/rofi oder Qt ([ui] messages, dialogs)
+        # Messages and prompts: dunst/rofi or Qt ([ui] messages, dialogs)
         self.use_dunst = self.config_choice(config, "messages", ("dunst", "toast"))
         self.use_rofi = self.config_choice(config, "dialogs", ("rofi", "qt"))
-        self.rofi_theme = get_str(config, "ui", "rofi_theme")  # None = rofi/slate.rasi im Projekt
+        self.rofi_theme = get_str(config, "ui", "rofi_theme")  # None = rofi/slate.rasi in the project
 
-        # Eckenradius neuer Rechtecke aus [rect], im Whiteboard eigener Wert
+        # Corner radius of new rectangles from [rect], separate value in the whiteboard
         self.rect_radius = self.config_radius(config, "radius_board", DEFAULT_RECT_RADIUS_BOARD) \
             if board else self.config_radius(config, "radius", RECT_RADIUS)
 
-        # Schrittweiten für hjkl aus [move]
+        # Step sizes for hjkl from [move]
         self.move_steps = {
             False: self.config_step(config, "step", DEFAULT_MOVE_STEP),
             True: self.config_step(config, "step_fine", DEFAULT_MOVE_STEP_FINE),
         }
 
-        # Ausgabe: Zielordner für PNGs ([output] dir), ~ ist erlaubt
+        # Output: target folder for PNGs ([output] dir), ~ is allowed
         self.output_dir = get_str(config, "output", "dir") or default_output_dir()
 
-        # Leiste beim Start: im Screenshot-Modus aus, im Whiteboard an ([ui], b schaltet um)
+        # Bar at startup: off in screenshot mode, on in the whiteboard ([ui], b toggles)
         self.show_bar = self.config_bool(config, "ui", "show_bar_board", True) if board \
             else self.config_bool(config, "ui", "show_bar", False)
 
-        # Zeigen aus [pointer]: Radien von Spotlight und Lupe
+        # Pointing from [pointer]: radii of spotlight and magnifier
         self.spotlight_radius = self.config_int(config, "pointer", "spotlight_radius",
                                                 DEFAULT_SPOTLIGHT_RADIUS, POINTER_RADIUS_RANGE)
         self.lens_radius = self.config_int(config, "pointer", "lens_radius", DEFAULT_LENS_RADIUS, POINTER_RADIUS_RANGE)
@@ -172,107 +172,107 @@ class Settings:
                                              SPOTLIGHT_DIM_RANGE)
         self.lens_zoom = self.config_float(config, "pointer", "lens_zoom", DEFAULT_LENS_ZOOM, LENS_ZOOM_RANGE)
 
-        # Verlauf aus [history]: an/aus, Ordner, Anzahl
+        # History from [history]: on/off, folder, count
         self.history_enabled = self.config_bool(config, "history", "enabled", True)
         self.history_dir = Path(get_str(config, "history", "dir") or default_history_dir()).expanduser()
         self.history_keep = self.config_keep(config)
 
     def config_choice(self, config, key, choices):
-        """[ui] key muss einer der choices sein; True = die erste (externe) Variante."""
+        """[ui] key must be one of choices; True = the first (external) variant."""
         value = get_str(config, "ui", key) or choices[0]
         if value not in choices:
-            print(f"[ui] {key}={value!r} unbekannt, erlaubt: {', '.join(choices)}; nehme {choices[0]!r}",
+            print(f"[ui] {key}={value!r} unknown, allowed: {', '.join(choices)}; using {choices[0]!r}",
                   file=sys.stderr)
             value = choices[0]
         return value == choices[0]
 
     def config_radius(self, config, key, default):
-        """Eckenradius aus [rect]; außerhalb RECT_RADIUS_RANGE -> Standard."""
+        """Corner radius from [rect]; outside RECT_RADIUS_RANGE -> default."""
         value = get_int(config, "rect", key)
         if value is None:
             return default
         low, high = RECT_RADIUS_RANGE
         if not low <= value <= high:
-            print(f"[rect] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            print(f"[rect] {key}={value} outside {low}-{high}, using {default}", file=sys.stderr)
             return default
         return value
 
     def config_int(self, config, section, key, default, value_range):
-        """config[section][key] als ganze Zahl im Bereich; fehlt -> default, sonst Hinweis, default."""
+        """config[section][key] as an integer in range; missing -> default, otherwise a hint, default."""
         value = get_int(config, section, key)
         if value is None:
             if isinstance(config.get(section), dict) and key in config[section]:
-                print(f"[{section}] {key}={config[section][key]!r} ist keine ganze Zahl, nehme {default}",
+                print(f"[{section}] {key}={config[section][key]!r} is not an integer, using {default}",
                       file=sys.stderr)
             return default
         low, high = value_range
         if not low <= value <= high:
-            print(f"[{section}] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            print(f"[{section}] {key}={value} outside {low}-{high}, using {default}", file=sys.stderr)
             return default
         return value
 
     def config_float(self, config, section, key, default, value_range):
-        """config[section][key] als Zahl (auch ganze) im Bereich; fehlt -> default, sonst Hinweis, default."""
+        """config[section][key] as a number (integers too) in range; missing -> default, otherwise a hint, default."""
         value = get_float(config, section, key)
         if value is None:
             if isinstance(config.get(section), dict) and key in config[section]:
-                print(f"[{section}] {key}={config[section][key]!r} ist keine Zahl, nehme {default}", file=sys.stderr)
+                print(f"[{section}] {key}={config[section][key]!r} is not a number, using {default}", file=sys.stderr)
             return default
         low, high = value_range
         if not low <= value <= high:
-            print(f"[{section}] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            print(f"[{section}] {key}={value} outside {low}-{high}, using {default}", file=sys.stderr)
             return default
         return value
 
     def config_bool(self, config, section, key, default):
-        """config[section][key] als true/false; fehlt -> default, kein bool -> Hinweis, default."""
+        """config[section][key] as true/false; missing -> default, not a bool -> a hint, default."""
         table = config.get(section)
         value = table.get(key, default) if isinstance(table, dict) else default
         if not isinstance(value, bool):
-            print(f"[{section}] {key}={value!r} ist kein true/false, nehme {str(default).lower()}", file=sys.stderr)
+            print(f"[{section}] {key}={value!r} is not true/false, using {str(default).lower()}", file=sys.stderr)
             return default
         return value
 
     def config_keep(self, config):
-        """[history] keep; außerhalb HISTORY_KEEP_RANGE -> Standard."""
+        """[history] keep; outside HISTORY_KEEP_RANGE -> default."""
         value = get_int(config, "history", "keep")
         if value is None:
             return DEFAULT_HISTORY_KEEP
         low, high = HISTORY_KEEP_RANGE
         if not low <= value <= high:
-            print(f"[history] keep={value} außerhalb {low}-{high}, nehme {DEFAULT_HISTORY_KEEP}", file=sys.stderr)
+            print(f"[history] keep={value} outside {low}-{high}, using {DEFAULT_HISTORY_KEEP}", file=sys.stderr)
             return DEFAULT_HISTORY_KEEP
         return value
 
     def config_step(self, config, key, default):
-        """Schrittweite aus [move]; außerhalb MOVE_STEP_RANGE -> Standard."""
+        """Step size from [move]; outside MOVE_STEP_RANGE -> default."""
         value = get_int(config, "move", key)
         if value is None:
             return default
         low, high = MOVE_STEP_RANGE
         if not low <= value <= high:
-            print(f"[move] {key}={value} außerhalb {low}-{high}, nehme {default}", file=sys.stderr)
+            print(f"[move] {key}={value} outside {low}-{high}, using {default}", file=sys.stderr)
             return default
         return value
 
     def config_color(self, config, section, key, default):
-        """Farbe aus der Config: Name aus der Palette, "background" oder "#rrggbb"."""
+        """Color from the config: name from the palette, "background" or "#rrggbb"."""
         name = get_str(config, section, key) or default
         value = self.palette.lookup(name)
         if value is None:
-            print(f"[{section}] {key}: unbekannte Farbe {name!r}, nehme {default!r}", file=sys.stderr)
+            print(f"[{section}] {key}: unknown color {name!r}, using {default!r}", file=sys.stderr)
             value = self.palette.lookup(default)
         return QColor(value)
 
     def load_board_backgrounds(self, config):
-        """Liste aus [board] backgrounds (Namen wie in [colors], "background", "#rrggbb");
-        unbekannte Einträge überspringen, nichts Gültiges -> DEFAULT_BOARD_BACKGROUNDS."""
+        """List from [board] backgrounds (names as in [colors], "background", "#rrggbb");
+        skip unknown entries, nothing valid -> DEFAULT_BOARD_BACKGROUNDS."""
         names = get_list(config, "board", "backgrounds") or []
         colors = []
         for name in names:
             value = self.palette.lookup(name)
             if value is None:
-                print(f"[board] backgrounds: unbekannte Farbe {name!r}", file=sys.stderr)
+                print(f"[board] backgrounds: unknown color {name!r}", file=sys.stderr)
             else:
                 colors.append(QColor(value))
         if not colors:
@@ -280,8 +280,8 @@ class Settings:
         return colors
 
     def load_light_overrides(self, config):
-        """[colors.light]: eigene helle Varianten, z. B. yellow = "#8f5e15".
-        Ergebnis: Grundfarbe -> helle Variante (beides "#rrggbb"); Fehler überspringen."""
+        """[colors.light]: own light variants, e.g. yellow = "#8f5e15".
+        Result: base color -> light variant (both "#rrggbb"); skip errors."""
         colors_table = config.get("colors") if isinstance(config.get("colors"), dict) else {}
         table = colors_table.get("light")
         if not isinstance(table, dict):
@@ -291,25 +291,25 @@ class Settings:
             base = self.palette.lookup(name)
             light = self.palette.lookup(value) if isinstance(value, str) else None
             if base is None or light is None:
-                print(f"[colors.light] {name} = {value!r}: unbekannte Farbe, übersprungen", file=sys.stderr)
+                print(f"[colors.light] {name} = {value!r}: unknown color, skipped", file=sys.stderr)
             else:
                 overrides[base] = light
         return overrides
 
     def load_theme(self, config):
-        """Leistenfarben aus [ui]; unbekannte Namen oder Werte -> Alacritty-Farben."""
+        """Bar colors from [ui]; unknown names or values -> Alacritty colors."""
         def color(key, default):
             return self.config_color(config, "ui", key, default)
 
         opacity = get_float(config, "ui", "bar_opacity")
         if opacity is None or not 0 <= opacity <= 1:
             if opacity is not None:
-                print(f"[ui] bar_opacity={opacity} außerhalb 0-1, nehme {DEFAULT_BAR_OPACITY}", file=sys.stderr)
+                print(f"[ui] bar_opacity={opacity} outside 0-1, using {DEFAULT_BAR_OPACITY}", file=sys.stderr)
             opacity = DEFAULT_BAR_OPACITY
         return Theme(color("bar_background", DEFAULT_BAR_BACKGROUND),
                      color("bar_foreground", DEFAULT_BAR_FOREGROUND), opacity,
                      color("bar_accent", DEFAULT_BAR_ACCENT), color("bar_heading", DEFAULT_BAR_HEADING))
 
     def index_of(self, hex_color):
-        """Position einer Farbe in der Leiste; fehlt sie, das erste Feld."""
+        """Position of a color in the bar; if it is missing, the first field."""
         return self.swatches.index(hex_color) if hex_color in self.swatches else 0
