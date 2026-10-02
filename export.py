@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QBuffer, QIODevice, QRectF, QStandardPaths
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QMimeData, QRectF, QStandardPaths
 from PySide6.QtGui import QGuiApplication, QImage, QPainter
 
 
@@ -74,6 +74,47 @@ def copy_text_to_clipboard(text):
     QGuiApplication.clipboard().setText(text)
     print("[export] xclip fehlt, Text nur in der Qt-Zwischenablage", file=sys.stderr)
     return True
+
+
+def copy_data_to_clipboard(data, mime):
+    """Beliebige Daten (bytes) mit eigenem Datentyp in die Zwischenablage, z. B. kopierte
+    Elemente ("application/x-annotate-elements"). Über xclip bleiben sie nach dem Beenden
+    erhalten, so lassen sie sich in einem anderen Fenster einfügen. Rückgabe: ok."""
+    if shutil.which("xclip"):
+        try:
+            subprocess.run(["xclip", "-selection", "clipboard", "-t", mime, "-i"], input=data,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=True)
+            return True
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"[export] xclip fehlgeschlagen: {e}", file=sys.stderr)
+    mime_data = QMimeData()
+    mime_data.setData(mime, QByteArray(data))
+    QGuiApplication.clipboard().setMimeData(mime_data)
+    return True
+
+
+def data_from_clipboard(mime):
+    """Daten dieses Typs aus der Zwischenablage (bytes) oder None. Qt liest die Zwischenablage
+    von X, also auch, was ein anderes (schon beendetes) Fenster per xclip hinterlassen hat.
+
+    Ersatzweise xclip, aber nur, wenn der Typ in der Liste der angebotenen Typen (TARGETS)
+    steht: xclip als Besitzer beantwortet sonst jede Anfrage mit seinem Inhalt, egal welcher
+    Typ gefragt war (aus einem PNG würden so scheinbar "Elemente")."""
+    mime_data = QGuiApplication.clipboard().mimeData()
+    if mime_data is not None and mime_data.hasFormat(mime):
+        return bytes(mime_data.data(mime))
+    if not shutil.which("xclip"):
+        return None
+    try:
+        targets = subprocess.run(["xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"],
+                                 capture_output=True, text=True, timeout=5)
+        if mime not in targets.stdout.split():
+            return None
+        result = subprocess.run(["xclip", "-selection", "clipboard", "-t", mime, "-o"],
+                                capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout if result.returncode == 0 and result.stdout else None
 
 
 def default_output_dir():

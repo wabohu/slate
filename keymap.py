@@ -52,7 +52,9 @@ DEFAULT_KEYS = {
     "color_prev": "shift+tab",
     "copy_quit": "return",     # Bild in die Zwischenablage und beenden
     "copy_path_quit": "shift+return",  # speichern (wie Strg+S), absoluten Pfad kopieren, beenden
-    "copy_image": "ctrl+c",    # Bild in die Zwischenablage, offen bleiben
+    "copy_image": "ctrl+c",    # mit Auswahl: Elemente kopieren, sonst Bild in die Zwischenablage
+    "paste": "ctrl+v",         # kopierte Elemente einfügen (an der Maus), auch aus anderem Fenster
+    "duplicate": "ctrl+d",     # Auswahl verdoppeln (leicht versetzt)
     "zoom_reset": "ctrl+0",    # Whiteboard: Zoom auf 100 %
     "overview": "ctrl+w",      # Whiteboard: ganzes Dokument ins Fenster einpassen
     "background_next": "ctrl+b",        # Whiteboard: nächster Hintergrund aus [board] backgrounds

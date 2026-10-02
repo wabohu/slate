@@ -51,7 +51,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | V | Vorlagen öffnen (Popup) | 14 |
 | B | Leiste ein-/ausblenden (umgesetzt) | 13 |
 | Strg+C | mit Auswahl: Elemente kopieren; ohne: ganzes Bild in die Zwischenablage | 7, 12 |
-| Strg+V / Strg+D | Einfügen / Duplizieren | 12 |
+| Strg+V / Strg+D | Einfügen / Duplizieren (umgesetzt, auch zwischen Fenstern) | 12 |
 | Strg+A | Alles auswählen (umgesetzt, dazu Shift+Klick und Auswahlrahmen) | 12 |
 | Enter | Bild in die Zwischenablage und beenden | 7 |
 | Shift+Enter | Speichern (wie Strg+S), absoluten Pfad in die Zwischenablage, beenden | 7 |

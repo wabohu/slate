@@ -342,6 +342,91 @@ def main():
     check("Reihenfolge wird gespeichert", [e.id for e in saved] == [a.id, c.id, d.id, b.id])
     zo.close()
 
+    # Kopieren/Einfügen/Duplizieren (Qt-Zwischenablage, nie die echte: xclip abgeschaltet)
+    import export as _export
+    _export.shutil.which = lambda name: None
+    cp = make_canvas(QPixmap(800, 400))
+    cpv = cp.viewport()
+    cp.set_tool(Tool.RECT)
+    for x in (50, 300):
+        QTest.mousePress(cpv, Qt.LeftButton, Qt.NoModifier, cp.mapFromScene(QPointF(x, 50)))
+        QTest.mouseMove(cpv, cp.mapFromScene(QPointF(x + 100, 150)))
+        QTest.mouseRelease(cpv, Qt.LeftButton, Qt.NoModifier, cp.mapFromScene(QPointF(x + 100, 150)))
+    cp.set_tool(Tool.MARKER)
+    QTest.mouseClick(cpv, Qt.LeftButton, Qt.NoModifier, cp.mapFromScene(QPointF(500, 300)))
+    originals = cp.elements()
+    QTest.keyClick(cp, Qt.Key_A, Qt.ControlModifier)
+    QTest.keyClick(cp, Qt.Key_C, Qt.ControlModifier)
+    QTest.keyClick(cp, Qt.Key_V, Qt.ControlModifier)
+    pasted = [e for e in cp.elements() if e not in originals]
+    check("Strg+C/Strg+V: Kopien mit neuen IDs, danach ausgewählt, Marker zählt weiter",
+          len(pasted) == 3 and not {e.id for e in pasted} & {e.id for e in originals}
+          and cp.selected_elements() == pasted
+          and [e.marker_label() for e in pasted if e.tool == Tool.MARKER] == ["2"])
+    cp.undo_stack.undo()
+    check("Einfügen: ein Undo-Schritt", cp.elements() == originals)
+    cp.scene_.clearSelection()
+    originals[0].setSelected(True)
+    QTest.keyClick(cp, Qt.Key_D, Qt.ControlModifier)
+    dup = [e for e in cp.elements() if e not in originals]
+    offset = dup[0].pos() - originals[0].pos() if dup else QPointF()
+    check("Strg+D: verdoppelt, leicht versetzt", len(dup) == 1 and offset.x() > 0 and offset == QPointF(offset.x(), offset.x()))
+    wb = Canvas(QGuiApplication.primaryScreen(), None, board=True)
+    wb.resize(900, 500)
+    wb.show_window()
+    QApplication.processEvents()
+    blur_dict = dict(originals[0].to_dict(), tool="blur")
+    wb.insert_copies([originals[0].to_dict(), blur_dict], target=QPointF(0, 0))
+    check("Einfügen im Whiteboard: Unschärfe wird weggelassen",
+          [e.tool for e in wb.elements()] == [Tool.RECT])
+    wb.undo_stack.setClean()  # sonst fragt das Whiteboard beim Schließen nach (Dialog ohne Bildschirm)
+    wb.close()
+    cp.close()
+
+    # Bild-Elemente: Ausschnitt mit Markierungen bearbeitbar ins Whiteboard, fremde Bilder einfügen
+    from PySide6.QtCore import QByteArray, QMimeData, QRectF
+    from elements import ImageElement
+    from export import png_bytes
+    shot = make_canvas(QPixmap(800, 400))
+    sv = shot.viewport()
+    shot.set_tool(Tool.MARKER)
+    QTest.mouseClick(sv, Qt.LeftButton, Qt.NoModifier, shot.mapFromScene(QPointF(200, 150)))
+    QTest.mouseClick(sv, Qt.LeftButton, Qt.NoModifier, shot.mapFromScene(QPointF(700, 350)))  # außerhalb
+    shot.set_crop(QRectF(100, 50, 300, 200))
+    shot.copy_image()  # Strg+C ohne Auswahl / Enter
+    # Wie xclip: die PNG-Bytes unverändert in der Zwischenablage (Qt allein kodiert neu)
+    clip = QMimeData()
+    clip.setData("image/png", QByteArray(png_bytes(shot.render_image())))
+    QGuiApplication.clipboard().setMimeData(clip)
+    wb2 = Canvas(QGuiApplication.primaryScreen(), None, board=True)
+    wb2.resize(900, 500)
+    wb2.show_window()
+    QApplication.processEvents()
+    wb2.paste_elements()
+    kinds = [type(e).__name__ for e in wb2.elements()]
+    image = next((e for e in wb2.elements() if isinstance(e, ImageElement)), None)
+    check(f"Ausschnitt ins Whiteboard: Bild unten, Marker darin bearbeitbar ({kinds})",
+          kinds == ["ImageElement", "ShapeElement"] and image.size.toTuple() == (300.0, 200.0))
+    foreign = QImage(120, 80, QImage.Format_RGB32)
+    foreign.fill(QColor("orange"))
+    QGuiApplication.clipboard().setImage(foreign)
+    wb2.paste_elements()
+    pasted = wb2.selected_elements()
+    check("fremdes Bild: ein Bild-Element in Originalgröße",
+          len(pasted) == 1 and isinstance(pasted[0], ImageElement) and pasted[0].size.toTuple() == (120.0, 80.0))
+    start = pasted[0].geometry()
+    corner = pasted[0].mapToScene(pasted[0].handle_points()[2])
+    pasted[0].drag_handle(2, corner + QPointF(60, 0), start)
+    check("Bild: Griff ändert die Größe, Seitenverhältnis bleibt",
+          abs(pasted[0].size.width() / pasted[0].size.height() - 1.5) < 0.01 and pasted[0].size.width() > 120)
+    QTest.keyClick(wb2, Qt.Key_S, Qt.ControlModifier)
+    _, saved_board, _, _ = load_document(wb2.document_path)
+    check("Bild-Elemente werden gespeichert und geladen",
+          sum(isinstance(e, ImageElement) for e in saved_board) == 2)
+    wb2.undo_stack.setClean()
+    wb2.close()
+    shot.close()
+
     # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
     # gezeichnet und exportiert wird in voller Auflösung
     big = QPixmap(2200, 1000)
@@ -435,7 +520,7 @@ def main():
     board_image = board.render_image()
     check("Whiteboard-Export = benutzter Bereich", board_image.width() < 400 and board_image.height() < 300)
     QTest.keyClick(board, Qt.Key_S, Qt.ControlModifier)
-    check("Whiteboard gespeichert (_board)", board.document_path and board.document_path.stem.endswith("_board"))
+    check("Whiteboard gespeichert (_board)", board.document_path and "_board" in board.document_path.stem)  # auch _board_2 bei gleicher Sekunde
     check("nach dem Speichern sauber", board.undo_stack.isClean())
     bbg, belems, _, _ = load_document(board.document_path)
     check("als Whiteboard geladen", isinstance(bbg, QColor) and bbg == board.board_color and len(belems) == 1)

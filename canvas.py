@@ -17,12 +17,15 @@ from canvas_output import OutputMixin
 from canvas_pointer import PointerMixin
 from commands import property_command
 from config import load_config
-from elements import ShapeElement, TextElement
+from elements import ImageElement, ShapeElement, TextElement
 from settings import BOARD_EXTENT, HIT_TOLERANCE, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
 from shortcuts import overview
 from ui import HelpPanel, MainBar, PaletteBar, SizeBar, Toast, ToolBar, ui_scale
 from wm import restore_focus
+
+# Alle Element-Arten (Auswahl, Speichern, Reihenfolge …)
+ELEMENT_CLASSES = (ShapeElement, TextElement, ImageElement)
 
 # Screenshot-Modus: so lange nach einem Fokusverlust warten, bevor das Overlay ihn
 # zurückholt (Maus steht noch darüber), damit der Window-Manager fertig ist
@@ -182,7 +185,9 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             "redo": self.undo_stack.redo,
             "copy_quit": self.copy_and_quit,
             "copy_path_quit": self.copy_path_and_quit,
-            "copy_image": self.copy_image,
+            "copy_image": self.copy_selection_or_image,  # mit Auswahl: Elemente, sonst das Bild
+            "paste": self.paste_elements,
+            "duplicate": self.duplicate_selected,
             "save": self.save_drawing,
             "quit": self.close,
             "zoom_reset": self.zoom_reset,
@@ -254,7 +259,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         r = HIT_TOLERANCE / self.zoom()
         area = QRectF(pos.x() - r, pos.y() - r, 2 * r, 2 * r)
         for item in self.scene_.items(area, Qt.IntersectsItemShape):  # von oben nach unten
-            if isinstance(item, (ShapeElement, TextElement)):
+            if isinstance(item, ELEMENT_CLASSES):
                 return item
         return None
 
@@ -273,7 +278,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             self.palette_bar.set_active(self.color_index)
             self.size_bar.set_active(self.size_level)
             return
-        # Mehrfachauswahl: nur markieren, was alle gemeinsam haben
+        # Mehrfachauswahl: nur markieren, was alle gemeinsam haben (Bilder haben keine Farbe/Größe)
+        items = [i for i in items if not isinstance(i, ImageElement)] or items
         names = {i.color.name() for i in items}
         name = names.pop() if len(names) == 1 else None
         self.palette_bar.set_active(self.settings.swatches.index(name) if name in self.settings.swatches else -1)
@@ -284,8 +290,10 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         """Größenstufe eines Elements (0-basiert) oder -1, wenn der Wert keiner Stufe entspricht."""
         if isinstance(item, ShapeElement):
             levels, value = self.settings.stroke_widths, item.width
-        else:
+        elif isinstance(item, TextElement):
             levels, value = self.settings.text_sizes, item.font_size
+        else:  # Bild: keine Größenstufe
+            return -1
         return levels.index(value) if value in levels else -1
 
     # Aktuelle Größe, abgeleitet aus der Stufe
@@ -321,7 +329,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             self.editing_text.set_color(self.pen_color)
         # Kopien von QColor, damit spätere Änderungen die gemerkten Werte nicht verändern
         changes = [(item.set_color, QColor(item.color), QColor(self.pen_color))
-                   for item in self.selected_elements() if item.color != self.pen_color]
+                   for item in self.selected_elements()
+                   if not isinstance(item, ImageElement) and item.color != self.pen_color]
         if changes:
             self.undo_stack.push(property_command(changes, "Farbe ändern"))
         self.refresh_cursor()  # Kreis bzw. Farbe im Mauszeiger
@@ -478,7 +487,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
     def elements(self):
         """Alle Elemente von unten nach oben (Reihenfolge beim Speichern)."""
         return [i for i in self.scene_.items(Qt.AscendingOrder)
-                if isinstance(i, (ShapeElement, TextElement))]
+                if isinstance(i, ELEMENT_CLASSES)]
 
     # --- Tastatur ---
     def event(self, event):

@@ -25,6 +25,8 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 _home = tempfile.mkdtemp(prefix="annotate-test-")
 os.environ["HOME"] = _home
 os.environ["XDG_CONFIG_HOME"] = str(Path(_home) / ".config")
+os.environ["XDG_RUNTIME_DIR"] = str(Path(_home) / "run")  # z. B. bearbeitbare Kopie (Strg+C), nie die echte
+(Path(_home) / "run").mkdir()
 (Path(_home) / ".config" / "annotate").mkdir(parents=True)
 (Path(_home) / ".config" / "annotate" / "config.toml").write_text(
     '[tools]\norder = ["freehand", "line", "arrow", "rect", "ellipse", "text"]\n'

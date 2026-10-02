@@ -28,13 +28,13 @@ from pathlib import Path
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QImage, QImageReader
 
-from elements import ShapeElement, TextElement
+from elements import ImageElement, ShapeElement, TextElement
 from export import png_bytes, short_path
 
 FORMAT = "annotate"
 VERSION = 1
 PNG_KEY = "annotate"
-ELEMENT_TYPES = {"shape": ShapeElement, "text": TextElement}
+ELEMENT_TYPES = {"shape": ShapeElement, "text": TextElement, "image": ImageElement}
 
 # Große eingebettete Bilder erlauben (Qt begrenzt Bildgrößen sonst auf 256 MB Speicher)
 QImageReader.setAllocationLimit(1024)

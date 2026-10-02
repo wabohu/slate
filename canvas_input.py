@@ -409,10 +409,10 @@ class InputMixin:
             if isinstance(item, TextElement):
                 old = item.font_size
                 changes.append((item.set_font_size, old, clamp(old + steps * WHEEL_TEXT_STEP, TEXT_SIZE_RANGE)))
-            else:
+            elif isinstance(item, ShapeElement):
                 old = item.width
                 changes.append((item.set_width, old, clamp(old + steps * WHEEL_STROKE_STEP, STROKE_WIDTH_RANGE)))
-        if any(old != new for _, old, new in changes):
+        if changes and any(old != new for _, old, new in changes):
             self.undo_stack.push(property_command(changes, "Größe ändern", mergeable=True))
             self.update_bars()  # beim Zusammenfassen meldet der Stack keine Änderung
 

@@ -5,12 +5,14 @@ Koordinaten. Qt-Konzept: Jedes QGraphicsItem hat ein eigenes Koordinatensystem;
 pos() und rotation() bilden es in die Szene ab. Verschieben ändert also nur pos,
 Drehen nur rotation, die Punkte selbst bleiben unverändert.
 """
+import base64
 import math
 import uuid
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF
-from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem, QStyle, QStyleOptionGraphicsItem
+from PySide6.QtCore import QBuffer, QIODevice, QPointF, QRectF, QSizeF, Qt
+from PySide6.QtGui import QColor, QFont, QImage, QPainterPath, QPainterPathStroker, QPen, QPolygonF
+from PySide6.QtWidgets import (QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem, QStyle,
+                               QStyleOptionGraphicsItem)
 
 from colors import contrast
 from tools import RECT_RADIUS, Tool, marker_radius, shape_path
@@ -478,3 +480,91 @@ class TextElement(QGraphicsTextItem):
     def stop_editing(self):
         self.setTextInteractionFlags(Qt.NoTextInteraction)
         self.clearFocus()
+
+
+class ImageElement(QGraphicsItem):
+    """Bild (z. B. ein eingefügter Screenshot-Ausschnitt im Whiteboard).
+
+    image: das Bild in voller Auflösung; size: angezeigte Größe in Szeneneinheiten.
+    Griffe an den Ecken ändern die Größe mit festem Seitenverhältnis. Farbe und
+    Strichstärke gibt es nicht: set_color tut nichts, Größen-Tasten lassen es aus.
+    """
+
+    def __init__(self, origin, image, size=None, element_id=None):
+        super().__init__()
+        self.setFlag(QGraphicsItem.ItemIsSelectable)
+        self.id = element_id or new_id()
+        self.image = QImage(image)
+        self.size = QSizeF(size) if size is not None else QSizeF(self.image.size())
+        self.color = QColor("#000000")  # nur damit Farb-Vergleiche bei einer Auswahl funktionieren
+        self.setPos(origin)
+
+    # --- Qt: Fläche und Zeichnen ---
+    def boundingRect(self):
+        return QRectF(QPointF(0, 0), self.size)
+
+    def shape(self):  # Treffer auf der ganzen Fläche
+        path = QPainterPath()
+        path.addRect(self.boundingRect())
+        return path
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform)
+        painter.drawImage(self.boundingRect(), self.image)
+
+    def set_color(self, color):
+        """Bilder haben keine Stiftfarbe; Farbwechsel bei einer Auswahl lassen sie aus."""
+
+    def refresh_color(self):
+        """Nichts anzupassen (kein Stift)."""
+
+    # --- Griffe: Größe mit festem Seitenverhältnis ---
+    def handle_points(self):
+        return corners(self.boundingRect())
+
+    def geometry(self):
+        return (QPointF(self.pos()), QSizeF(self.size))
+
+    def set_geometry(self, state):
+        pos, size = state
+        self.prepareGeometryChange()  # Qt-Konzept: vor jeder Änderung von boundingRect melden
+        self.size = QSizeF(size)
+        self.setPos(pos)
+
+    def drag_handle(self, index, scene_pos, start):
+        """Ecke index nach scene_pos; gegenüberliegende Ecke bleibt, Seitenverhältnis fest."""
+        start_pos, start_size = start
+        box = corners(QRectF(start_pos, start_size))
+        fixed = box[(index + 2) % 4]
+        ratio = start_size.width() / max(1e-6, start_size.height())
+        width = max(8.0, abs(scene_pos.x() - fixed.x()), abs(scene_pos.y() - fixed.y()) * ratio)
+        size = QSizeF(width, width / ratio)
+        left = fixed.x() - size.width() if scene_pos.x() < fixed.x() else fixed.x()
+        top = fixed.y() - size.height() if scene_pos.y() < fixed.y() else fixed.y()
+        self.set_geometry((QPointF(left, top), size))
+
+    # --- Speichern / Laden ---
+    def to_dict(self):
+        buffer = QBuffer()
+        buffer.open(QIODevice.WriteOnly)
+        self.image.save(buffer, "PNG")
+        return {
+            "type": "image",
+            "id": self.id,
+            "pos": [self.pos().x(), self.pos().y()],
+            "rotation": self.rotation(),
+            "size": [self.size.width(), self.size.height()],
+            "png": base64.b64encode(bytes(buffer.data())).decode("ascii"),
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        image = QImage.fromData(base64.b64decode(data["png"]))
+        if image.isNull():
+            raise ValueError("Bild unlesbar")
+        width, height = (float(v) for v in data["size"])
+        if width <= 0 or height <= 0:
+            raise ValueError("Bildgröße muss positiv sein")
+        item = cls(QPointF(*data["pos"]), image, QSizeF(width, height), element_id=data.get("id"))
+        item.setRotation(data.get("rotation", 0))
+        return item

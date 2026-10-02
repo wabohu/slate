@@ -10,18 +10,35 @@ Liest aus der Canvas: board, board_color, background_image, export_rect, export_
 scene_, settings, toast, undo_stack, editing_text, finish_text(), update_bars(),
 elements(), update_title().
 """
+import hashlib
+import json
+import os
+import sys
+import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import QRectF
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import QPointF, QRectF
+from PySide6.QtGui import QCursor, QGuiApplication, QImage, QPainter
 
-from document import build_document, save_document
-from elements import ShapeElement, blur_block, pixelate
-from export import (copy_text_to_clipboard, copy_to_clipboard, new_file_path, render_scene, save_png,
-                    short_path)
+from commands import AddItemCommand
+from document import build_document, elements_from_dicts, save_document
+from elements import ImageElement, ShapeElement, blur_block, new_id, pixelate
+from export import (copy_data_to_clipboard, copy_text_to_clipboard, copy_to_clipboard, data_from_clipboard,
+                    new_file_path, png_bytes, render_scene, save_png, short_path)
 from notify import NOT_AVAILABLE, ask, notify
 from settings import BOARD_EXPORT_MARGIN
 from tools import Tool
+
+# Kopierte Elemente in der Zwischenablage: eigener Datentyp, JSON wie im Dateiformat
+ELEMENTS_MIME = "application/x-annotate-elements"
+CLIP_FORMAT = "annotate-elements"
+DUPLICATE_OFFSET = 20  # Strg+D: Versatz in Bildschirm-Pixeln
+
+
+def rich_copy_path():
+    """Private Datei mit der bearbeitbaren Fassung des zuletzt kopierten Bildes."""
+    base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+    return Path(base) / "annotate" / "clipboard.json"
 
 
 class OutputMixin:
@@ -49,10 +66,119 @@ class OutputMixin:
                              BOARD_EXPORT_MARGIN, BOARD_EXPORT_MARGIN)
         return QRectF(rect.toAlignedRect())  # auf ganze Pixel, damit das Bild nicht verschwimmt
 
+    # --- Elemente kopieren, einfügen, duplizieren ---
+    def copy_selection_or_image(self):
+        """Strg+C: mit Auswahl die Elemente (zum Einfügen, auch in einem anderen Fenster),
+        sonst das ganze Bild wie bisher."""
+        items = self.selected_elements()
+        if not items or self.editing_text:
+            return self.copy_image()
+        data = json.dumps({"format": CLIP_FORMAT, "elements": [i.to_dict() for i in items]})
+        copy_data_to_clipboard(data.encode(), ELEMENTS_MIME)
+        self.report(f"{len(items)} Element(e) kopiert (Strg+V fügt ein)")
+
+    def paste_elements(self):
+        """Strg+V: kopierte Elemente an der Mausposition einfügen (sonst in der Mitte)."""
+        dicts = self.clipboard_elements()
+        mouse = self.viewport().mapFromGlobal(QCursor.pos())
+        if not self.viewport().rect().contains(mouse):
+            mouse = self.viewport().rect().center()
+        self.insert_copies(dicts, target=self.mapToScene(mouse))
+
+    def clipboard_elements(self):
+        """Was Strg+V einfügt, als Element-Dicts: kopierte Elemente; sonst ein Bild aus der
+        Zwischenablage, und zwar die bearbeitbare Fassung, wenn es unser kopiertes Bild ist."""
+        raw = data_from_clipboard(ELEMENTS_MIME)
+        if raw:
+            try:
+                return json.loads(raw)["elements"]
+            except (ValueError, KeyError, TypeError):
+                pass  # unbrauchbar: vielleicht liegt ein Bild darin
+        png = data_from_clipboard("image/png")
+        if png:
+            try:
+                rich = json.loads(rich_copy_path().read_text())
+                if rich.get("png_sha256") == hashlib.sha256(png).hexdigest():
+                    return rich["elements"]
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+            image = QImage.fromData(png)
+        else:  # andere Bildformate (JPG …), soweit Qt sie kennt
+            image = QGuiApplication.clipboard().image()
+        if image.isNull():
+            return []
+        return [ImageElement(QPointF(0, 0), image).to_dict()]
+
+    def duplicate_selected(self):
+        """Strg+D: Auswahl leicht versetzt verdoppeln (Zwischenablage bleibt unberührt)."""
+        items = self.selected_elements()
+        if items:
+            step = DUPLICATE_OFFSET / self.zoom()
+            self.insert_copies([i.to_dict() for i in items], offset=QPointF(step, step))
+
+    def insert_copies(self, dicts, target=None, offset=None):
+        """Elemente aus dicts neu anlegen (neue IDs, Marker zählen weiter), entweder mit ihrer
+        Mitte bei target oder um offset versetzt; ein Undo-Schritt, danach ausgewählt."""
+        dicts = [dict(d, id=new_id()) for d in dicts
+                 if not (self.board and d.get("tool") == "blur")]  # im Whiteboard nichts zu verpixeln
+        items = elements_from_dicts(dicts)
+        if not items:
+            self.report("Nichts zum Einfügen (Elemente oder ein Bild kopieren)")
+            return
+        order = self.next_marker_order()
+        for item in sorted(items, key=lambda i: getattr(i, "marker_order", 0)):
+            if isinstance(item, ShapeElement) and item.tool == Tool.MARKER:
+                item.marker_order = order
+                order += 1
+        if target is not None:
+            box = QRectF()
+            for item in items:
+                box = box.united(item.sceneBoundingRect())
+            offset = target - box.center()
+        for item in items:
+            item.setPos(item.pos() + offset)
+        if self.editing_text:
+            self.finish_text()
+        self.set_tool(Tool.SELECT)
+        self.scene_.clearSelection()
+        self.undo_stack.beginMacro("Einfügen")
+        for item in items:
+            self.undo_stack.push(AddItemCommand(self.scene_, item, "Einfügen"))
+        self.undo_stack.endMacro()
+        for item in items:
+            item.setSelected(True)
+        self.update_bars()
+
     def copy_image(self):
-        ok, message = copy_to_clipboard(self.render_image())
+        """Fertiges Bild in die Zwischenablage (Enter, Strg+C ohne Auswahl). Im Screenshot-Modus
+        zusätzlich die bearbeitbare Fassung ablegen (rich_copy), fürs Einfügen im Whiteboard."""
+        image = self.render_image()
+        ok, message = copy_to_clipboard(image)
+        if ok and not self.board:
+            self.store_rich_copy(png_bytes(image))
         self.report(message, error=not ok)
         return ok
+
+    def store_rich_copy(self, png):
+        """Bearbeitbare Fassung des kopierten Bildes: Screenshot-Teil als Bild-Element (Unschärfe
+        eingebrannt) plus die Markierungen darin als Elemente. Liegt in einer privaten Datei,
+        erkannt am Fingerabdruck des PNG (xclip bietet nur einen Datentyp an)."""
+        area, size = self.output_area()
+        factor = size.width() / max(1.0, area.width())
+        background = self.background_to_save().copy(QRectF(area.x() * factor, area.y() * factor,
+                                                           size.width(), size.height()).toRect())
+        dicts = [ImageElement(area.topLeft(), background, area.size()).to_dict()]
+        dicts += [e.to_dict() for e in self.elements()
+                  if e.sceneBoundingRect().intersects(area)
+                  and not (isinstance(e, ShapeElement) and e.tool == Tool.BLUR)]  # steckt schon im Bild
+        try:
+            path = rich_copy_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"format": CLIP_FORMAT, "png_sha256": hashlib.sha256(png).hexdigest(),
+                                        "elements": dicts}))
+            path.chmod(0o600)
+        except OSError as e:
+            print(f"[output] bearbeitbare Kopie nicht abgelegt: {e}", file=sys.stderr)
 
     def copy_and_quit(self):
         """Enter: kopieren und beenden; im Whiteboard nur kopieren (Fenster bleibt)."""
