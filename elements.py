@@ -12,7 +12,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsTextItem, QStyle, QStyleOptionGraphicsItem
 
-from tools import RECT_RADIUS, Tool, shape_path
+from colors import contrast
+from tools import RECT_RADIUS, Tool, marker_radius, shape_path
 
 
 
@@ -67,6 +68,17 @@ def pixelate(image, rect, block):
     return small.scaled(part.width(), part.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation), rect
 
 
+def marker_text(rank, kind):
+    """1, 2, 3 … bzw. A, B, … Z, AA, AB …"""
+    if kind != "letter":
+        return str(rank)
+    text = ""
+    while rank > 0:
+        rank, rest = divmod(rank - 1, 26)
+        text = chr(ord("A") + rest) + text
+    return text
+
+
 def shown_color(item, color):
     """Farbe, wie das Element sie zeigt. color ist die Grundfarbe (wird gespeichert);
     die Szene kann sie an den Hintergrund anpassen (Canvas.adapt_color, z. B. auf
@@ -94,6 +106,9 @@ class ShapeElement(QGraphicsPathItem):
         self.color = QColor(color)
         self.width = width
         self.radius = radius
+        # Marker: Zahlen oder Buchstaben, Reihenfolge des Setzens (die Nummer ist der Platz darin)
+        self.marker_kind = "number"
+        self.marker_order = 0
         self.setPos(origin)  # Startpunkt = Ursprung des Elements
         start = QPointF(0, 0)
         self.points = [start] if tool == Tool.FREEHAND else [start, start]
@@ -113,6 +128,7 @@ class ShapeElement(QGraphicsPathItem):
             "color": self.color.name(),
             "width": self.width,
             **({"radius": self.radius} if self.tool == Tool.RECT else {}),
+            **({"kind": self.marker_kind, "order": self.marker_order} if self.tool == Tool.MARKER else {}),
         }
 
     @classmethod
@@ -126,6 +142,12 @@ class ShapeElement(QGraphicsPathItem):
         item = cls(tool, QPointF(*data["pos"]), data["color"], data["width"],
                    element_id=data.get("id"), radius=radius)
         item.points = [QPointF(x, y) for x, y in data["points"]]
+        if tool == Tool.MARKER:
+            item.marker_kind = "letter" if data.get("kind") == "letter" else "number"
+            order = data.get("order", 0)
+            if isinstance(order, bool) or not isinstance(order, (int, float)):
+                raise ValueError(f"order {order!r} ungültig")
+            item.marker_order = order
         expected = None if tool == Tool.FREEHAND else 2
         if not item.points or (expected and len(item.points) != expected):
             raise ValueError(f"{tool.name}: falsche Anzahl Punkte")
@@ -161,6 +183,19 @@ class ShapeElement(QGraphicsPathItem):
     # Standard bei geschlossenen Pfaden wäre: auch das Innere ist Treffer.
     # Die Toleranz neben dem Strich gibt die Canvas dazu (in Bildschirm-Pixeln, zoomunabhängig).
     def shape(self):
+        if self.tool == Tool.MARKER:  # Kreis ganz, dazu die Zeigelinie
+            tip, center = self.points
+            r = marker_radius(self.width) + 1
+            path = QPainterPath()
+            path.addEllipse(center, r, r)
+            if distance(tip, center) > 1:
+                line = QPainterPath(tip)
+                line.lineTo(center)
+                stroker = QPainterPathStroker()
+                stroker.setWidth(8)
+                stroker.setCapStyle(Qt.RoundCap)
+                path = path.united(stroker.createStroke(line))
+            return path
         if self.tool == Tool.BLUR:  # gefüllte Fläche: Treffer auch innen (D2)
             path = QPainterPath()
             path.addRect(self.path().boundingRect())
@@ -192,6 +227,9 @@ class ShapeElement(QGraphicsPathItem):
         if self.tool == Tool.BLUR:
             self.paint_blur(painter)
             return
+        if self.tool == Tool.MARKER:
+            self.paint_marker(painter)
+            return
         super().paint(painter, without_selection_highlight(option), widget)
 
     def blur_image(self):
@@ -219,6 +257,45 @@ class ShapeElement(QGraphicsPathItem):
                                               used.width() / factor, used.height() / factor))
         return image, target
 
+    # --- Marker ---
+    def marker_label(self):
+        """Nummer bzw. Buchstabe: Platz unter allen Markern derselben Art in der Szene,
+        sortiert nach Reihenfolge des Setzens. Löschen nummeriert die übrigen neu."""
+        scene = self.scene()
+        same = [i for i in (scene.items() if scene else [self])
+                if isinstance(i, ShapeElement) and i.tool == Tool.MARKER and i.marker_kind == self.marker_kind]
+        same.sort(key=lambda i: (i.marker_order, i.id))
+        rank = same.index(self) + 1 if self in same else 1
+        return marker_text(rank, self.marker_kind)
+
+    def paint_marker(self, painter):
+        tip, center = self.points
+        color = shown_color(self, self.color)
+        r = marker_radius(self.width)
+        painter.setRenderHint(painter.RenderHint.Antialiasing)
+        if distance(tip, center) > 1:  # Zeigelinie mit Punkt an der Spitze
+            line_w = max(2.0, r * 0.16)
+            for pen_color, extra in ((QColor(0, 0, 0, 120), 2.0), (color, 0.0)):
+                pen = QPen(pen_color, line_w + extra)
+                pen.setCapStyle(Qt.RoundCap)
+                painter.setPen(pen)
+                painter.drawLine(tip, center)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(color)
+            painter.drawEllipse(tip, line_w * 1.4, line_w * 1.4)
+        painter.setPen(QPen(QColor(0, 0, 0, 120), max(1.0, r * 0.08)))
+        painter.setBrush(color)
+        painter.drawEllipse(center, r, r)
+        font = QFont()
+        font.setBold(True)
+        label = self.marker_label()
+        font.setPixelSize(max(1, round(r * (1.15 if len(label) < 2 else 0.9))))
+        painter.setFont(font)
+        dark = QColor("#1a1b26")
+        painter.setPen(dark if contrast(color.name(), dark.name()) > contrast(color.name(), "#ffffff")
+                       else QColor("white"))
+        painter.drawText(QRectF(center.x() - r, center.y() - r, 2 * r, 2 * r), Qt.AlignCenter, label)
+
     def paint_blur(self, painter):
         blurred = self.blur_image()
         if blurred is None:  # ohne Screenshot (z. B. Whiteboard): nur schraffierter Rahmen
@@ -243,7 +320,7 @@ class ShapeElement(QGraphicsPathItem):
     # --- Griffe zum Größe ändern (Auswahl-Werkzeug) ---
     def handle_points(self):
         """Griffpunkte in lokalen Koordinaten: Endpunkte bei Linie/Pfeil, sonst 4 Ecken."""
-        if self.tool in (Tool.LINE, Tool.ARROW):
+        if self.tool in (Tool.LINE, Tool.ARROW, Tool.MARKER):  # Marker: Spitze und Kreis
             return list(self.points)
         return corners(self.box(self.points))
 
@@ -267,7 +344,7 @@ class ShapeElement(QGraphicsPathItem):
         """Griff index wurde nach scene_pos gezogen; start = geometry() bei Zugbeginn."""
         local = self.mapFromScene(scene_pos)  # pos ändert sich beim Ziehen nicht
         points = [QPointF(p) for p in start[1]]
-        if self.tool in (Tool.LINE, Tool.ARROW):
+        if self.tool in (Tool.LINE, Tool.ARROW, Tool.MARKER):
             points[index] = local
         elif self.tool == Tool.FREEHAND:
             # Alle Punkte strecken; die gegenüberliegende Ecke bleibt fest

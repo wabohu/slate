@@ -45,7 +45,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Alt + A S D F | Größe in Stufen: Strichstärke, bei Text die Schriftgröße | 6 |
 | Alt + Mausrad | Größe fein einstellen (Auswahl bzw. getippter Text) | 6 |
 | X | Füllung an/aus (Rechteck, Ellipse) | 13, 15 |
-| C | Werkzeug nummerierter Marker | 9 |
+| C | Werkzeug nummerierter Marker (umgesetzt; erneut C: 1 2 3 / A B C) | 9 |
 | Z | Werkzeug Unschärfe (umgesetzt: verpixeln) | 9 |
 | V | Vorlagen öffnen (Popup) | 14 |
 | B | Leiste ein-/ausblenden (umgesetzt) | 13 |

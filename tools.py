@@ -19,11 +19,20 @@ class Tool(Enum):
     ELLIPSE = "Kreis / Ellipse"
     TEXT = "Text"
     SELECT = "Auswahl"  # kein Zeichenwerkzeug, steht in der Leiste immer vorne (Taste W)
+    MARKER = "Marker"  # nummerierter Kreis, optional mit Zeigelinie; fester Platz hinten (Taste C)
     BLUR = "Unschärfe"  # verpixelt den Screenshot darunter; fester Platz hinten (Taste Z), nur Screenshot-Modus
 
 
 # Werkzeuge mit festem Platz in der Leiste, nicht Teil von [tools] order
-FIXED_TOOLS = (Tool.SELECT, Tool.BLUR)
+FIXED_TOOLS = (Tool.SELECT, Tool.MARKER, Tool.BLUR)
+
+# Marker: Kreisradius aus der Strichstärke (Stufen 2/4/8/12 px -> Radius 15/18/24/30)
+MARKER_BASE_RADIUS = 12
+MARKER_RADIUS_PER_WIDTH = 1.5
+
+
+def marker_radius(width):
+    return MARKER_BASE_RADIUS + width * MARKER_RADIUS_PER_WIDTH
 
 
 # Eckenradius des Rechtecks in Pixeln (Standard; je Element in ShapeElement.radius,
@@ -78,6 +87,10 @@ def shape_path(tool, start, end, pen_width, radius=RECT_RADIUS):
         path.addEllipse(QRectF(start, end).normalized())
     elif tool == Tool.BLUR:  # Fläche, die verpixelt wird (gezeichnet in ShapeElement.paint)
         path.addRect(QRectF(start, end).normalized())
+    elif tool == Tool.MARKER:  # start = Spitze (zeigt auf die Stelle), end = Kreismitte
+        path.moveTo(start)
+        path.lineTo(end)
+        path.addEllipse(end, marker_radius(pen_width), marker_radius(pen_width))
     return path
 
 
@@ -105,6 +118,11 @@ def tool_icon(tool):
         path.lineTo(22, 8)
         path.moveTo(15, 8)
         path.lineTo(15, 22)
+    elif tool == Tool.MARKER:  # Kreis mit "1"
+        path.addEllipse(QRectF(5, 5, 19, 19))
+        path.moveTo(12.5, 11)
+        path.lineTo(15, 9)
+        path.lineTo(15, 20)
     elif tool == Tool.BLUR:  # Raster wie grobe Pixel (unten rechts bleibt Platz für die Taste)
         for i in range(4):
             path.moveTo(6 + i * 5, 6)

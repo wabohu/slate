@@ -84,6 +84,9 @@ class InputMixin:
         self.start_pos = pos
         self.current_item = ShapeElement(self.tool, pos, self.pen_color, self.pen_width,
                                          radius=self.settings.rect_radius)
+        if self.tool == Tool.MARKER:
+            self.current_item.marker_kind = self.marker_kind
+            self.current_item.marker_order = self.next_marker_order()
         self.scene_.addItem(self.current_item)
 
     def mouseDoubleClickEvent(self, event):
@@ -174,7 +177,9 @@ class InputMixin:
         """Aufgezogene Form abschließen: als Undo-Schritt ablegen oder, wenn zu klein, verwerfen."""
         # Versehentlicher Klick ohne Ziehen: leere Form wieder wegwerfen
         too_small = (pos - self.start_pos).manhattanLength() < 3
-        if self.current_item.tool != Tool.FREEHAND and too_small:
+        if self.current_item.tool == Tool.MARKER and too_small:
+            self.current_item.set_end(self.start_pos)  # Klick: nur der Kreis, ohne Zeigelinie
+        if self.current_item.tool not in (Tool.FREEHAND, Tool.MARKER) and too_small:
             self.scene_.removeItem(self.current_item)
         else:
             self.undo_stack.push(AddItemCommand(self.scene_, self.current_item))

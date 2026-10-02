@@ -59,8 +59,13 @@ def main():
         pid = s.annotate_pids()[0]
         wait(lambda: s.windows_of(pid), 10)
         time.sleep(0.5)
-        check("Whiteboard: Leiste von Anfang an sichtbar",
-              s.pixel(960, 1027, name="05-whiteboard-start") != s.pixel(960, 900, name="05-whiteboard-start"))
+        # Ganze Zeile prüfen: ein einzelner Punkt kann zufällig auf einem Farbfeld in
+        # Hintergrundfarbe liegen
+        from harness import _qt_image
+        shot = _qt_image(s.screenshot("05-whiteboard-start"))
+        background = shot.pixelColor(960, 900)
+        differing = sum(shot.pixelColor(x, 1027) != background for x in range(300, 1620, 4))
+        check("Whiteboard: Leiste von Anfang an sichtbar", differing > 100)
         s.key("question")
         time.sleep(0.4)
         s.screenshot("02-whiteboard")

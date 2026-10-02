@@ -20,6 +20,7 @@ BOTH = (SCREENSHOT, BOARD)
 # hjkl-Tasten werden zusammengefasst (siehe sections) und stehen darum nicht einzeln hier.
 DESCRIPTIONS = {
     "tool_select": ("Werkzeuge", "Auswahl", BOTH),
+    "tool_marker": ("Werkzeuge", "Marker (nochmal: 1 2 3 / A B C)", BOTH),
     "tool_blur": ("Werkzeuge", "Unschärfe", (SCREENSHOT,)),
     "color_next": ("Farbe und Größe", "Farbe weiter", BOTH),
     "color_prev": ("Farbe und Größe", "Farbe zurück", BOTH),
@@ -150,6 +151,7 @@ def overview(keymap, tools, color_count, size_count, board):
 
     tool_keys = [(Tool.SELECT, keys("tool_select"))]
     tool_keys += [(tool, keys(f"tool_{i}")) for i, tool in enumerate(tools, start=1)]
+    tool_keys.append((Tool.MARKER, keys("tool_marker")))
     if not board:
         tool_keys.append((Tool.BLUR, keys("tool_blur")))
     color_prefix, colors = split_common([display(keymap.label(f"color_{i}")) for i in range(1, color_count + 1)])

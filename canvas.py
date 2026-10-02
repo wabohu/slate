@@ -109,6 +109,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         self.panning = None       # letzte Mausposition beim Verschieben mit der mittleren Taste
         self.zoom_rest = 0        # angefangene Raste beim Zoomen
         self.overview_return = None  # (Ansicht vorher, Ansicht in der Übersicht) für Strg+W zurück
+        self.marker_kind = "number"  # neue Marker: "number" (1 2 3) oder "letter" (A B C)
         self.pointer_mode = None  # Zeigen: None, "spotlight" oder "lens" (canvas_pointer.py)
         self.cursor_cache = {}    # fertige Mauszeiger je Werkzeug/Farbe/Breite
         self.asking = False  # rofi-Nachfrage offen: Fokus nicht zurückholen (canvas_output.ask)
@@ -120,10 +121,12 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
 
         # Gemeinsame Leiste unten mittig: Werkzeuge | Farben | Größe (Klick wählt aus).
         # Auswahl-Werkzeug fest vorne, dann die Zeichenwerkzeuge in Config-Reihenfolge
-        # Unschärfe fest hinten, nur im Screenshot-Modus (im Whiteboard gibt es nichts zu verbergen)
-        self.bar_tools = [Tool.SELECT] + self.settings.tools + ([] if board else [Tool.BLUR])
+        # Marker und Unschärfe fest hinten; Unschärfe nur im Screenshot-Modus
+        # (im Whiteboard gibt es nichts zu verbergen)
+        self.bar_tools = [Tool.SELECT] + self.settings.tools + [Tool.MARKER] + ([] if board else [Tool.BLUR])
         labels = [self.settings.keymap.label("tool_select")]
         labels += [self.settings.keymap.label(f"tool_{i}") for i in range(1, len(self.settings.tools) + 1)]
+        labels += [self.settings.keymap.label("tool_marker")]
         labels += [] if board else [self.settings.keymap.label("tool_blur")]
         self.tool_bar = ToolBar([tool_icon(t) for t in self.bar_tools], labels, self.settings.theme)
         # lambda: der Leisten-Index wird in das passende Werkzeug übersetzt
@@ -158,6 +161,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         self.actions = {
             "tool_select": lambda: self.set_tool(Tool.SELECT),
             "tool_blur": lambda: None if self.board else self.set_tool(Tool.BLUR),
+            "tool_marker": self.marker_key,
             "delete": self.delete_selected,
             "undo": self.undo_stack.undo,
             "redo": self.undo_stack.redo,
@@ -227,6 +231,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
 
     def on_undo_index_changed(self, _index):
         self.update_bars()
+        self.scene_.update()  # Marker nummerieren sich neu, wenn einer dazukommt oder wegfällt
 
     def update_bars(self):
         """Leiste zeigt die Werte der Auswahl, sonst die für neue Elemente (Grundsatz 3).
@@ -349,6 +354,19 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         self.scale(factor, factor)
         self.centerOn(self.export_rect.center())
         self.refresh_cursor()  # Kreis im Mauszeiger = Strichbreite auf dem Bildschirm
+
+    def marker_key(self):
+        """c: Marker-Werkzeug; ist es schon aktiv, zwischen 1 2 3 und A B C umschalten."""
+        if self.tool != Tool.MARKER:
+            self.set_tool(Tool.MARKER)
+            return
+        self.marker_kind = "letter" if self.marker_kind == "number" else "number"
+        self.report("Marker: A B C" if self.marker_kind == "letter" else "Marker: 1 2 3")
+
+    def next_marker_order(self):
+        """Reihenfolge für einen neuen Marker: nach allen vorhandenen."""
+        orders = [e.marker_order for e in self.elements() if isinstance(e, ShapeElement) and e.tool == Tool.MARKER]
+        return max(orders, default=0) + 1
 
     def show_help(self):
         """?: Übersicht der Tastenkürzel, so wie sie gerade belegt sind."""

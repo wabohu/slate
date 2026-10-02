@@ -157,6 +157,48 @@ def main():
           stripe_contrast(blur_canvas.background_image, 150, 130, 150) > 200)
     blur_canvas.close()
 
+    # Marker (c): Klick = Kreis, Ziehen = Kreis mit Zeigelinie; neu nummerieren, Buchstaben
+    mk = make_canvas(QPixmap(800, 400))
+    mview = mk.viewport()
+
+    def click(x, y, x2=None, y2=None):
+        QTest.mousePress(mview, Qt.LeftButton, pos=QPoint(x, y))
+        if x2 is not None:
+            QTest.mouseMove(mview, QPoint(x2, y2))
+        QTest.mouseRelease(mview, Qt.LeftButton, pos=QPoint(x2 or x, y2 or y))
+
+    def labels():
+        return [e.marker_label() for e in mk.elements() if e.tool == Tool.MARKER]
+    QTest.keyClick(mk, Qt.Key_C)
+    click(100, 100)
+    click(200, 100, 260, 60)
+    click(300, 100)
+    markers = [e for e in mk.elements() if e.tool == Tool.MARKER]
+    check("Marker: 1 2 3, Klick ohne Linie, Ziehen mit Linie",
+          labels() == ["1", "2", "3"] and markers[0].points[0] == markers[0].points[1]
+          and markers[1].points[0] != markers[1].points[1])
+    mk.scene_.clearSelection()
+    markers[1].setSelected(True)
+    mk.delete_selected()
+    after_delete = labels()
+    mk.undo_stack.undo()
+    check("Marker: Löschen nummeriert neu (1 2), Undo stellt 1 2 3 wieder her",
+          after_delete == ["1", "2"] and sorted(labels()) == ["1", "2", "3"] and markers[1].marker_label() == "2")
+    QTest.keyClick(mk, Qt.Key_C)  # zweites c: Buchstaben
+    click(400, 200)
+    click(500, 200)
+    letters = [e.marker_label() for e in mk.elements() if e.tool == Tool.MARKER and e.marker_kind == "letter"]
+    check("Marker: zweites c schaltet auf A B C, Zahlen zählen getrennt weiter", letters == ["A", "B"]
+          and mk.tool == Tool.MARKER)
+    QTest.keyClick(mk, Qt.Key_S, Qt.ControlModifier)
+    _, loaded, _, _ = load_document(mk.document_path)
+    reload_canvas = make_canvas(QPixmap(800, 400), loaded)
+    check("Marker: Speichern/Laden behält Art und Nummern",
+          sorted(e.marker_label() for e in reload_canvas.elements() if e.tool == Tool.MARKER)
+          == ["1", "2", "3", "A", "B"])
+    reload_canvas.close()
+    mk.close()
+
     # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
     # gezeichnet und exportiert wird in voller Auflösung
     big = QPixmap(2200, 1000)
