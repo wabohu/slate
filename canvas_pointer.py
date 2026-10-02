@@ -1,8 +1,8 @@
 """Zeiger-Teil der Canvas: eigener Mauszeiger beim Zeichnen, Spotlight und Lupe zum Zeigen.
 
-Mauszeiger (Zeichenwerkzeuge; beim Zeigen ausgeblendet): feines Fadenkreuz in der Stiftfarbe, in der Mitte ein
+Mauszeiger (Zeichenwerkzeuge; beim Zeigen ausgeblendet; Auswahl: Pfeil, siehe make_select_cursor): feines Fadenkreuz in der Stiftfarbe, in der Mitte ein
 feiner Kreis so breit wie der Strich auf dem Bildschirm (Strichstärke × Zoom), rechts
-unten klein die Form des Werkzeugs. Im Auswahl-Werkzeug bleibt der normale Pfeil.
+unten klein die Form des Werkzeugs.
 Qt-Konzept: QCursor(QPixmap, x, y) macht aus einem selbst gezeichneten Bild einen
 Mauszeiger; (x, y) ist der Klickpunkt (Hotspot), hier die Mitte.
 
@@ -118,18 +118,55 @@ def make_cursor(tool, color, stroke_px, scale):
     return QCursor(pixmap, half, half)
 
 
+def make_select_cursor(color, scale):
+    """Mauszeiger des Auswahl-Werkzeugs: Pfeil in der Stiftfarbe (wie das Fadenkreuz, denn
+    eine Farbwahl wirkt hier auf die Auswahl), unten rechts ein kleiner gestrichelter
+    Auswahlrahmen (wie die Werkzeugform beim Fadenkreuz). Klickpunkt = Pfeilspitze."""
+    s = scale
+    pad = math.ceil(2 * s)  # Platz für die Kontur um die Spitze
+    k = 14 / 15 * s
+    points = [(0, 0), (0, 15), (4, 11.5), (7, 18), (9.5, 17), (6.5, 10.5), (11.5, 10.5)]
+    arrow = QPainterPath(QPointF(0, 0))
+    for x, y in points[1:]:
+        arrow.lineTo(x * k, y * k)
+    arrow.closeSubpath()
+    mark = QPainterPath()
+    mark.addRect(QRectF(-4 * s, -4 * s, 8 * s, 8 * s))
+    mark_at = QPointF(16 * s, 19 * s)
+    size = math.ceil(mark_at.x() + 7 * s) + pad
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    p = QPainter(pixmap)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.translate(pad, pad)
+    p.setPen(QPen(QColor(0, 0, 0, 220), 1.4 * s))
+    p.setBrush(color)
+    p.drawPath(arrow)
+    p.translate(mark_at)
+    p.setBrush(Qt.NoBrush)
+    p.setPen(QPen(QColor(0, 0, 0, 200), 3 * s))
+    p.drawPath(mark)
+    p.setPen(QPen(color, 1.3 * s, Qt.DashLine))
+    p.drawPath(mark)
+    p.end()
+    return QCursor(pixmap, pad, pad)
+
+
 class PointerMixin:
     # --- Mauszeiger ---
     def tool_cursor(self):
-        """Mauszeiger für das aktuelle Werkzeug (Auswahl: normaler Pfeil, Zeigen: keiner,
-        Spotlight bzw. Lupe markieren die Stelle selbst)."""
+        """Mauszeiger für das aktuelle Werkzeug (Auswahl: Pfeil in Stiftfarbe mit Rahmen,
+        Zeigen: keiner, Spotlight bzw. Lupe markieren die Stelle selbst)."""
         if self.pointer_mode:
             return QCursor(Qt.BlankCursor)
         if self.cropping:  # Ausschnitt aufziehen (canvas_crop.py)
             return QCursor(Qt.CrossCursor)
-        if self.tool == Tool.SELECT:
-            return QCursor(Qt.ArrowCursor)
         color = self.adapt_color(self.pen_color) if self.board else QColor(self.pen_color)
+        if self.tool == Tool.SELECT:
+            key = ("select", color.name(), self.ui_scale)
+            if key not in self.cursor_cache:
+                self.cursor_cache[key] = make_select_cursor(color, self.ui_scale)
+            return self.cursor_cache[key]
         stroke = None if self.tool == Tool.TEXT else self.pen_width * self.zoom()
         key = (self.tool, color.name(), None if stroke is None else round(stroke, 1), self.ui_scale)
         if key not in self.cursor_cache:

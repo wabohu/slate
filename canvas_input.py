@@ -292,13 +292,13 @@ class InputMixin:
         return None
 
     def update_cursor(self, pos):
-        """Mauszeiger im Auswahl-Werkzeug: Pfeil, über Griffen ein Größen-Pfeil."""
+        """Mauszeiger im Auswahl-Werkzeug: eigener Pfeil, über Griffen ein Größen-Pfeil."""
         if self.tool != Tool.SELECT:
             return
         handle = self.handle_at(pos)
         item = self.selected_element()
         if handle is None:
-            cursor = Qt.ArrowCursor
+            cursor = self.tool_cursor()
         elif isinstance(item, ShapeElement) and item.tool in (Tool.LINE, Tool.ARROW):
             cursor = Qt.SizeAllCursor
         else:  # Ecken 0/2 diagonal ↖↘, 1/3 diagonal ↗↙

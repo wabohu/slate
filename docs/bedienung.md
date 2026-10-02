@@ -25,6 +25,6 @@ Grundsätze und geplante Belegung: `docs/plan-bedienung.md`.
 - ?: Übersicht aller Tastenkürzel (so wie sie gerade belegt sind, nur was im Modus gilt); jede Taste oder ein Klick schließt sie
 - b: Leiste ein-/ausblenden (gilt bis zum Beenden). Beim Start im Screenshot-Modus ausgeblendet, im Whiteboard sichtbar (`[ui] show_bar`, `show_bar_board`)
 - e: Spotlight (alles abgedunkelt außer einem Kreis um die Maus), Shift+E: Lupe (vergrößert um die Maus, 2×). Zum Zeigen im Unterricht; Klicks zeichnen dabei nichts. Radien, Abdunklung und Vergrößerung in `[pointer]`. Dieselbe Taste, Esc oder ein Werkzeugwechsel beendet
-- Mauszeiger beim Zeichnen: Fadenkreuz in der Stiftfarbe, der feine Kreis in der Mitte ist so breit wie der Strich (inkl. Zoom), unten rechts die Form des Werkzeugs. Im Auswahl-Werkzeug normaler Pfeil, beim Zeigen ausgeblendet
+- Mauszeiger beim Zeichnen: Fadenkreuz in der Stiftfarbe, der feine Kreis in der Mitte ist so breit wie der Strich (inkl. Zoom), unten rechts die Form des Werkzeugs. Im Auswahl-Werkzeug ein Pfeil in Stiftfarbe mit kleinem gestrichelten Auswahlrahmen (über Griffen Größenpfeile), beim Zeigen ausgeblendet
 - Strg+Q: beenden
 - R: Undo, Shift+R: Redo, Esc: beenden. Alle Tasten außer Esc in `[keys]` änderbar, siehe `config.example.toml`

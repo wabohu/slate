@@ -115,12 +115,13 @@ def main():
     check("Mauszeiger: wächst mit der Strichstärke, Mitte frei, Stiftfarbe",
           big_cursor.width() > small_cursor.width() and center.alpha() == 0 and has_pen)
     cur.set_tool(Tool.SELECT)
-    arrow_select = cur.viewport().cursor().shape() == Qt.ArrowCursor
+    select_cursor = cur.viewport().cursor()
+    arrow_select = select_cursor.shape() == Qt.BitmapCursor and select_cursor.hotSpot().x() > 0
     cur.set_tool(Tool.RECT)
     cur.toggle_pointer("spotlight")
     hidden_pointer = cur.viewport().cursor().shape() == Qt.BlankCursor
     cur.set_tool(Tool.LINE)
-    check("Mauszeiger: Pfeil im Auswahl-Werkzeug, beim Zeigen ausgeblendet, Werkzeugwechsel beendet Zeigen",
+    check("Mauszeiger: eigener Pfeil im Auswahl-Werkzeug, beim Zeigen ausgeblendet, Werkzeugwechsel beendet Zeigen",
           arrow_select and hidden_pointer and cur.pointer_mode is None
           and cur.viewport().cursor().shape() == Qt.BitmapCursor)
     cur.close()
