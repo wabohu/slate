@@ -15,7 +15,7 @@ from canvas_history import HistoryMixin
 from canvas_input import InputMixin
 from canvas_output import OutputMixin
 from canvas_pointer import PointerMixin
-from commands import PropertyCommand
+from commands import property_command
 from config import load_config
 from elements import ShapeElement, TextElement
 from settings import BOARD_EXTENT, HIT_TOLERANCE, SIZE_LEVELS, Settings
@@ -102,9 +102,11 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.start_pos = None
         self.editing_text = None  # TextElement, solange getippt wird
         self.editing_old = None   # (Text, Farbe, Größe) vor dem Bearbeiten; None = neuer Text
-        self.dragging = None      # Element, das gerade verschoben wird
-        self.drag_offset = None   # Abstand Mauspunkt -> Item-Position beim Anfassen
-        self.drag_start = None    # Item-Position vor dem Verschieben
+        self.dragging = None      # Elemente, die gerade verschoben werden (Liste) oder None
+        self.drag_origin = None   # Mauspunkt beim Anfassen (Szene)
+        self.drag_starts = None   # Positionen der Elemente vor dem Verschieben
+        self.rubber = None        # Auswahlrahmen: (Start, Ende, Auswahl davor) beim Aufziehen
+        self.click_only = None    # angeklicktes Element einer Mehrfachauswahl (ohne Ziehen: nur es)
         self.passthrough = False  # Maus-Events gehen an den Text-Editor (Cursor setzen, markieren)
         self.wheel_rest = 0       # angefangene Mausrad-Raste (Touchpads liefern kleine Schritte)
         self.resizing = None      # (Element, Griff-Nummer, Geometrie bei Zugbeginn) beim Ziehen am Griff
@@ -167,6 +169,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         # Aktion (Name aus keymap.py) -> Funktion. Neue Taste = Eintrag dort + Handler hier
         self.actions = {
             "tool_select": lambda: self.set_tool(Tool.SELECT),
+            "select_all": self.select_all,
             "tool_blur": lambda: None if self.board else self.set_tool(Tool.BLUR),
             "tool_marker": self.marker_key,
             "crop": self.crop_key,
@@ -216,10 +219,23 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.update_bars()
 
     # --- Auswahl ---
+    def selected_elements(self):
+        """Alle ausgewählten Elemente, von unten nach oben."""
+        return [e for e in self.elements() if e.isSelected()]
+
     def selected_element(self):
-        """Das ausgewählte Element oder None (vorerst höchstens eins)."""
-        items = [i for i in self.scene_.selectedItems() if isinstance(i, (ShapeElement, TextElement))]
-        return items[0] if items else None
+        """Das ausgewählte Element, wenn genau eins ausgewählt ist (Griffe, Text bearbeiten), sonst None."""
+        items = self.selected_elements()
+        return items[0] if len(items) == 1 else None
+
+    def select_all(self):
+        """Strg+A: Auswahl-Werkzeug, alle Elemente ausgewählt."""
+        if self.editing_text:
+            return
+        self.set_tool(Tool.SELECT)
+        for item in self.elements():
+            item.setSelected(True)
+        self.update_bars()
 
     def zoom(self):
         """Aktueller Zoomfaktor der Ansicht (1.0 = 100 %)."""
@@ -248,18 +264,25 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         Passt ein Wert der Auswahl zu keinem Feld, wird nichts markiert (-1).
         """
         self.viewport().update()  # Rahmen und Griffe neu zeichnen (drawForeground)
-        item = self.selected_element()
-        if item is None:
+        items = self.selected_elements()
+        if not items:
             self.palette_bar.set_active(self.color_index)
             self.size_bar.set_active(self.size_level)
             return
-        name = item.color.name()
+        # Mehrfachauswahl: nur markieren, was alle gemeinsam haben
+        names = {i.color.name() for i in items}
+        name = names.pop() if len(names) == 1 else None
         self.palette_bar.set_active(self.settings.swatches.index(name) if name in self.settings.swatches else -1)
+        levels_of = {self.size_level_of(i) for i in items}
+        self.size_bar.set_active(levels_of.pop() if len(levels_of) == 1 else -1)
+
+    def size_level_of(self, item):
+        """Größenstufe eines Elements (0-basiert) oder -1, wenn der Wert keiner Stufe entspricht."""
         if isinstance(item, ShapeElement):
             levels, value = self.settings.stroke_widths, item.width
         else:
             levels, value = self.settings.text_sizes, item.font_size
-        self.size_bar.set_active(levels.index(value) if value in levels else -1)
+        return levels.index(value) if value in levels else -1
 
     # Aktuelle Größe, abgeleitet aus der Stufe
     @property
@@ -275,13 +298,14 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.size_level = level
         if self.editing_text:
             self.editing_text.set_font_size(self.text_size)
-        item = self.selected_element()
-        if isinstance(item, ShapeElement) and item.width != self.pen_width:
-            self.undo_stack.push(
-                PropertyCommand(item.set_width, item.width, self.pen_width, "Strichstärke ändern"))
-        elif isinstance(item, TextElement) and item.font_size != self.text_size:
-            self.undo_stack.push(
-                PropertyCommand(item.set_font_size, item.font_size, self.text_size, "Schriftgröße ändern"))
+        changes = []  # alle ausgewählten Elemente, ein Undo-Schritt
+        for item in self.selected_elements():
+            if isinstance(item, ShapeElement) and item.width != self.pen_width:
+                changes.append((item.set_width, item.width, self.pen_width))
+            elif isinstance(item, TextElement) and item.font_size != self.text_size:
+                changes.append((item.set_font_size, item.font_size, self.text_size))
+        if changes:
+            self.undo_stack.push(property_command(changes, "Größe ändern"))
         self.refresh_cursor()  # Kreis bzw. Farbe im Mauszeiger
         self.update_bars()
 
@@ -291,11 +315,11 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.pen_color = self.settings.colors[self.color_index]
         if self.editing_text:  # Farbwechsel während der Eingabe gilt für diesen Text
             self.editing_text.set_color(self.pen_color)
-        item = self.selected_element()
-        if item and item.color != self.pen_color:
-            # Kopien von QColor, damit spätere Änderungen die gemerkten Werte nicht verändern
-            self.undo_stack.push(
-                PropertyCommand(item.set_color, QColor(item.color), QColor(self.pen_color), "Farbe ändern"))
+        # Kopien von QColor, damit spätere Änderungen die gemerkten Werte nicht verändern
+        changes = [(item.set_color, QColor(item.color), QColor(self.pen_color))
+                   for item in self.selected_elements() if item.color != self.pen_color]
+        if changes:
+            self.undo_stack.push(property_command(changes, "Farbe ändern"))
         self.refresh_cursor()  # Kreis bzw. Farbe im Mauszeiger
         self.update_bars()
 
@@ -337,7 +361,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         Undo beginnt neu; Strg+S legt wieder eine neue Datei an."""
         if self.editing_text:
             self.finish_text()
-        self.current_item = self.dragging = self.resizing = None
+        self.current_item = self.dragging = self.resizing = self.rubber = None
         self.undo_stack.clear()  # vor scene_.clear(): Befehle verweisen auf Elemente
         self.scene_.clear()      # löscht alle Items, auch den alten Hintergrund
         self.set_background(pixmap)

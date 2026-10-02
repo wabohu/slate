@@ -47,20 +47,23 @@ class RemoveItemCommand(QUndoCommand):
 
 
 class MoveItemCommand(QUndoCommand):
-    """Objekt von old_pos nach new_pos verschoben.
+    """Ein oder mehrere Objekte verschoben (Mehrfachauswahl = ein Undo-Schritt).
 
-    mergeable=True (Verschieben per Taste): Schritte kurz hintereinander am selben
-    Objekt werden zu einem Undo-Schritt zusammengefasst (siehe PropertyCommand).
+    items, old_positions, new_positions: je ein Objekt bzw. Listen gleicher Länge.
+    mergeable=True (Verschieben per Taste): Schritte kurz hintereinander an denselben
+    Objekten werden zu einem Undo-Schritt zusammengefasst (siehe PropertyCommand).
     """
 
     MERGE_ID = 2
     MERGE_WINDOW = 1.0
 
-    def __init__(self, item, old_pos, new_pos, text="Verschieben", mergeable=False):
+    def __init__(self, items, old_positions, new_positions, text="Verschieben", mergeable=False):
         super().__init__(text)
-        self.item = item
-        self.old_pos = QPointF(old_pos)  # Kopien: setPos ändert die Originale nicht, aber sicher ist sicher
-        self.new_pos = QPointF(new_pos)
+        if not isinstance(items, (list, tuple)):  # ein einzelnes Objekt
+            items, old_positions, new_positions = [items], [old_positions], [new_positions]
+        self.items = list(items)
+        self.old_positions = [QPointF(p) for p in old_positions]  # Kopien: sicher ist sicher
+        self.new_positions = [QPointF(p) for p in new_positions]
         self.mergeable = mergeable
         self.time = time.monotonic()
 
@@ -68,17 +71,20 @@ class MoveItemCommand(QUndoCommand):
         return self.MERGE_ID if self.mergeable else -1
 
     def mergeWith(self, other):
-        if other.item is not self.item or other.time - self.time > self.MERGE_WINDOW:
+        same = len(other.items) == len(self.items) and all(a is b for a, b in zip(other.items, self.items))
+        if not same or other.time - self.time > self.MERGE_WINDOW:
             return False
-        self.new_pos = other.new_pos
+        self.new_positions = other.new_positions
         self.time = other.time
         return True
 
     def redo(self):
-        self.item.setPos(self.new_pos)
+        for item, pos in zip(self.items, self.new_positions):
+            item.setPos(pos)
 
     def undo(self):
-        self.item.setPos(self.old_pos)
+        for item, pos in zip(self.items, self.old_positions):
+            item.setPos(pos)
 
 
 class EditTextCommand(QUndoCommand):
@@ -142,3 +148,47 @@ class PropertyCommand(QUndoCommand):
 
     def undo(self):
         self.setter(self.old)
+
+
+class MultiPropertyCommand(QUndoCommand):
+    """Dieselbe Art Änderung an mehreren Objekten, ein Undo-Schritt (Mehrfachauswahl).
+
+    changes: Liste von (setter, alt, neu), z. B. [(a.set_color, rot, blau), (b.set_color, …)].
+    mergeable wie bei PropertyCommand: gleiche Setter kurz hintereinander = ein Schritt.
+    """
+
+    MERGE_ID = 3
+    MERGE_WINDOW = PropertyCommand.MERGE_WINDOW
+
+    def __init__(self, changes, text="Eigenschaft ändern", mergeable=False):
+        super().__init__(text)
+        self.changes = list(changes)
+        self.mergeable = mergeable
+        self.time = time.monotonic()
+
+    def id(self):
+        return self.MERGE_ID if self.mergeable else -1
+
+    def mergeWith(self, other):
+        setters = [c[0] for c in self.changes]
+        if [c[0] for c in other.changes] != setters or other.time - self.time > self.MERGE_WINDOW:
+            return False
+        self.changes = [(setter, old, new) for (setter, old, _), (_, _, new) in zip(self.changes, other.changes)]
+        self.time = other.time
+        return True
+
+    def redo(self):
+        for setter, _, new in self.changes:
+            setter(new)
+
+    def undo(self):
+        for setter, old, _ in self.changes:
+            setter(old)
+
+
+def property_command(changes, text, mergeable=False):
+    """Ein Objekt: PropertyCommand, mehrere: MultiPropertyCommand (gleiches Verhalten)."""
+    if len(changes) == 1:
+        setter, old, new = changes[0]
+        return PropertyCommand(setter, old, new, text, mergeable)
+    return MultiPropertyCommand(changes, text, mergeable)

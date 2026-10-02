@@ -249,6 +249,58 @@ def main():
           (round(cr.crop_rect.x()), round(cr.crop_rect.width())) == (170, 350))
     cr.close()
 
+    # Mehrfachauswahl: Strg+A, Shift+Klick, Auswahlrahmen; Farbe, Größe, Verschieben, Löschen
+    # wirken auf alle, jeweils ein Undo-Schritt
+    ms = make_canvas(QPixmap(800, 400))
+    mv = ms.viewport()
+
+    def mp(x, y):
+        return ms.mapFromScene(QPointF(x, y))
+
+    def drag(x1, y1, x2, y2, mods=Qt.NoModifier):
+        QTest.mousePress(mv, Qt.LeftButton, mods, mp(x1, y1))
+        QTest.mouseMove(mv, mp(x2, y2))
+        QTest.mouseRelease(mv, Qt.LeftButton, mods, mp(x2, y2))
+    ms.set_tool(Tool.RECT)
+    for x in (50, 250, 450):
+        drag(x, 50, x + 100, 150)
+    rects = ms.elements()
+    QTest.keyClick(ms, Qt.Key_A, Qt.ControlModifier)
+    check("Strg+A wählt alles aus", ms.tool == Tool.SELECT and len(ms.selected_elements()) == 3)
+    steps_before = ms.undo_stack.count()
+    ms.set_color((ms.color_index + 1) % len(ms.settings.colors))
+    all_colored = len({r.color.name() for r in rects}) == 1 and rects[0].color == ms.pen_color
+    ms.undo_stack.undo()
+    check("Farbe auf alle, ein Undo-Schritt", all_colored and ms.undo_stack.count() == steps_before + 1
+          and rects[0].color != ms.pen_color)
+    ms.undo_stack.redo()
+    ms.set_size(3)
+    check("Größe auf alle", all(r.width == ms.pen_width for r in rects))
+    QTest.mouseClick(mv, Qt.LeftButton, Qt.NoModifier, mp(50, 100))  # Klick auf Rand: nur dieses
+    QTest.mouseClick(mv, Qt.LeftButton, Qt.ShiftModifier, mp(450, 100))  # Shift: dazu
+    check("Klick wählt eins, Shift+Klick nimmt dazu", ms.selected_elements() == [rects[0], rects[2]])
+    QTest.mouseClick(mv, Qt.LeftButton, Qt.ShiftModifier, mp(450, 100))  # Shift: wieder heraus
+    check("Shift+Klick nimmt wieder heraus", ms.selected_elements() == [rects[0]])
+    drag(20, 20, 400, 200)  # Rahmen um die ersten beiden
+    check("Auswahlrahmen wählt, was ganz darin liegt", ms.selected_elements() == rects[:2])
+    before = [QPointF(r.pos()) for r in rects]
+    drag(250, 100, 280, 120)  # eins der ausgewählten anfassen: beide wandern
+    moved = [r.pos() - b for r, b in zip(rects, before)]
+    check("Ziehen verschiebt alle ausgewählten", moved[0] == moved[1] == QPointF(30, 20) and moved[2] == QPointF(0, 0))
+    ms.undo_stack.undo()
+    check("Verschieben: ein Undo-Schritt für alle", all(r.pos() == b for r, b in zip(rects, before)))
+    QTest.keyClick(ms, Qt.Key_L)
+    QTest.keyClick(ms, Qt.Key_L)
+    hjkl = [r.pos().x() - b.x() for r, b in zip(rects, before)]
+    ms.undo_stack.undo()
+    check("hjkl verschiebt alle, Schritte zusammengefasst", hjkl[0] == hjkl[1] > 0 and hjkl[2] == 0
+          and all(r.pos() == b for r, b in zip(rects, before)))
+    ms.delete_selected()
+    gone = len(ms.elements()) == 1
+    ms.undo_stack.undo()
+    check("Löschen aller ausgewählten, ein Undo-Schritt", gone and len(ms.elements()) == 3)
+    ms.close()
+
     # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
     # gezeichnet und exportiert wird in voller Auflösung
     big = QPixmap(2200, 1000)

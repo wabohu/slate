@@ -25,6 +25,7 @@ DESCRIPTIONS = {
     "color_next": ("Farbe und Größe", "Farbe weiter", BOTH),
     "color_prev": ("Farbe und Größe", "Farbe zurück", BOTH),
     "delete": ("Auswahl", "löschen", BOTH),
+    "select_all": ("Auswahl", "alles auswählen", BOTH),
     "undo": ("Allgemein", "Rückgängig", BOTH),
     "redo": ("Allgemein", "Wiederholen", BOTH),
     "copy_quit": ("Ausgabe", "Bild kopieren und beenden", (SCREENSHOT,)),

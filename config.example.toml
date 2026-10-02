@@ -134,6 +134,7 @@ history_next = "right"     # Verlauf: neuerer Screenshot
 help = "shift+?"           # Übersicht aller Tastenkürzel (? = Shift+/ auf US-Layout)
 toggle_bar = "b"           # Leiste ein-/ausblenden
 tool_blur = "z"            # Werkzeug Unschärfe (verpixeln), nur Screenshot-Modus
+select_all = "ctrl+a"      # alles auswählen
 tool_marker = "c"          # Marker (nummerierte Kreise); erneut drücken: 1 2 3 / A B C
 crop = "y"                 # Ausschnitt aufziehen; Esc dabei: Ausschnitt aufheben (nur Screenshot-Modus)
 spotlight = "e"            # Zeigen: Spotlight an/aus (alles abgedunkelt außer um die Maus)

@@ -16,7 +16,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 
 from colors import contrast
-from commands import AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand
+from commands import (AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand,
+                      property_command)
 from elements import ShapeElement, TextElement
 from settings import (HANDLE_GRAB, HANDLE_SIZE, STROKE_WIDTH_RANGE, TEXT_SIZE_RANGE, WHEEL_STROKE_STEP,
                       WHEEL_TEXT_STEP, clamp)
@@ -61,23 +62,28 @@ class InputMixin:
                 item = self.selected_element()
                 self.resizing = (item, handle, item.geometry())
                 return
-            # Element anklicken = auswählen und zum Verschieben anfassen; daneben = abwählen
             item = self.element_at(pos)
-            self.scene_.clearSelection()
-            if item:
-                item.setSelected(True)
-                self.dragging = item
-                self.drag_start = item.pos()
-                self.drag_offset = pos - item.pos()
+            shift = bool(event.modifiers() & Qt.ShiftModifier)
+            if item and shift:  # Shift+Klick: Element zur Auswahl dazu bzw. heraus
+                item.setSelected(not item.isSelected())
+            elif item:  # anklicken = auswählen und anfassen; Teil einer Auswahl: ziehen bewegt alle
+                if not item.isSelected():
+                    self.scene_.clearSelection()
+                    item.setSelected(True)
+                self.start_drag(self.selected_elements(), pos)
+                self.click_only = item  # Loslassen ohne Ziehen: nur dieses Element auswählen
+            else:  # leere Stelle: Auswahlrahmen aufziehen (Shift: zur Auswahl dazu)
+                before = self.selected_elements() if shift else []
+                if not shift:
+                    self.scene_.clearSelection()
+                self.rubber = (pos, pos, before)
             self.update_bars()
             return
 
         if self.tool == Tool.TEXT:
             item = self.text_at(pos)
             if item:  # vorhandenen Text anfassen zum Verschieben
-                self.dragging = item
-                self.drag_start = item.pos()
-                self.drag_offset = pos - item.pos()
+                self.start_drag([item], pos)
             else:
                 self.start_text(pos)
             return
@@ -143,8 +149,15 @@ class InputMixin:
             self.viewport().update()
             return
         if self.dragging:
-            self.dragging.setPos(pos - self.drag_offset)
+            delta = pos - self.drag_origin
+            for item, start in zip(self.dragging, self.drag_starts):
+                item.setPos(start + delta)
             self.viewport().update()  # Griffe wandern mit
+            return
+        if self.rubber is not None:
+            start, _, before = self.rubber
+            self.rubber = (start, pos, before)
+            self.select_in_rubber()
             return
         if self.current_item is None:
             self.update_cursor(pos)  # nur Bewegung ohne Taste
@@ -176,14 +189,36 @@ class InputMixin:
                 self.undo_stack.push(PropertyCommand(item.set_geometry, start, item.geometry(), "Größe ändern"))
             return
         if self.dragging:
-            item, start = self.dragging, self.drag_start
-            self.dragging = self.drag_start = self.drag_offset = None
-            if item.pos() != start:  # nur echtes Verschieben ist ein Undo-Schritt
-                self.undo_stack.push(MoveItemCommand(item, start, item.pos()))
+            items, starts, only = self.dragging, self.drag_starts, self.click_only
+            self.dragging = self.drag_starts = self.drag_origin = self.click_only = None
+            if any(item.pos() != start for item, start in zip(items, starts)):  # nur echtes Verschieben
+                self.undo_stack.push(MoveItemCommand(items, starts, [i.pos() for i in items]))
+            elif only is not None and len(items) > 1:  # bloßer Klick in eine Mehrfachauswahl
+                self.scene_.clearSelection()
+                only.setSelected(True)
+                self.update_bars()
+            return
+        if self.rubber is not None:
+            self.rubber = None
+            self.update_bars()
             return
         if self.current_item is None:
             return
         self.finish_shape(self.mapToScene(event.position().toPoint()))
+
+    def start_drag(self, items, pos):
+        """Elemente zum Verschieben anfassen (ein Undo-Schritt beim Loslassen)."""
+        self.dragging = list(items)
+        self.drag_origin = QPointF(pos)
+        self.drag_starts = [QPointF(i.pos()) for i in items]
+
+    def select_in_rubber(self):
+        """Auswahl = was ganz im Rahmen liegt (plus Auswahl davor bei Shift)."""
+        start, end, before = self.rubber
+        rect = QRectF(start, end).normalized()
+        for item in self.elements():
+            item.setSelected(item in before or rect.contains(item.sceneBoundingRect()))
+        self.update_bars()
 
     def finish_shape(self, pos):
         """Aufgezogene Form abschließen: als Undo-Schritt ablegen oder, wenn zu klein, verwerfen."""
@@ -281,12 +316,34 @@ class InputMixin:
         self.paint_pointer(painter)  # Spotlight/Lupe über allem (canvas_pointer.py)
 
     def paint_selection(self, painter):
-        """Rahmen und Griffe der Auswahl (nur im Auswahl-Werkzeug)."""
+        """Rahmen und Griffe der Auswahl (nur im Auswahl-Werkzeug). Ein Element: Rahmen mit
+        Griffen; mehrere: je ein gestrichelter Rahmen ohne Griffe; dazu der Auswahlrahmen."""
+        if self.tool != Tool.SELECT or self.editing_text:
+            return
+        line, fill = self.selection_colors()
+        if self.rubber is not None:  # Auswahlrahmen beim Aufziehen
+            start, end, _ = self.rubber
+            band = QPen(line, 1, Qt.DashLine)
+            band.setCosmetic(True)
+            painter.setPen(band)
+            tint = QColor(line)
+            tint.setAlpha(30)
+            painter.setBrush(tint)
+            painter.drawRect(QRectF(start, end).normalized())
+        items = self.selected_elements()
+        if len(items) > 1:
+            frame = QPen(line, 1, Qt.DashLine)
+            frame.setCosmetic(True)
+            painter.setPen(frame)
+            painter.setBrush(Qt.NoBrush)
+            pad = 4 / self.zoom()
+            for item in items:
+                painter.drawRect(item.sceneBoundingRect().adjusted(-pad, -pad, pad, pad))
+            return
         item = self.selected_element()
-        if item is None or self.tool != Tool.SELECT or self.editing_text:
+        if item is None:
             return
         points = [item.mapToScene(p) for p in item.handle_points()]
-        line, fill = self.selection_colors()
         painter.setRenderHint(QPainter.Antialiasing)
         if len(points) == 4:  # Rahmen durch die Ecken (bei Linien nur die Endpunkte)
             frame = QPen(line, 1, Qt.DashLine)
@@ -343,33 +400,39 @@ class InputMixin:
             item = self.editing_text
             item.set_font_size(clamp(item.font_size + steps * WHEEL_TEXT_STEP, TEXT_SIZE_RANGE))
             return
-        item = self.selected_element()
-        if isinstance(item, TextElement):
-            setter, old = item.set_font_size, item.font_size
-            new = clamp(old + steps * WHEEL_TEXT_STEP, TEXT_SIZE_RANGE)
-        elif isinstance(item, ShapeElement):
-            setter, old = item.set_width, item.width
-            new = clamp(old + steps * WHEEL_STROKE_STEP, STROKE_WIDTH_RANGE)
-        else:
-            self.toast.show_message("Alt+Mausrad: erst ein Element auswählen (W)")
+        items = self.selected_elements()
+        if not items:
+            self.toast.show_message("Alt+Mausrad: erst etwas auswählen (W)")
             return
-        if new != old:
-            self.undo_stack.push(PropertyCommand(setter, old, new, "Größe ändern", mergeable=True))
+        changes = []  # jedes Element um dieselben Rasten, ein Undo-Schritt
+        for item in items:
+            if isinstance(item, TextElement):
+                old = item.font_size
+                changes.append((item.set_font_size, old, clamp(old + steps * WHEEL_TEXT_STEP, TEXT_SIZE_RANGE)))
+            else:
+                old = item.width
+                changes.append((item.set_width, old, clamp(old + steps * WHEEL_STROKE_STEP, STROKE_WIDTH_RANGE)))
+        if any(old != new for _, old, new in changes):
+            self.undo_stack.push(property_command(changes, "Größe ändern", mergeable=True))
             self.update_bars()  # beim Zusammenfassen meldet der Stack keine Änderung
 
     def move_selected(self, dx, dy, fine):
         """Auswahl um einen Schritt (Bildschirm-Pixel, zoomunabhängig) verschieben."""
-        item = self.selected_element()
-        if item is None:
+        items = self.selected_elements()
+        if not items:
             return
         step = self.settings.move_steps[fine] / self.zoom()
-        old = item.pos()
-        self.undo_stack.push(MoveItemCommand(item, old, old + QPointF(dx * step, dy * step),
-                                             "Verschieben", mergeable=True))
+        olds = [QPointF(i.pos()) for i in items]
+        news = [p + QPointF(dx * step, dy * step) for p in olds]
+        self.undo_stack.push(MoveItemCommand(items, olds, news, "Verschieben", mergeable=True))
         self.update_bars()  # Griffe mitbewegen; beim Zusammenfassen meldet der Stack nichts
 
     def delete_selected(self):
-        item = self.selected_element()
-        if item:
+        items = self.selected_elements()
+        if not items:
+            return
+        self.undo_stack.beginMacro("Löschen")  # mehrere Befehle = ein Undo-Schritt
+        for item in items:
             item.setSelected(False)  # sonst wäre es nach einem Undo noch markiert
             self.undo_stack.push(RemoveItemCommand(self.scene_, item, "Löschen"))
+        self.undo_stack.endMacro()
