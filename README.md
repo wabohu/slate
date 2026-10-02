@@ -39,7 +39,7 @@ window manager (developed with herbstluftwm and sxhkd).
 ## Getting started
 
 ```sh
-git clone <url> slate
+git clone https://github.com/wabohu/slate.git
 ln -s "$PWD/slate/slate.py" ~/.local/bin/slate
 
 slate                # annotate a screenshot of the monitor under the mouse
