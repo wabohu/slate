@@ -4,6 +4,7 @@
     python annotate.py              Screenshot des Monitors unter der Maus markieren
     python annotate.py bild.png     gespeicherte Zeichnung oder beliebiges PNG öffnen
     python annotate.py --board      leeres Whiteboard in einem normalen Fenster
+    python annotate.py --last       letzten Screenshot aus dem Verlauf öffnen
 
 Bedienung: docs/bedienung.md. Die Zeichenfläche steht in canvas.py.
 Muss ausführbar bleiben: ~/.local/bin/annotate-board ist ein Symlink hierauf (sxhkd).
@@ -17,7 +18,11 @@ from PySide6.QtWidgets import QApplication
 
 from canvas import Canvas
 from document import load_document
+import history
+from config import load_config
 from history import is_entry
+from notify import notify
+from settings import Settings
 
 
 # --- Capture -----------------------------------------------------------------
@@ -34,8 +39,19 @@ def main():
                         help="gespeicherte Zeichnung oder beliebiges PNG öffnen statt Screenshot")
     parser.add_argument("--board", action="store_true",
                         help="leeres Whiteboard in einem normalen Fenster statt Screenshot")
+    parser.add_argument("--last", action="store_true",
+                        help="letzten Screenshot aus dem Verlauf öffnen (z. B. per Hotkey)")
     args, qt_args = parser.parse_known_args()  # Rest (z. B. Qt-Optionen) an Qt weiterreichen
     app = QApplication(sys.argv[:1] + qt_args)
+
+    if args.last:  # neuester Verlaufseintrag; Ordner aus der Config ([history] dir)
+        entries = history.entries(Settings(load_config(), False).history_dir)
+        if not entries:
+            message = "Verlauf ist leer"
+            print(message, file=sys.stderr)
+            notify(message)  # oft ohne Terminal gestartet (Hotkey), darum auch als Benachrichtigung
+            sys.exit(1)
+        args.file = str(entries[-1])
 
     if args.file:
         background, elements, is_drawing, message = load_document(args.file)

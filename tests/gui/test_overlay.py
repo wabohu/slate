@@ -12,11 +12,13 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import Session, check, load_elements, summary, wait  # noqa: E402
+from harness import ANNOTATE, Session, check, load_elements, summary, wait  # noqa: E402
 
 
 def main():
     with Session("overlay") as s:
+        empty = s.run([str(ANNOTATE), "--last"])
+        check("--last bei leerem Verlauf: Fehlercode 1, kein Fenster", empty.returncode == 1 and not s.annotate_pids())
         sink_out = s.start_keysink()
         sink = s.window_named("keysink")
         check("Ausgangslage: Testfenster hat den Fokus", wait(lambda: s.focus_id() == sink))
@@ -67,6 +69,15 @@ def main():
         check("Verlauf: ein Eintrag", len(entries) == 1)
         tools = sorted(e.tool.name for e in load_elements(entries[0])) if entries else []
         check(f"Verlauf: Rechteck und Ellipse gespeichert ({', '.join(tools)})", tools == ["ELLIPSE", "RECT"])
+
+        # --last öffnet den neuesten Verlaufseintrag (z. B. per Hotkey)
+        s.spawn([str(ANNOTATE), "--last"], log="last")
+        check("--last öffnet den letzten Screenshot", wait(lambda: s.annotate_pids(), 10))
+        wait(lambda: s.windows_of(s.annotate_pids()[0]), 10)
+        time.sleep(0.4)
+        s.screenshot("05-last")
+        s.key("Escape")
+        check("--last: Esc beendet", wait(lambda: not s.annotate_pids(), 5))
     return summary()
 
 
