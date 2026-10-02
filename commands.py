@@ -10,7 +10,7 @@ wenn die Änderung schon passiert ist (z. B. Item liegt schon in der Szene).
 """
 import time
 
-from PySide6.QtCore import QPointF
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QUndoCommand
 
 
@@ -30,20 +30,61 @@ class AddItemCommand(QUndoCommand):
         self.scene.removeItem(self.item)
 
 
+def item_above(item):
+    """Das Element direkt über item (gleiche Ebene der Szene) oder None, wenn es ganz oben liegt."""
+    scene = item.scene()
+    if scene is None:
+        return None
+    siblings = [i for i in scene.items(Qt.AscendingOrder) if i.parentItem() is None]
+    index = siblings.index(item)
+    return siblings[index + 1] if index + 1 < len(siblings) else None
+
+
+def apply_order(order):
+    """Elemente in die Reihenfolge order bringen (unten -> oben).
+
+    Qt-Konzept: Bei gleichem zValue zeichnet die Szene in der Reihenfolge der Geschwister;
+    stackBefore(b) legt ein Element direkt unter b. Von oben nach unten angewendet ergibt
+    das die ganze Reihenfolge; andere Items (z. B. der Screenshot) bleiben, wo sie sind.
+    """
+    for lower, upper in reversed(list(zip(order, order[1:]))):
+        lower.stackBefore(upper)
+
+
 class RemoveItemCommand(QUndoCommand):
-    """Objekt entfernen – das Gegenstück zu AddItemCommand."""
+    """Objekt entfernen – das Gegenstück zu AddItemCommand. Undo legt es wieder an
+    seinen alten Platz in der Reihenfolge (nicht obenauf)."""
 
     def __init__(self, scene, item, text="Objekt entfernen"):
         super().__init__(text)
         self.scene = scene
         self.item = item
+        self.above = None  # Element, unter dem es lag (beim Entfernen gemerkt)
 
     def redo(self):
         if self.item.scene() is not None:
+            self.above = item_above(self.item)
             self.scene.removeItem(self.item)
 
     def undo(self):
         self.scene.addItem(self.item)
+        if self.above is not None and self.above.scene() is self.scene:
+            self.item.stackBefore(self.above)
+
+
+class ReorderCommand(QUndoCommand):
+    """Reihenfolge (Vorder-/Hintergrund) geändert; old/new: Elemente unten -> oben."""
+
+    def __init__(self, old, new, text="Reihenfolge"):
+        super().__init__(text)
+        self.old = list(old)
+        self.new = list(new)
+
+    def redo(self):
+        apply_order(self.new)
+
+    def undo(self):
+        apply_order(self.old)
 
 
 class MoveItemCommand(QUndoCommand):

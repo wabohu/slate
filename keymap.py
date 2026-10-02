@@ -38,6 +38,10 @@ def _slots(prefix, count, keys, modifier=""):
 DEFAULT_KEYS = {
     "tool_select": "w",
     "select_all": "ctrl+a",    # alles auswählen (Auswahl-Werkzeug)
+    "raise": "ctrl+up",               # Auswahl einen Schritt nach vorne
+    "lower": "ctrl+down",             # Auswahl einen Schritt nach hinten
+    "raise_top": "ctrl+shift+up",     # Auswahl ganz nach vorne
+    "lower_bottom": "ctrl+shift+down",  # Auswahl ganz nach hinten
     "tool_blur": "z",          # Unschärfe (verpixeln), nur Screenshot-Modus
     "tool_marker": "c",        # Marker; erneut c: 1 2 3 / A B C umschalten
     "crop": "y",               # Ausschnitt aufziehen (Esc dabei: aufheben), nur Screenshot-Modus

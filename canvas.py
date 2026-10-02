@@ -170,6 +170,10 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.actions = {
             "tool_select": lambda: self.set_tool(Tool.SELECT),
             "select_all": self.select_all,
+            "raise": lambda: self.restack(+1),
+            "lower": lambda: self.restack(-1),
+            "raise_top": lambda: self.restack(+2),
+            "lower_bottom": lambda: self.restack(-2),
             "tool_blur": lambda: None if self.board else self.set_tool(Tool.BLUR),
             "tool_marker": self.marker_key,
             "crop": self.crop_key,

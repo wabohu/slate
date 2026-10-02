@@ -40,6 +40,28 @@ def main():
         remaining = load_elements(entries[0]) if entries else []
         check(f"übrig bleibt nur das dritte Rechteck ({len(remaining)})",
               len(remaining) == 1 and remaining[0].pos().x() > 1000)
+
+        # Vorder-/Hintergrund: zwei überlappende Marker, den unteren ganz nach vorne holen
+        s.key("alt+Escape")
+        wait(lambda: s.annotate_pids(), 10)
+        wait(lambda: s.windows_of(s.annotate_pids()[0]), 10)
+        time.sleep(0.4)
+        s.key("c")
+        for x in (600, 625):
+            s.move(x, 600)
+            s.run(["xdotool", "click", "1"])
+        s.key("w")
+        s.move(585, 600)                         # linker Rand: nur der erste Marker
+        s.run(["xdotool", "click", "1"])
+        s.key("ctrl+shift+Up")
+        time.sleep(0.3)
+        s.screenshot("04-marker-vorne")
+        s.key("Return")
+        wait(lambda: not s.annotate_pids(), 10)
+        entries = s.history_entries()
+        markers = [e for e in load_elements(entries[-1])] if entries else []
+        check("Strg+Shift+↑: der erste Marker liegt jetzt oben",
+              len(markers) == 2 and markers[-1].points[1].x() + markers[-1].pos().x() < 610)
     return summary()
 
 

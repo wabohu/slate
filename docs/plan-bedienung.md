@@ -64,7 +64,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Strg+B / Strg+Shift+B | Whiteboard: Hintergrund weiter / zurück (`[board] backgrounds`) | 18 |
 | ? | Übersicht aller Tastenkürzel | – |
 | h j k l, Shift+h j k l | Auswahl verschieben (normal / fein) | 12 |
-| Strg+↑ / Strg+↓ | Nach vorne / nach hinten | 12 |
+| Strg+↑ / Strg+↓ | Nach vorne / nach hinten (umgesetzt; mit Shift: ganz) | 12 |
 
 Noch frei danach: U I O P N M, 1–0, Shift+Q/W/E/T, Alt-Kombinationen außer
 Alt + A S D F und Alt+Pfeile.

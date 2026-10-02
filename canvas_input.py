@@ -17,7 +17,7 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 
 from colors import contrast
 from commands import (AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand,
-                      property_command)
+                      ReorderCommand, property_command)
 from elements import ShapeElement, TextElement
 from settings import (HANDLE_GRAB, HANDLE_SIZE, STROKE_WIDTH_RANGE, TEXT_SIZE_RANGE, WHEEL_STROKE_STEP,
                       WHEEL_TEXT_STEP, clamp)
@@ -426,6 +426,28 @@ class InputMixin:
         news = [p + QPointF(dx * step, dy * step) for p in olds]
         self.undo_stack.push(MoveItemCommand(items, olds, news, "Verschieben", mergeable=True))
         self.update_bars()  # Griffe mitbewegen; beim Zusammenfassen meldet der Stack nichts
+
+    def restack(self, step):
+        """Auswahl in der Reihenfolge verschieben: step +1/-1 = ein Element weiter nach
+        vorne/hinten, +2/-2 = ganz nach vorne/hinten. Die Auswahl behält ihre Reihenfolge."""
+        order = self.elements()  # unten -> oben
+        chosen = [e for e in order if e.isSelected()]
+        if not chosen:
+            return
+        new = list(order)
+        if abs(step) == 2:
+            rest = [e for e in order if not e.isSelected()]
+            new = rest + chosen if step > 0 else chosen + rest
+        else:
+            # Ein Schritt: jedes ausgewählte Element tauscht mit dem nächsten nicht ausgewählten
+            # Nachbarn in Richtung step (von der Spitze her, damit Gruppen zusammenbleiben)
+            indices = range(len(new) - 1, -1, -1) if step > 0 else range(len(new))
+            for i in indices:
+                j = i + step
+                if new[i].isSelected() and 0 <= j < len(new) and not new[j].isSelected():
+                    new[i], new[j] = new[j], new[i]
+        if new != order:
+            self.undo_stack.push(ReorderCommand(order, new, "Nach vorne" if step > 0 else "Nach hinten"))
 
     def delete_selected(self):
         items = self.selected_elements()

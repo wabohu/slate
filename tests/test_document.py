@@ -301,6 +301,47 @@ def main():
     check("Löschen aller ausgewählten, ein Undo-Schritt", gone and len(ms.elements()) == 3)
     ms.close()
 
+    # Vorder-/Hintergrund: Strg+↑/↓ ein Schritt, Strg+Shift+↑/↓ ganz; Undo; Löschen+Undo behält Platz
+    zo = make_canvas(QPixmap(800, 400))
+    zv = zo.viewport()
+    zo.set_tool(Tool.RECT)
+    for x in (50, 150, 250, 350):
+        QTest.mousePress(zv, Qt.LeftButton, Qt.NoModifier, zo.mapFromScene(QPointF(x, 50)))
+        QTest.mouseMove(zv, zo.mapFromScene(QPointF(x + 200, 250)))
+        QTest.mouseRelease(zv, Qt.LeftButton, Qt.NoModifier, zo.mapFromScene(QPointF(x + 200, 250)))
+    a, b, c, d = zo.elements()
+
+    def order():
+        return "".join("abcd"[[a, b, c, d].index(e)] for e in zo.elements())
+    zo.set_tool(Tool.SELECT)
+    a.setSelected(True)
+    QTest.keyClick(zo, Qt.Key_Up, Qt.ControlModifier)
+    one_up = order()
+    QTest.keyClick(zo, Qt.Key_Up, Qt.ControlModifier | Qt.ShiftModifier)
+    top = order()
+    zo.undo_stack.undo()
+    zo.undo_stack.undo()
+    check(f"Strg+↑ ein Schritt ({one_up}), Strg+Shift+↑ ganz nach vorne ({top}), Undo",
+          one_up == "bacd" and top == "bcda" and order() == "abcd")
+    zo.scene_.clearSelection()
+    c.setSelected(True)
+    d.setSelected(True)
+    QTest.keyClick(zo, Qt.Key_Down, Qt.ControlModifier | Qt.ShiftModifier)
+    check(f"Mehrere ganz nach hinten, Reihenfolge untereinander bleibt ({order()})", order() == "cdab")
+    zo.undo_stack.undo()
+    zo.scene_.clearSelection()
+    b.setSelected(True)
+    zo.delete_selected()
+    zo.undo_stack.undo()
+    check(f"Gelöschtes per Undo zurück an seinen Platz ({order()})", order() == "abcd")
+    QTest.keyClick(zo, Qt.Key_S, Qt.ControlModifier)
+    b.setSelected(True)
+    QTest.keyClick(zo, Qt.Key_Up, Qt.ControlModifier | Qt.ShiftModifier)
+    QTest.keyClick(zo, Qt.Key_S, Qt.ControlModifier)
+    _, saved, _, _ = load_document(zo.document_path)
+    check("Reihenfolge wird gespeichert", [e.id for e in saved] == [a.id, c.id, d.id, b.id])
+    zo.close()
+
     # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
     # gezeichnet und exportiert wird in voller Auflösung
     big = QPixmap(2200, 1000)

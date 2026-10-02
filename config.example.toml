@@ -135,6 +135,10 @@ help = "shift+?"           # Übersicht aller Tastenkürzel (? = Shift+/ auf US-
 toggle_bar = "b"           # Leiste ein-/ausblenden
 tool_blur = "z"            # Werkzeug Unschärfe (verpixeln), nur Screenshot-Modus
 select_all = "ctrl+a"      # alles auswählen
+raise = "ctrl+up"                  # Auswahl einen Schritt nach vorne
+lower = "ctrl+down"                # Auswahl einen Schritt nach hinten
+raise_top = "ctrl+shift+up"        # Auswahl ganz nach vorne
+lower_bottom = "ctrl+shift+down"   # Auswahl ganz nach hinten
 tool_marker = "c"          # Marker (nummerierte Kreise); erneut drücken: 1 2 3 / A B C
 crop = "y"                 # Ausschnitt aufziehen; Esc dabei: Ausschnitt aufheben (nur Screenshot-Modus)
 spotlight = "e"            # Zeigen: Spotlight an/aus (alles abgedunkelt außer um die Maus)
