@@ -35,7 +35,7 @@ class OutputMixin:
         if self.board:  # nur der benutzte Bereich, Maßstab 1:1
             rect = self.used_rect()
             return render_scene(self.scene_, rect, rect.size().toSize())
-        return render_scene(self.scene_, self.export_rect, self.export_size)
+        return render_scene(self.scene_, *self.output_area())  # ganzer Screenshot oder Ausschnitt
 
     def used_rect(self):
         """Whiteboard: Bereich aller Elemente plus Rand; leer = sichtbarer Ausschnitt."""
@@ -86,7 +86,8 @@ class OutputMixin:
             self.report(f"Speichern fehlgeschlagen: {e}", error=True)
             return None
         background = self.board_color if self.board else self.background_to_save()
-        ok, message = save_document(path, rendered, build_document(background, self.elements()))
+        crop = None if self.board else self.crop_rect
+        ok, message = save_document(path, rendered, build_document(background, self.elements(), crop))
         if ok:
             self.document_path = path
             self.undo_stack.setClean()  # Stand merken: ab hier "nichts ungespeichert"

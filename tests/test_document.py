@@ -199,6 +199,56 @@ def main():
     reload_canvas.close()
     mk.close()
 
+    # Ausschnitt (y): nur der Ausschnitt wird ausgegeben, gespeichert bleibt alles + Rahmen
+    cr = make_canvas(QPixmap(800, 400))
+    cview = cr.viewport()
+
+    def at(x, y):  # Bildpixel -> Mausposition (das Bild steht mittig im größeren Fenster)
+        return cr.mapFromScene(QPointF(x, y))
+    QTest.keyClick(cr, Qt.Key_Y)
+    QTest.mousePress(cview, Qt.LeftButton, pos=at(100, 50))
+    QTest.mouseMove(cview, at(400, 250))
+    QTest.mouseRelease(cview, Qt.LeftButton, pos=at(400, 250))
+    check("Ausschnitt: Ausgabe nur der Ausschnitt (300x200), Auswahl danach beendet",
+          cr.render_image().size().toTuple() == (300, 200) and not cr.cropping and cr.crop_rect is not None)
+    QTest.keyClick(cr, Qt.Key_S, Qt.ControlModifier)
+    saved_png = QImage(str(cr.document_path))
+    bg_full, _, _, _, saved_crop = load_document(cr.document_path, with_crop=True)
+    check("Ausschnitt: Datei zeigt den Ausschnitt, enthält ganzen Screenshot und Rahmen",
+          saved_png.size().toTuple() == (300, 200) and bg_full.size().toTuple() == (800, 400)
+          and saved_crop is not None and saved_crop.size().toTuple() == (300.0, 200.0))
+    QTest.keyClick(cr, Qt.Key_Y)
+    QTest.keyClick(cr, Qt.Key_Escape)  # Esc während der Auswahl: Ausschnitt aufheben
+    removed = cr.crop_rect is None and cr.render_image().size().toTuple() == (800, 400)
+    cr.undo_stack.undo()
+    check("Ausschnitt: Esc in der Auswahl hebt auf, Undo stellt ihn wieder her",
+          removed and cr.crop_rect is not None)
+    QTest.keyClick(cr, Qt.Key_Y)
+    QTest.mousePress(cview, Qt.LeftButton, pos=at(10, 10))
+    QTest.mouseRelease(cview, Qt.LeftButton, pos=at(12, 11))  # winzig: gilt als Klick
+    check("Ausschnitt: winziger Rahmen ändert nichts",
+          cr.crop_rect is not None and cr.crop_rect.width() == 300 and not cr.cropping)
+
+    def crop_drag(x1, y1, x2, y2):  # y, dann in Bildpixeln ziehen
+        QTest.keyClick(cr, Qt.Key_Y)
+        QTest.mousePress(cview, Qt.LeftButton, pos=at(x1, y1))
+        QTest.mouseMove(cview, at(x2, y2))
+        QTest.mouseRelease(cview, Qt.LeftButton, pos=at(x2, y2))
+        r = cr.crop_rect
+        return (round(r.x()), round(r.y()), round(r.width()), round(r.height()))
+    # Ausschnitt ist jetzt (100, 50, 300, 200)
+    corner = crop_drag(400, 250, 500, 300)   # Griff unten rechts
+    edge = crop_drag(100, 175, 150, 175)     # Griff linke Kante (nur waagerecht)
+    moved = crop_drag(300, 150, 320, 170)    # innen: verschieben
+    fresh = crop_drag(600, 320, 700, 380)    # außen: neu aufziehen
+    check(f"Ausschnitt anpassen: Ecke, Kante, verschieben, außen neu ({corner} {edge} {moved} {fresh})",
+          corner == (100, 50, 400, 250) and edge == (150, 50, 350, 250) and moved == (170, 70, 350, 250)
+          and fresh == (600, 320, 100, 60))
+    cr.undo_stack.undo()
+    check("Ausschnitt anpassen: Undo geht schrittweise zurück",
+          (round(cr.crop_rect.x()), round(cr.crop_rect.width())) == (170, 350))
+    cr.close()
+
     # Bild von einem anderen Monitor: größer -> verkleinert ganz sichtbar, kleiner -> 1:1 mittig;
     # gezeichnet und exportiert wird in voller Auflösung
     big = QPixmap(2200, 1000)

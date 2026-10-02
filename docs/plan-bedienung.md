@@ -41,6 +41,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | W | Auswahl-Werkzeug | 12 |
 | Q / ? | Auswahl drehen −15° / +15° (Shift: in 1°-Schritten?); E ist inzwischen Zeigen, zweite Taste offen | 12 |
 | E / Shift+E | Zeigen: Spotlight / Lupe an/aus (umgesetzt) | – |
+| Y | Ausschnitt aufziehen (Esc dabei: aufheben) | 9 |
 | Entf / Backspace | Auswahl löschen | 12 |
 | Alt + A S D F | Größe in Stufen: Strichstärke, bei Text die Schriftgröße | 6 |
 | Alt + Mausrad | Größe fein einstellen (Auswahl bzw. getippter Text) | 6 |
@@ -65,7 +66,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | h j k l, Shift+h j k l | Auswahl verschieben (normal / fein) | 12 |
 | Strg+↑ / Strg+↓ | Nach vorne / nach hinten | 12 |
 
-Noch frei danach: Y U I O P N M, 1–0, Shift+Q/W/E/T, Alt-Kombinationen außer
+Noch frei danach: U I O P N M, 1–0, Shift+Q/W/E/T, Alt-Kombinationen außer
 Alt + A S D F und Alt+Pfeile.
 
 **Verbinder (15)** brauchen keine eigene Taste: Beginnt oder endet ein Pfeil auf einer

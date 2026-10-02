@@ -8,7 +8,8 @@ ein JSON-Dokument:
       "format": "annotate", "version": 1,
       "background": {"type": "image", "png": "<Base64 des rohen Screenshots>"}
                  oder {"type": "color", "color": "#24283b"}   (Whiteboard),
-      "elements": [ {"type": "shape", ...}, {"type": "text", ...} ]   # von unten nach oben
+      "elements": [ {"type": "shape", ...}, {"type": "text", ...} ],  # von unten nach oben
+      "crop": [x, y, breite, höhe]   (optional: Ausschnitt in Szenenkoordinaten, Taste y)
     }
 
 Öffnet man so ein PNG mit annotate, ist alles wieder bearbeitbar. Ein PNG ohne diese
@@ -24,6 +25,7 @@ import os
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QImage, QImageReader
 
 from elements import ShapeElement, TextElement
@@ -38,10 +40,10 @@ ELEMENT_TYPES = {"shape": ShapeElement, "text": TextElement}
 QImageReader.setAllocationLimit(1024)
 
 
-def build_document(background, elements):
+def build_document(background, elements, crop=None):
     """Dokument-Daten aus Hintergrund und Elementen (unten -> oben).
 
-    background: QImage (roher Screenshot) oder QColor (Whiteboard).
+    background: QImage (roher Screenshot) oder QColor (Whiteboard); crop: QRectF oder None.
     """
     if isinstance(background, QColor):
         background_data = {"type": "color", "color": background.name()}
@@ -52,7 +54,22 @@ def build_document(background, elements):
         "version": VERSION,
         "background": background_data,
         "elements": [item.to_dict() for item in elements],
+        **({"crop": [crop.x(), crop.y(), crop.width(), crop.height()]} if crop is not None else {}),
     }
+
+
+def crop_from_data(value):
+    """[x, y, w, h] -> QRectF; fehlt oder unbrauchbar -> None (mit Warnung, kein Absturz)."""
+    if value is None:
+        return None
+    try:
+        x, y, w, h = (float(v) for v in value)
+        if w <= 0 or h <= 0:
+            raise ValueError("Breite/Höhe müssen positiv sein")
+    except (TypeError, ValueError) as e:
+        print(f"[document] Ausschnitt ignoriert ({e}): {value!r}", file=sys.stderr)
+        return None
+    return QRectF(x, y, w, h)
 
 
 def save_document(path, rendered, document):
@@ -75,8 +92,9 @@ def save_document(path, rendered, document):
     return True, f"Gespeichert: {short_path(path)}"
 
 
-def load_document(path):
-    """PNG laden. Rückgabe: (Hintergrund oder None, Elemente, ist_zeichnung, Meldung).
+def load_document(path, with_crop=False):
+    """PNG laden. Rückgabe: (Hintergrund oder None, Elemente, ist_zeichnung, Meldung),
+    mit with_crop=True zusätzlich der gespeicherte Ausschnitt (QRectF oder None).
 
     Hintergrund ist ein QImage (Screenshot) oder eine QColor (Whiteboard).
 
@@ -85,10 +103,12 @@ def load_document(path):
     """
     image = QImageReader(str(path)).read()
     if image.isNull():
-        return None, [], False, f"Kann {path} nicht als Bild öffnen"
+        result = None, [], False, f"Kann {path} nicht als Bild öffnen"
+        return result + (None,) if with_crop else result
     raw = image.text(PNG_KEY)
     if not raw:
-        return image, [], False, f"Bild geöffnet: {short_path(path)}"
+        result = image, [], False, f"Bild geöffnet: {short_path(path)}"
+        return result + (None,) if with_crop else result
     try:
         document = json.loads(raw)
         if document.get("format") != FORMAT:
@@ -107,9 +127,11 @@ def load_document(path):
                 raise ValueError("eingebetteter Hintergrund unlesbar")
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         print(f"[document] Bearbeitungsdaten unbrauchbar ({e}), öffne als Bild", file=sys.stderr)
-        return image, [], False, "Bearbeitungsdaten fehlerhaft, als Bild geöffnet"
+        result = image, [], False, "Bearbeitungsdaten fehlerhaft, als Bild geöffnet"
+        return result + (None,) if with_crop else result
     elements = elements_from_dicts(document.get("elements", []))
-    return background, elements, True, f"Geöffnet: {short_path(path)}"
+    result = background, elements, True, f"Geöffnet: {short_path(path)}"
+    return result + (crop_from_data(document.get("crop")),) if with_crop else result
 
 
 def elements_from_dicts(dicts):

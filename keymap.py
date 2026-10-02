@@ -39,6 +39,7 @@ DEFAULT_KEYS = {
     "tool_select": "w",
     "tool_blur": "z",          # Unschärfe (verpixeln), nur Screenshot-Modus
     "tool_marker": "c",        # Marker; erneut c: 1 2 3 / A B C umschalten
+    "crop": "y",               # Ausschnitt aufziehen (Esc dabei: aufheben), nur Screenshot-Modus
     "delete": ("delete", "backspace"),  # ausgewähltes Element löschen
     "undo": "r",
     "redo": "shift+r",

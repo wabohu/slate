@@ -32,6 +32,7 @@ DESCRIPTIONS = {
     "copy_image": ("Ausgabe", "Bild kopieren", BOTH),
     "save": ("Ausgabe", "bearbeitbar speichern", BOTH),
     "export_png": ("Ausgabe", "sauberes PNG exportieren", BOTH),
+    "crop": ("Ausgabe", "Ausschnitt festlegen (dabei Esc: aufheben)", (SCREENSHOT,)),
     "quit": ("Allgemein", "beenden", BOTH),
     "help": ("Allgemein", "diese Übersicht", BOTH),
     "toggle_bar": ("Allgemein", "Leiste ein/aus", BOTH),

@@ -65,9 +65,9 @@ class HistoryMixin:
         if not self.history_path.exists():  # erster Stand dieses Eintrags: Platz schaffen
             history.prune(self.settings.history_dir, self.settings.history_keep - 1)
         # Direkt rendern statt render_image(): das würde Auswahl und Texteingabe beenden
-        rendered = render_scene(self.scene_, self.export_rect, self.export_size)
+        rendered = render_scene(self.scene_, *self.output_area())
         ok, message = save_document(self.history_path, rendered,
-                                    build_document(self.background_to_save(), self.elements()))
+                                    build_document(self.background_to_save(), self.elements(), self.crop_rect))
         if not ok:
             print(f"[history] {message}", file=sys.stderr)
 
@@ -95,10 +95,11 @@ class HistoryMixin:
         if not 0 <= target < len(files):
             self.report("Ältester Eintrag im Verlauf" if step < 0 else "Neuester Eintrag im Verlauf")
             return
-        background, elements, _, message = load_document(files[target])
+        background, elements, _, message, crop = load_document(files[target], with_crop=True)
         if not isinstance(background, QImage):  # unlesbar (None) oder Whiteboard (QColor)
             self.report(f"Verlauf: {message}", error=True)
             return
         self.replace_content(QPixmap.fromImage(background), elements)
+        self.set_crop(crop)
         self.history_path = files[target]
         self.report(f"Verlauf {target + 1}/{len(files)}: {history.label(files[target])}")

@@ -10,6 +10,7 @@ from PySide6.QtGui import QColor, QCursor, QPainter, QUndoStack
 from PySide6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView
 
 from canvas_board import BoardMixin
+from canvas_crop import CropMixin
 from canvas_history import HistoryMixin
 from canvas_input import InputMixin
 from canvas_output import OutputMixin
@@ -32,11 +33,12 @@ FOCUS_RETRY_MS = 50
 ACTIONS_WHILE_TYPING = ("size_",)
 
 
-class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QGraphicsView):
+class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, CropMixin, QGraphicsView):
     """Zeichenfläche für Screenshot und Whiteboard. Weitere Methoden in den Mixins:
     canvas_input.py (Maus, Text, Griffe, Mausrad), canvas_board.py (Whiteboard-Ansicht
     und -Hintergrund), canvas_output.py (Kopieren, Speichern, Meldungen),
-    canvas_history.py (Verlauf), canvas_pointer.py (Mauszeiger, Spotlight, Lupe);
+    canvas_history.py (Verlauf), canvas_pointer.py (Mauszeiger, Spotlight, Lupe),
+    canvas_crop.py (Ausschnitt);
     siehe docs/plan-aufteilung.md."""
 
     def __init__(self, screen, pixmap, elements=(), document_path=None, board=False, board_color=None):
@@ -109,6 +111,11 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         self.panning = None       # letzte Mausposition beim Verschieben mit der mittleren Taste
         self.zoom_rest = 0        # angefangene Raste beim Zoomen
         self.overview_return = None  # (Ansicht vorher, Ansicht in der Übersicht) für Strg+W zurück
+        self.crop_rect = None     # Ausschnitt (Taste y, canvas_crop.py), None = ganzer Screenshot
+        self.cropping = False     # Ausschnitt wird gerade aufgezogen
+        self.crop_drag = None     # Startpunkt beim Aufziehen
+        self.crop_drag_end = None
+        self.crop_edit = None     # beim Ziehen: Griff ändern, verschieben oder neu
         self.marker_kind = "number"  # neue Marker: "number" (1 2 3) oder "letter" (A B C)
         self.pointer_mode = None  # Zeigen: None, "spotlight" oder "lens" (canvas_pointer.py)
         self.cursor_cache = {}    # fertige Mauszeiger je Werkzeug/Farbe/Breite
@@ -162,6 +169,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
             "tool_select": lambda: self.set_tool(Tool.SELECT),
             "tool_blur": lambda: None if self.board else self.set_tool(Tool.BLUR),
             "tool_marker": self.marker_key,
+            "crop": self.crop_key,
             "delete": self.delete_selected,
             "undo": self.undo_stack.undo,
             "redo": self.undo_stack.redo,
@@ -202,6 +210,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         # Startwerkzeug kann fehlen, wenn es nicht in [tools] order steht -> nichts markieren
         self.tool_bar.set_active(self.bar_tools.index(tool) if tool in self.bar_tools else -1)
         self.pointer_mode = None  # Werkzeugwechsel beendet Spotlight/Lupe
+        self.cropping = False     # und eine begonnene Ausschnitt-Auswahl
         self.viewport().update()
         self.refresh_cursor()
         self.update_bars()
@@ -335,6 +344,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         for item in elements:
             self.scene_.addItem(item)
         self.document_path = None
+        self.crop_rect = None
+        self.cropping = False
         self.history_timer.stop()  # undo_stack.clear() hat Speichern vorgemerkt, unnötig
         self.fit_overlay()
         self.update_bars()
@@ -468,6 +479,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, QG
         if key == Qt.Key_Escape:  # fest, damit man das Tool immer verlassen kann
             if self.pointer_mode:  # erst Spotlight/Lupe beenden
                 self.stop_pointer()
+            elif self.cropping:  # während der Ausschnitt-Auswahl: Ausschnitt aufheben
+                self.cancel_crop()
             elif self.selected_element():  # erst die Auswahl aufheben, dann beenden
                 self.scene_.clearSelection()
                 self.update_bars()

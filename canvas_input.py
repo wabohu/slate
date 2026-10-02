@@ -33,6 +33,9 @@ class InputMixin:
             return
         if self.pointer_mode and event.button() == Qt.LeftButton:
             return  # Spotlight/Lupe: Klicks zeichnen nichts (mittlere Taste verschiebt weiter)
+        if self.cropping and event.button() == Qt.LeftButton:
+            self.crop_press(self.mapToScene(event.position().toPoint()))  # Ausschnitt aufziehen
+            return
         if event.button() == Qt.MiddleButton and self.board:
             self.panning = event.position()  # Ansicht verschieben beginnt
             self.viewport().setCursor(Qt.ClosedHandCursor)
@@ -121,6 +124,12 @@ class InputMixin:
         if self.pointer_mode:
             self.viewport().update()  # Spotlight/Lupe folgen der Maus
             return
+        if self.crop_drag is not None:
+            self.crop_move(self.mapToScene(event.position().toPoint()))
+            return
+        if self.cropping:  # Zeiger über Griffen bzw. im Ausschnitt anpassen
+            self.crop_hover(self.mapToScene(event.position().toPoint()))
+            return
         if self.passthrough:
             super().mouseMoveEvent(event)
             return
@@ -152,6 +161,9 @@ class InputMixin:
             self.refresh_cursor()
             return
         if event.button() != Qt.LeftButton:
+            return
+        if self.crop_drag is not None:
+            self.crop_release(self.mapToScene(event.position().toPoint()))
             return
         if self.passthrough:
             self.passthrough = False
@@ -265,6 +277,7 @@ class InputMixin:
         gezeichnet wird, landet darum nie im exportierten Bild (scene.render).
         """
         self.paint_selection(painter)
+        self.paint_crop(painter)     # Ausschnitt: außerhalb abdunkeln (canvas_crop.py)
         self.paint_pointer(painter)  # Spotlight/Lupe über allem (canvas_pointer.py)
 
     def paint_selection(self, painter):

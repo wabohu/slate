@@ -11,6 +11,7 @@ Grundsätze und geplante Belegung: `docs/plan-bedienung.md`.
 - Shift+A S D F G Z X C V B: Farbe (Reihenfolge der Farbleiste), Tab/Shift+Tab blättern
 - Alt+A S D F: Größe in Stufen 1-4 (Strichstärke bzw. Schriftgröße, `[size]` in der Config)
 - Alt+Mausrad: Größe fein einstellen (Text ±2 px, Strich ±1 px pro Raste), für Auswahl oder gerade getippten Text. Rasten kurz hintereinander = ein Undo-Schritt (`PropertyCommand` mit `mergeWith`)
+- Y: Ausschnitt (nur Screenshot-Modus). Rahmen aufziehen, danach geht es mit dem Werkzeug weiter; außerhalb abgedunkelt, unten rechts die Größe in Pixeln. Enter, Strg+C, Strg+E, Shift+Enter, Strg+S und Verlauf geben nur den Ausschnitt aus; die bearbeitbare Datei behält den ganzen Screenshot samt Rahmen, er bleibt nach dem Öffnen änderbar. Erneut Y zeigt Griffe am vorhandenen Ausschnitt: Griff ziehen = Größe (Ecken beide Richtungen, Kanten eine), innen ziehen = verschieben, außen ziehen = neu aufziehen. Esc während der Auswahl hebt ihn auf; alles mit Undo
 - Enter: Bild in die Zwischenablage und beenden, Strg+C: nur kopieren
 - Shift+Enter: speichern wie Strg+S (bearbeitbares PNG, dieselbe Datei wie beim nächsten Strg+S), absoluten Pfad in die Zwischenablage, beenden (Whiteboard: bleibt offen)
 - Strg+S: bearbeitbare Zeichnung speichern (PNG mit eingebetteten Daten, erst neue Datei in `[output] dir`, danach dieselbe überschreiben), Strg+E: sauberes PNG exportieren

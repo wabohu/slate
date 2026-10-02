@@ -54,7 +54,7 @@ def main():
         args.file = str(entries[-1])
 
     if args.file:
-        background, elements, is_drawing, message = load_document(args.file)
+        background, elements, is_drawing, message, crop = load_document(args.file, with_crop=True)
         if background is None:
             print(message, file=sys.stderr)
             sys.exit(1)
@@ -69,6 +69,7 @@ def main():
             # frischen Screenshot) eine eigene Datei im Ausgabeordner an
             canvas = Canvas(screen, QPixmap.fromImage(background), elements,
                             document_path=args.file if is_drawing else None)
+            canvas.set_crop(crop)  # gespeicherter Ausschnitt (Taste y), bleibt änderbar
             if is_entry(args.file, canvas.settings.history_dir):
                 canvas.document_path = None
                 canvas.start_history(Path(args.file).expanduser().resolve())

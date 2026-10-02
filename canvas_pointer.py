@@ -125,6 +125,8 @@ class PointerMixin:
         Spotlight bzw. Lupe markieren die Stelle selbst)."""
         if self.pointer_mode:
             return QCursor(Qt.BlankCursor)
+        if self.cropping:  # Ausschnitt aufziehen (canvas_crop.py)
+            return QCursor(Qt.CrossCursor)
         if self.tool == Tool.SELECT:
             return QCursor(Qt.ArrowCursor)
         color = self.adapt_color(self.pen_color) if self.board else QColor(self.pen_color)
