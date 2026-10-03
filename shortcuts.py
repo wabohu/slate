@@ -28,6 +28,8 @@ DESCRIPTIONS = {
     "select_all": ("Selection", "select all", BOTH),
     "raise": ("Selection", "bring forward", BOTH),
     "lower": ("Selection", "send backward", BOTH),
+    "rotate_left": ("Selection", "rotate 5° counterclockwise", BOTH),
+    "rotate_right": ("Selection", "rotate 5° clockwise", BOTH),
     "raise_top": ("Selection", "bring to front", BOTH),
     "lower_bottom": ("Selection", "send to back", BOTH),
     "undo": ("General", "undo", BOTH),

@@ -1,6 +1,6 @@
 """Input part of the Canvas: mouse (draw, select, move, drag handles),
 text input, selection frame with handles, mouse wheel (fine size, on the whiteboard pan/
-zoom via BoardMixin), moving the selection with hjkl and deleting.
+zoom via BoardMixin), moving the selection with hjkl, rotating (Q) and deleting.
 
 Mixin like BoardMixin (canvas_board.py): no __init__ of its own, Canvas inherits from it.
 super().mousePressEvent(event) etc. ends up in QGraphicsView (Qt's default behavior,
@@ -13,7 +13,7 @@ settings, toast, undo_stack, selected_element(), element_at(), zoom(), update_ba
 pan_by(), pan_by_wheel(), zoom_by_wheel().
 """
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF, QTransform
 
 from colors import contrast
 from commands import (AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand,
@@ -425,6 +425,35 @@ class InputMixin:
         olds = [QPointF(i.pos()) for i in items]
         news = [p + QPointF(dx * step, dy * step) for p in olds]
         self.undo_stack.push(MoveItemCommand(items, olds, news, "Move", mergeable=True))
+        self.update_bars()  # move the handles along; when merging, the stack reports nothing
+
+    def rotate_selected(self, step):
+        """Q / Shift+Q: rotate the selection by step degrees (positive = clockwise).
+
+        One element turns around its own middle, several turn together around the
+        middle of their centers (the arrangement stays). Blur and markers are left out:
+        blur pixelates axis-parallel areas of the screenshot, a marker number would tilt.
+        Presses in quick succession = one undo step.
+
+        Qt concept: QTransform().rotate(step) is a pure rotation around (0, 0). Applied to
+        "pos minus center" it turns the position around the center; rotation() turns
+        the element itself by the same angle, so it moves rigidly.
+        """
+        items = self.selected_elements()
+        if not items:
+            self.report("Rotate: select something first (W)")
+            return
+        items = [i for i in items if not (isinstance(i, ShapeElement) and i.tool in (Tool.BLUR, Tool.MARKER))]
+        if not items:
+            self.report("Blur and markers cannot be rotated")
+            return
+        centers = [i.mapToScene(i.boundingRect().center()) for i in items]
+        center = QPointF(sum(c.x() for c in centers) / len(centers), sum(c.y() for c in centers) / len(centers))
+        turn = QTransform().rotate(step)
+        changes = [(item.set_pose, item.pose(),
+                    (center + turn.map(item.pos() - center), (item.rotation() + step) % 360))
+                   for item in items]
+        self.undo_stack.push(property_command(changes, "Rotate", mergeable=True))
         self.update_bars()  # move the handles along; when merging, the stack reports nothing
 
     def restack(self, step):

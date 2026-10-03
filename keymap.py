@@ -40,6 +40,8 @@ DEFAULT_KEYS = {
     "select_all": "ctrl+a",    # select everything (select tool)
     "raise": "ctrl+up",               # selection one step forward
     "lower": "ctrl+down",             # selection one step back
+    "rotate_left": "q",               # rotate the selection counterclockwise (ROTATE_STEP)
+    "rotate_right": "shift+q",        # rotate the selection clockwise
     "raise_top": "ctrl+shift+up",     # selection all the way to the front
     "lower_bottom": "ctrl+shift+down",  # selection all the way to the back
     "tool_blur": "z",          # blur (pixelate), screenshot mode only

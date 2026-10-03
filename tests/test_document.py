@@ -302,6 +302,87 @@ def main():
     check("deleting all selected, one undo step", gone and len(ms.elements()) == 3)
     ms.close()
 
+    # Rotate (Q / Shift+Q): around the middle, presses merged into one undo step, groups together,
+    # blur and markers left out, handles on rotated elements, saving keeps the rotation
+    from elements import ImageElement as _ImageElement
+    plain_bg = QPixmap(800, 400)
+    plain_bg.fill(QColor("#3b4261"))  # unfilled pixmaps contain random memory
+    ro = make_canvas(plain_bg)
+    rv = ro.viewport()
+
+    def rdrag(x1, y1, x2, y2):
+        QTest.mousePress(rv, Qt.LeftButton, Qt.NoModifier, ro.mapFromScene(QPointF(x1, y1)))
+        QTest.mouseMove(rv, ro.mapFromScene(QPointF(x2, y2)))
+        QTest.mouseRelease(rv, Qt.LeftButton, Qt.NoModifier, ro.mapFromScene(QPointF(x2, y2)))
+
+    def mid(item):
+        return item.mapToScene(item.boundingRect().center())
+
+    def near(a, b, tol=0.5):
+        return abs(a.x() - b.x()) < tol and abs(a.y() - b.y()) < tol
+    ro.set_tool(Tool.RECT)
+    rdrag(100, 100, 200, 160)
+    rdrag(300, 100, 400, 160)
+    first, second = ro.elements()
+    ro.set_tool(Tool.SELECT)
+    first.setSelected(True)
+    center_before, steps_before = mid(first), ro.undo_stack.count()
+    for _ in range(3):
+        QTest.keyClick(ro, Qt.Key_Q, Qt.ShiftModifier)
+    check(f"Shift+Q x3: 15° clockwise around the middle, one undo step ({first.rotation()})",
+          abs(first.rotation() - 15) < 1e-6 and near(mid(first), center_before)
+          and ro.undo_stack.count() == steps_before + 1)
+    ro.undo_stack.undo()
+    QTest.keyClick(ro, Qt.Key_Q)
+    check(f"undo back to 0°, then Q: 5° counterclockwise ({first.rotation()})",
+          abs(first.rotation() - 355) < 1e-6 and near(mid(first), center_before))
+    ro.undo_stack.undo()
+    first.setSelected(True)
+    second.setSelected(True)
+    group_mid = (mid(first) + mid(second)) / 2
+    ro.rotate_selected(90)
+    check("group: turns around the common middle, both rotated",
+          near((mid(first) + mid(second)) / 2, group_mid) and near(mid(first), QPointF(group_mid.x(), group_mid.y() - 100))
+          and first.rotation() == second.rotation() == 90)
+    ro.undo_stack.undo()
+    ro.scene_.clearSelection()
+    ro.set_tool(Tool.MARKER)
+    QTest.mouseClick(rv, Qt.LeftButton, Qt.NoModifier, ro.mapFromScene(QPointF(600, 300)))
+    marker = ro.elements()[-1]
+    ro.set_tool(Tool.SELECT)
+    marker.setSelected(True)
+    ro.rotate_selected(30)
+    check("marker is left out", marker.rotation() == 0)
+    pixels = QImage(120, 60, QImage.Format_RGB32)
+    pixels.fill(QColor("orange"))
+    image = _ImageElement(QPointF(100, 250), pixels)
+    ro.scene_.addItem(image)
+    image.setRotation(90)
+    fixed = image.mapToScene(image.handle_points()[0])
+    start = image.geometry()
+    image.drag_handle(2, image.mapToScene(QPointF(240, 120)), start)
+    check(f"rotated image: handle doubles the size, opposite corner stays ({image.size.toTuple()})",
+          image.size.toTuple() == (240.0, 120.0) and near(image.mapToScene(image.handle_points()[0]), fixed))
+    label = TextElement(QPointF(500, 100), QColor("red"), 20, text="rotated")
+    ro.scene_.addItem(label)
+    label.setRotation(45)
+    fixed = label.mapToScene(label.handle_points()[0])
+    corner = label.mapToScene(label.handle_points()[2])
+    label.drag_handle(2, fixed + (corner - fixed) * 2, label.geometry(), (6, 300))
+    check(f"rotated text: handle scales the font, opposite corner stays ({label.font_size})",
+          label.font_size > 30 and near(label.mapToScene(label.handle_points()[0]), fixed, 1.0))
+    first.setSelected(True)
+    ro.rotate_selected(30)
+    rotated_image = ro.render_image()
+    QTest.keyClick(ro, Qt.Key_S, Qt.ControlModifier)
+    rbg, relems, _, _ = load_document(ro.document_path)
+    reloaded = make_canvas(QPixmap.fromImage(rbg), relems, ro.document_path)
+    check("rotation is saved and loaded (pixel identical)",
+          sorted(round(e.rotation()) for e in relems) == [0, 0, 30, 45, 90]
+          and reloaded.render_image() == rotated_image)
+    reloaded.close()
+    ro.close()
+
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
     zo = make_canvas(QPixmap(800, 400))
     zv = zo.viewport()

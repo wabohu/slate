@@ -18,7 +18,7 @@ from canvas_pointer import PointerMixin
 from commands import property_command
 from config import load_config
 from elements import ImageElement, ShapeElement, TextElement
-from settings import BOARD_EXTENT, HIT_TOLERANCE, SIZE_LEVELS, Settings
+from settings import BOARD_EXTENT, HIT_TOLERANCE, ROTATE_STEP, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
 from shortcuts import overview
 from ui import HelpPanel, MainBar, PaletteBar, SizeBar, Toast, ToolBar, ui_scale
@@ -175,6 +175,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             "select_all": self.select_all,
             "raise": lambda: self.restack(+1),
             "lower": lambda: self.restack(-1),
+            "rotate_left": lambda: self.rotate_selected(-ROTATE_STEP),  # Qt: positive = clockwise
+            "rotate_right": lambda: self.rotate_selected(+ROTATE_STEP),
             "raise_top": lambda: self.restack(+2),
             "lower_bottom": lambda: self.restack(-2),
             "tool_blur": lambda: None if self.board else self.set_tool(Tool.BLUR),

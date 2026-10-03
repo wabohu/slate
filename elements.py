@@ -39,6 +39,24 @@ def without_selection_highlight(option):
     return option
 
 
+class PoseMixin:
+    """Position and rotation together, for rotating (Q / Shift+Q) with undo.
+
+    Qt concept: rotation() turns the item around its own origin, the point pos()
+    in the scene. To rotate around the middle instead, the Canvas also moves pos
+    (canvas_input.rotate_selected). set_pose is a bound method, so the undo stack
+    can merge several presses on the same element (PropertyCommand.mergeWith).
+    """
+
+    def pose(self):
+        return (QPointF(self.pos()), self.rotation())
+
+    def set_pose(self, state):
+        pos, angle = state
+        self.setRotation(angle)
+        self.setPos(pos)
+
+
 def scale_factor(new, fixed, old):
     """Stretch factor along one axis; do not stretch for (almost) zero extent."""
     return (new - fixed) / (old - fixed) if abs(old - fixed) > 0.5 else 1.0
@@ -89,7 +107,7 @@ def shown_color(item, color):
     return adapt(color) if adapt else QColor(color)
 
 
-class ShapeElement(QGraphicsPathItem):
+class ShapeElement(PoseMixin, QGraphicsPathItem):
     """Freehand, line, arrow, rectangle or ellipse.
 
     points (local, relative to pos):
@@ -382,7 +400,7 @@ class ShapeElement(QGraphicsPathItem):
         self.setPath(path)
 
 
-class TextElement(QGraphicsTextItem):
+class TextElement(PoseMixin, QGraphicsTextItem):
     """Text object with a fixed ID, color and font size (bold, in pixels).
 
     Later a shape label will hang on a ShapeElement as a child item (D5).
@@ -439,18 +457,19 @@ class TextElement(QGraphicsTextItem):
         self.setPos(pos)
 
     def drag_handle(self, index, scene_pos, start, size_range=(6, 300)):
-        """Font size in proportion to the diagonal; the opposite corner stays put."""
-        start_pos, start_size = start
+        """Font size in proportion to the diagonal; the opposite corner stays put
+        (also when the text is rotated: corners are mapped with mapToScene)."""
+        _, start_size = start
         self.set_geometry(start)  # compute from the initial state, not step by step
         box = corners(self.boundingRect())
-        fixed_local, handle_local = box[(index + 2) % 4], box[index]
-        fixed_scene = start_pos + fixed_local
+        fixed_scene = self.mapToScene(box[(index + 2) % 4])
         ratio = (distance(scene_pos, fixed_scene)
-                 / max(1.0, distance(start_pos + handle_local, fixed_scene)))
+                 / max(1.0, distance(self.mapToScene(box[index]), fixed_scene)))
         low, high = size_range
         self.set_font_size(max(low, min(high, round(start_size * ratio))))
-        # New size: set the position so that the fixed corner stays in its place
-        self.setPos(fixed_scene - corners(self.boundingRect())[(index + 2) % 4])
+        # New size: shift the position so that the fixed corner stays in its place
+        moved = self.mapToScene(corners(self.boundingRect())[(index + 2) % 4])
+        self.setPos(self.pos() + fixed_scene - moved)
 
     # --- Save / load (document.py) ---
     def to_dict(self):
@@ -482,7 +501,7 @@ class TextElement(QGraphicsTextItem):
         self.clearFocus()
 
 
-class ImageElement(QGraphicsItem):
+class ImageElement(PoseMixin, QGraphicsItem):
     """Image (e.g. a pasted screenshot crop on the whiteboard).
 
     image: the image in full resolution; size: displayed size in scene units.
@@ -532,16 +551,19 @@ class ImageElement(QGraphicsItem):
         self.setPos(pos)
 
     def drag_handle(self, index, scene_pos, start):
-        """Corner index to scene_pos; the opposite corner stays, aspect ratio fixed."""
-        start_pos, start_size = start
-        box = corners(QRectF(start_pos, start_size))
-        fixed = box[(index + 2) % 4]
+        """Corner index to scene_pos; the opposite corner stays, aspect ratio fixed.
+        Computed in local coordinates, so it also works when the image is rotated."""
+        _, start_size = start
+        self.set_geometry(start)  # compute from the initial state, not step by step
+        fixed = corners(QRectF(QPointF(0, 0), start_size))[(index + 2) % 4]
+        local = self.mapFromScene(scene_pos)
         ratio = start_size.width() / max(1e-6, start_size.height())
-        width = max(8.0, abs(scene_pos.x() - fixed.x()), abs(scene_pos.y() - fixed.y()) * ratio)
+        width = max(8.0, abs(local.x() - fixed.x()), abs(local.y() - fixed.y()) * ratio)
         size = QSizeF(width, width / ratio)
-        left = fixed.x() - size.width() if scene_pos.x() < fixed.x() else fixed.x()
-        top = fixed.y() - size.height() if scene_pos.y() < fixed.y() else fixed.y()
-        self.set_geometry((QPointF(left, top), size))
+        left = fixed.x() - size.width() if local.x() < fixed.x() else fixed.x()
+        top = fixed.y() - size.height() if local.y() < fixed.y() else fixed.y()
+        # The new top left corner in old local coordinates becomes the new pos (same rotation)
+        self.set_geometry((self.mapToScene(QPointF(left, top)), size))
 
     # --- Save / load ---
     def to_dict(self):

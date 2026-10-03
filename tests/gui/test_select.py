@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """GUI test multi-selection: three rectangles, Ctrl+A, rubber band, Shift+click, move
-and delete them together; the history entry contains the result.
+and delete them together; the history entry contains the result. Plus stacking order and
+rotating with Q / Shift+Q.
 
     python tests/gui/test_select.py
 
@@ -62,6 +63,28 @@ def main():
         markers = [e for e in load_elements(entries[-1])] if entries else []
         check("Ctrl+Shift+↑: the first marker is on top now",
               len(markers) == 2 and markers[-1].points[1].x() + markers[-1].pos().x() < 610)
+
+        # Rotate: rectangle, W, click on its edge, 6 × Shift+Q = 30°, Q once = back to 25°
+        s.key("alt+Escape")
+        wait(lambda: s.slate_pids(), 10)
+        wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
+        time.sleep(0.4)
+        s.key("f")
+        s.drag(700, 300, 1100, 500)
+        s.key("w")
+        s.move(900, 300)                         # top edge of the rectangle
+        s.run(["xdotool", "click", "1"])
+        for _ in range(6):
+            s.key("shift+q")
+        s.key("q")
+        time.sleep(0.3)
+        s.screenshot("05-rotated")
+        s.key("Return")
+        wait(lambda: not s.slate_pids(), 10)
+        entries = s.history_entries()
+        rects = [e for e in load_elements(entries[-1]) if e.tool.name == "RECT"] if entries else []
+        check(f"Shift+Q ×6, Q ×1: rectangle rotated by 25° ({[r.rotation() for r in rects]})",
+              len(rects) == 1 and abs(rects[0].rotation() - 25) < 1e-6)
     return summary()
 
 

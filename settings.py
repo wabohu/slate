@@ -46,6 +46,9 @@ DEFAULT_MOVE_STEP = 10
 DEFAULT_MOVE_STEP_FINE = 1
 MOVE_STEP_RANGE = (1, 500)
 
+# Rotate the selection with Q / Shift+Q: degrees per key press
+ROTATE_STEP = 5
+
 # Corner radius of new rectangles ([rect] in the config): screenshot and whiteboard
 DEFAULT_RECT_RADIUS_BOARD = 20
 RECT_RADIUS_RANGE = (0, 200)
