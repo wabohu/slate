@@ -22,6 +22,7 @@
 19. [x] Text per Doppelklick anlegen (im Auswahl-Werkzeug), ohne vorher T zu drücken. Empfehlung: im Auswahl-Werkzeug Doppelklick auf leere Stelle = neuer Text dort (wie Excalidraw); auf Text = bearbeiten (gibt es schon); auf Form = beschriften (Punkt 15)
     - In Zeichenwerkzeugen eher nicht: Qt meldet den Doppelklick erst nach dem ersten Klick, Freihand hat dann schon einen Punkt gezeichnet (müsste samt Undo-Schritt wieder weg), und zwei schnelle Freihand-Punkte würden ungewollt zu Text. Linie/Rechteck/Ellipse wären unkritisch (Klick ohne Ziehen wird verworfen)
     - Entschieden: nur im Auswahl-Werkzeug
+20. [ ] Vielleicht: Module in Ordner/Pakete aufteilen statt 22 flacher Dateien im Hauptordner (Aufteilung 2026-10-01 bewusst flach, siehe `docs/plan-aufteilung.md`). Lohnt sich vor allem, wenn slate installierbar werden soll (AUR, `pipx`) oder die Dateiliste auf GitHub stört; funktional ändert sich nichts. Skizze: `slate.py` bleibt als Startskript (Symlink, sxhkd), darunter Paket `slate/` mit `canvas/` (Canvas + Mixins), `ui/`, `config/` (settings, config, keymap, colors), `system/` (export, notify, wm), Rest direkt in `slate/`. Betrifft alle Imports in Code und Tests, `scripts/sync_config.py`, CLAUDE.md. Vorher Plan in `docs/plan-pakete.md`
 
 ## Offene Designentscheidungen
 Betreffen mehrere Roadmap-Punkte, darum vor dem jeweils ersten klären.

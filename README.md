@@ -1,8 +1,10 @@
 # slate
 
-Screenshot annotation tool and whiteboard for Linux (X11), similar to Epic Pen
-or Tekapoint. A screenshot of the monitor is frozen and shown full screen, and
-you mark it up with shapes, arrows, text, numbered markers and blur. The result
+Screenshot annotation tool and whiteboard for Linux (X11), similar to 
+Tekapoint and Excalidraw.
+
+A screenshot of the monitor is frozen and shown full screen, 
+you can mark it up with shapes, arrows, text, numbered markers and blur parts of it. The result
 goes to the clipboard or into a file that you can edit again later.
 
 Built with Python and PySide6 (Qt 6), for keyboard-driven use under a tiling
@@ -48,12 +50,7 @@ slate --last         # open the latest screenshot from the history
 slate image.png      # open a saved drawing or any PNG
 ```
 
-It works best on a global hotkey, e.g. in sxhkd:
-
-```
-alt + Escape
-    ~/.local/bin/slate
-```
+It works best on a global hotkey, e.g. in sxhkd.
 
 Inside the tool, `?` shows all shortcuts and Esc quits. In detail:
 [docs/usage.md](docs/usage.md).
@@ -72,11 +69,6 @@ python tests/test_document.py
 python tests/regress.py
 python tests/gui/run.py      # needs Xvfb, herbstluftwm, sxhkd, xdotool
 ```
-
-## Development notes
-
-The code and the user-facing docs are in English. The design notes in `docs/`
-(`roadmap.md`, `plan-*.md`) are my working notes and stay in German.
 
 ## License
 
