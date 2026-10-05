@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import regress  # noqa: E402  (sets HOME, config and QT_QPA_PLATFORM)
 
 from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QPixmap  # noqa: E402
+from PySide6.QtGui import QColor, QFontMetricsF, QGuiApplication, QImage, QPixmap  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -411,6 +411,60 @@ def main():
     check("rotate handle: none for lines (they turn via their end points)",
           rh.rotate_handle(rh.elements()[-1]) is None and rh.rotate_handle(box) is not None)
     rh.close()
+
+    # Labels (text in shapes, step 1: data model): child of the shape, wraps at its width,
+    # centered, color of the shape, moves/resizes/rotates along, saved with the shape
+    from elements import LABEL_PADDING, ShapeElement as _Shape
+    lb = make_canvas(plain_bg)
+    lv = lb.viewport()
+    lb.set_tool(Tool.RECT)
+    QTest.mousePress(lv, Qt.LeftButton, Qt.NoModifier, lb.mapFromScene(QPointF(100, 100)))
+    QTest.mouseMove(lv, lb.mapFromScene(QPointF(300, 220)))
+    QTest.mouseRelease(lv, Qt.LeftButton, Qt.NoModifier, lb.mapFromScene(QPointF(300, 220)))
+    box = lb.elements()[0]
+    label = TextElement(QPointF(0, 0), QColor("white"), 20, text="a label long enough to wrap twice")
+    box.set_label(label)
+
+    def box_mid():
+        return box.mapToScene(box.box(box.points).center())
+
+    def label_mid():
+        return label.mapToScene(label.boundingRect().center())
+    one_line = QFontMetricsF(label.font()).height()
+    check("label: not an element of its own, wraps at the width of the shape, centered",
+          lb.elements() == [box] and abs(label.textWidth() - (200 - 2 * LABEL_PADDING)) < 0.5
+          and label.boundingRect().height() > 1.5 * one_line and near(label_mid(), box_mid(), 1.0))
+    check("label: has the color of the shape, also after recoloring",
+          label.color == box.color and (box.set_color(QColor("#00ff00")) or label.color.name() == "#00ff00"))
+    check("label: a click on it counts as the shape", lb.element_at(label_mid()) is box)
+    start = box.geometry()
+    box.drag_handle(2, box.mapToScene(QPointF(400, 200)), start)
+    resized_ok = abs(label.textWidth() - (400 - 2 * LABEL_PADDING)) < 0.5 and near(label_mid(), box_mid(), 1.0)
+    box.setSelected(True)
+    lb.set_tool(Tool.SELECT)
+    lb.rotate_selected(30)
+    check("label: rewraps after resizing, stays in the middle after rotating",
+          resized_ok and near(label_mid(), box_mid(), 1.0))
+    labeled = lb.render_image()
+    QTest.keyClick(lb, Qt.Key_S, Qt.ControlModifier)
+    lbg, lelems, _, _ = load_document(lb.document_path)
+    lreloaded = make_canvas(QPixmap.fromImage(lbg), lelems, lb.document_path)
+    check("label: saved and loaded with the shape (text, size, pixel identical)",
+          len(lelems) == 1 and lelems[0].label is not None
+          and lelems[0].label.toPlainText() == label.toPlainText() and lelems[0].label.font_size == 20
+          and lreloaded.render_image() == labeled)
+    broken = dict(box.to_dict(), label={"text": "x", "font_size": "big"})
+    try:
+        _Shape.from_dict(broken)
+        broken_rejected = False
+    except ValueError:
+        broken_rejected = True
+    plain = dict(box.to_dict())
+    plain.pop("label")
+    check("label: broken label data is rejected, missing label = no label (older files)",
+          broken_rejected and _Shape.from_dict(plain).label is None)
+    lreloaded.close()
+    lb.close()
 
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
     zo = make_canvas(QPixmap(800, 400))

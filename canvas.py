@@ -17,7 +17,7 @@ from canvas_output import OutputMixin
 from canvas_pointer import PointerMixin
 from commands import property_command
 from config import load_config
-from elements import ImageElement, ShapeElement, TextElement
+from elements import ImageElement, ShapeElement, TextElement, is_label
 from settings import BOARD_EXTENT, HIT_TOLERANCE, ROTATE_STEP, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
 from shortcuts import overview
@@ -263,7 +263,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         area = QRectF(pos.x() - r, pos.y() - r, 2 * r, 2 * r)
         for item in self.scene_.items(area, Qt.IntersectsItemShape):  # top to bottom
             if isinstance(item, ELEMENT_CLASSES):
-                return item
+                return item.owner if is_label(item) else item  # a shape's label counts as the shape
         return None
 
     def on_undo_index_changed(self, _index):
@@ -488,9 +488,10 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             self.fit_overlay()
 
     def elements(self):
-        """All elements bottom to top (order when saving)."""
+        """All elements bottom to top (order when saving). Labels are part of their shape
+        (child items) and do not count as elements of their own."""
         return [i for i in self.scene_.items(Qt.AscendingOrder)
-                if isinstance(i, ELEMENT_CLASSES)]
+                if isinstance(i, ELEMENT_CLASSES) and not is_label(i)]
 
     # --- Keyboard ---
     def event(self, event):

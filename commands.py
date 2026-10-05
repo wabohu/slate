@@ -13,6 +13,8 @@ import time
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QUndoCommand
 
+from elements import is_label
+
 
 class AddItemCommand(QUndoCommand):
     """New object (shape or text) in the scene."""
@@ -35,7 +37,7 @@ def item_above(item):
     scene = item.scene()
     if scene is None:
         return None
-    siblings = [i for i in scene.items(Qt.AscendingOrder) if i.parentItem() is None]
+    siblings = [i for i in scene.items(Qt.AscendingOrder) if not is_label(i)]  # not parentItem(), see is_label
     index = siblings.index(item)
     return siblings[index + 1] if index + 1 < len(siblings) else None
 

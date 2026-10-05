@@ -10,7 +10,7 @@ import math
 import uuid
 
 from PySide6.QtCore import QBuffer, QIODevice, QPointF, QRectF, QSizeF, Qt
-from PySide6.QtGui import QColor, QFont, QImage, QPainterPath, QPainterPathStroker, QPen, QPolygonF
+from PySide6.QtGui import QColor, QFont, QImage, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QTextOption
 from PySide6.QtWidgets import (QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem, QStyle,
                                QStyleOptionGraphicsItem)
 
@@ -18,6 +18,17 @@ from colors import contrast
 from tools import RECT_RADIUS, Tool, marker_radius, shape_path
 
 
+
+
+def is_label(item):
+    """Is item the label of a shape (part of it, not an element of its own)?
+
+    Deliberately not via item.parentItem(): in PySide6 that call can hand the ownership
+    of an item that only the scene holds back to Python, and the garbage collector then
+    deletes it from the scene (seen when loading history entries). Labels therefore know
+    their shape through their own attribute owner.
+    """
+    return getattr(item, "owner", None) is not None
 
 
 def new_id():
@@ -37,6 +48,13 @@ def without_selection_highlight(option):
     option = QStyleOptionGraphicsItem(option)
     option.state &= ~QStyle.State_Selected
     return option
+
+
+# Labels (text in shapes, roadmap 15): only these shapes get one. Distance of the text from
+# the outline, and the share of the width an ellipse leaves for the text (its rounding)
+LABEL_TOOLS = (Tool.RECT, Tool.ELLIPSE)
+LABEL_PADDING = 8
+ELLIPSE_LABEL_SHARE = 0.7
 
 
 class PoseMixin:
@@ -129,6 +147,7 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         # Marker: numbers or letters, order of placement (the number is the rank in it)
         self.marker_kind = "number"
         self.marker_order = 0
+        self.label = None  # rectangle/ellipse: TextElement as a child item, see set_label
         self.setPos(origin)  # start point = origin of the element
         start = QPointF(0, 0)
         self.points = [start] if tool == Tool.FREEHAND else [start, start]
@@ -149,12 +168,15 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
             "width": self.width,
             **({"radius": self.radius} if self.tool == Tool.RECT else {}),
             **({"kind": self.marker_kind, "order": self.marker_order} if self.tool == Tool.MARKER else {}),
+            **({"label": {"text": self.label.toPlainText(), "font_size": self.label.font_size}}
+               if self.label is not None else {}),
         }
 
     @classmethod
     def from_dict(cls, data):
         """Counterpart to to_dict. Broken data raises KeyError/ValueError/TypeError."""
         tool = Tool[data["tool"].upper()]
+        label = data.get("label")  # optional; older files have none
         # Older files without "radius": the previous default, so it looks like it did back then
         radius = data.get("radius", RECT_RADIUS)
         if isinstance(radius, bool) or not isinstance(radius, (int, float)) or radius < 0:
@@ -173,12 +195,57 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
             raise ValueError(f"{tool.name}: wrong number of points")
         item.setRotation(data.get("rotation", 0))
         item.rebuild()
+        if label is not None and tool in LABEL_TOOLS:
+            text, size = label["text"], label["font_size"]
+            if not isinstance(text, str) or isinstance(size, bool) or not isinstance(size, (int, float)) or size <= 0:
+                raise ValueError(f"label {label!r} invalid")
+            item.set_label(TextElement(QPointF(0, 0), item.color, size, text))
         return item
+
+    # --- Label (text in the shape) ---
+    def set_label(self, label):
+        """Attach label (a TextElement) as the shape's text, or remove it (None).
+
+        Qt concept child item: setParentItem(self) makes the text part of the shape. Its
+        coordinates are then relative to the shape, and it moves, rotates and disappears
+        together with it, without us doing anything. It is not selectable on its own:
+        a click on it selects the shape (Canvas.element_at).
+        """
+        if self.label is not None and self.label is not label:
+            old = self.label
+            scene = old.scene()
+            old.owner = None
+            old.setParentItem(None)
+            if scene is not None:  # without a parent it would otherwise stay in the scene on its own
+                scene.removeItem(old)
+        self.label = label
+        if label is None:
+            return
+        label.owner = self  # see is_label
+        label.setFlag(QGraphicsTextItem.ItemIsSelectable, False)
+        label.document().setDefaultTextOption(QTextOption(Qt.AlignHCenter))  # lines centered
+        label.setParentItem(self)
+        label.set_color(self.color)
+        self.layout_label()
+
+    def layout_label(self):
+        """Wrap the label at the width of the shape and put it in the middle.
+        Called after resizing (rebuild), font size changes and while typing."""
+        label = self.label
+        if label is None:
+            return
+        box = self.box(self.points)
+        share = ELLIPSE_LABEL_SHARE if self.tool == Tool.ELLIPSE else 1.0
+        label.setTextWidth(max(label.font_size, box.width() * share - 2 * LABEL_PADDING))
+        size = label.boundingRect().size()
+        label.setPos(box.center() - QPointF(size.width() / 2, size.height() / 2))
 
     # --- Change values ---
     def set_color(self, color):
         self.color = QColor(color)
         self.update_pen()
+        if self.label is not None:  # the label always has the color of the shape
+            self.label.set_color(color)
 
     def set_width(self, width):
         self.width = width
@@ -398,22 +465,32 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         else:
             path = shape_path(self.tool, self.points[0], self.points[1], self.width, self.radius)
         self.setPath(path)
+        self.layout_label()  # resized: wrap the label anew and center it
 
 
 class TextElement(PoseMixin, QGraphicsTextItem):
     """Text object with a fixed ID, color and font size (bold, in pixels).
 
-    Later a shape label will hang on a ShapeElement as a child item (D5).
+    Also used as the label of a rectangle/ellipse: then it is a child item of the shape
+    (ShapeElement.set_label) and the shape lays it out.
     """
 
     def __init__(self, origin, color, font_size, text="", element_id=None):
         super().__init__()
         self.setFlag(QGraphicsTextItem.ItemIsSelectable)
         self.id = element_id or new_id()
+        self.owner = None  # as a label: the shape it belongs to (ShapeElement.set_label)
         self.set_font_size(font_size)
         self.set_color(color)
         self.setPlainText(text)
         self.setPos(origin)
+        # Qt concept signal: the document reports every change of the text (also while typing)
+        self.document().contentsChanged.connect(self.relayout)
+
+    def relayout(self):
+        """As a label: let the shape center the text again (new text or font size)."""
+        if self.owner is not None:
+            self.owner.layout_label()
 
     # color = base color (gets saved), what is shown is the variant adapted to the
     # background (see shown_color); text and shape have the same interface
@@ -440,6 +517,8 @@ class TextElement(PoseMixin, QGraphicsTextItem):
         font.setPixelSize(size)
         font.setBold(True)
         self.setFont(font)
+        if getattr(self, "owner", None) is not None:  # as a label: center it again
+            self.relayout()
 
     def paint(self, painter, option, widget=None):
         super().paint(painter, without_selection_highlight(option), widget)
