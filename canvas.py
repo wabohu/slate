@@ -152,6 +152,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             # Elements ask their scene how their color is shown (elements.shown_color)
             self.scene_.adapt_color = self.adapt_color
             self.refresh_colors()
+        self.scene_.label_box_color = self.label_box_color  # box behind text on lines/arrows
         self.palette_bar.selected.connect(self.set_color)
         self.size_bar = SizeBar(SIZE_LEVELS, self.settings.theme)
         self.size_bar.selected.connect(self.set_size)
@@ -495,6 +496,13 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             self.help_panel.center()
         if not self.board:
             self.fit_overlay()
+
+    def label_box_color(self):
+        """Color of the small box behind text on lines/arrows: on the whiteboard its background
+        (the line just seems interrupted), on a screenshot the bar background, opaque."""
+        color = QColor(self.board_color) if self.board else QColor(self.settings.theme.background)
+        color.setAlpha(255)
+        return color
 
     def update_connectors(self):
         """Recompute docked lines/arrows from their targets (connectors.py)."""

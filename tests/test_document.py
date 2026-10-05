@@ -747,6 +747,45 @@ def main():
     lone = [e for e in cm.elements() if e not in before]
     check("copying the arrow alone: the pasted arrow is free (does not jump to the originals)",
           len(lone) == 1 and lone[0].ends == [None, None] and docked_arrow.ends == [left.id, right.id])
+
+    # Connectors, step 4: text on lines/arrows: double click on the arrow, text in the middle of
+    # the line, upright, in a small box; follows when the docked shapes move; saved
+    from elements import LABEL_BOX_PADDING
+    from PySide6.QtWidgets import QGraphicsTextItem  # the rectangle Qt would use without the box
+
+    def arrow_mid():
+        return (docked_arrow.mapToScene(docked_arrow.points[0]) + docked_arrow.mapToScene(docked_arrow.points[1])) / 2
+
+    def text_mid():
+        lab = docked_arrow.label
+        return lab.mapToScene(lab.boundingRect().center())
+    cm.scene_.clearSelection()
+    on_line = arrow_mid()
+    QTest.mouseDClick(cmv, Qt.LeftButton, Qt.NoModifier, cm.mapFromScene(on_line))
+    QTest.keyClicks(cm, "SQL")
+    QTest.keyClick(cm, Qt.Key_Escape)
+    label = docked_arrow.label
+    check("double click on an arrow: text in the middle of the line, in a box",
+          label is not None and label.toPlainText() == "SQL" and near(text_mid(), arrow_mid(), 1.0)
+          and abs(label.boundingRect().height() - QGraphicsTextItem.boundingRect(label).height()
+                  - 2 * LABEL_BOX_PADDING) < 1e-6)
+    select_only(left)
+    QTest.keyClick(cm, Qt.Key_J)  # move the docked rectangle down: the text stays in the middle
+    followed = near(text_mid(), arrow_mid(), 1.0)
+    select_only(docked_arrow)
+    QTest.keyClick(cm, Qt.Key_Q)  # rotate the arrow: the text stays horizontal
+    across = label.mapToScene(QPointF(10, 0)) - label.mapToScene(QPointF(0, 0))
+    check("arrow text: follows the moved shape, stays horizontal when the arrow is rotated",
+          followed and abs(across.y()) < 1e-6 and near(text_mid(), arrow_mid(), 1.0))
+    cm.undo_stack.undo()
+    box_color = cm.scene_.label_box_color()
+    check("arrow text box on a screenshot: the bar background, opaque",
+          box_color.alpha() == 255 and box_color.rgb() == cm.settings.theme.background.rgb())
+    QTest.keyClick(cm, Qt.Key_S, Qt.ControlModifier)
+    _, saved_elems, _, _ = load_document(cm.document_path)
+    saved_arrow = next(e for e in saved_elems if e.id == docked_arrow.id)
+    check("arrow text is saved and loaded with the arrow",
+          saved_arrow.label is not None and saved_arrow.label.toPlainText() == "SQL")
     cm.close()
 
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place

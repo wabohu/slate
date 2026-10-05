@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """GUI test connectors: rectangle and ellipse, an arrow drawn from the edge of one to the edge
-of the other docks to both (the target is highlighted while drawing); moving the rectangle
-moves the arrow along; the history entry contains the docked arrow.
+of the other docks to both (the target is highlighted while drawing); a double click on the
+arrow gives it a text; moving the rectangle moves the arrow along; the history entry contains
+the docked arrow with its text.
 
     python tests/gui/test_connector.py
 
@@ -33,6 +34,12 @@ def main():
         s.run(["xdotool", "mouseup", "1"])
         time.sleep(0.2)
         s.key("w")
+        s.move(850, 400)                         # middle of the arrow: double click = text on it
+        s.run(["xdotool", "click", "--repeat", "2", "--delay", "80", "1"])
+        time.sleep(0.3)
+        s.type("SQL")
+        s.key("Escape")
+        time.sleep(0.2)
         s.drag(300, 400, 300, 600)               # grab the left edge: rectangle 200 px down
         time.sleep(0.3)
         s.screenshot("02-moved")
@@ -47,6 +54,8 @@ def main():
             start = arrow.mapToScene(arrow.points[0])
             check("the arrow is docked to both", arrow.ends == [rect.id, oval.id])
             check(f"it followed the rectangle down ({start.y():.0f})", start.y() > 450)
+            check("the arrow carries the text 'SQL'",
+                  arrow.label is not None and arrow.label.toPlainText() == "SQL")
     return summary()
 
 

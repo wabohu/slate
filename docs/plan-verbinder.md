@@ -1,6 +1,8 @@
 # Plan: Verbinder-Pfeile (Roadmap 15, Teil 2)
 
-Status: **Entwurf** (2026-10-05), Bedienung entschieden, Umsetzung in vier Schritten
+Status: **umgesetzt** (2026-10-05), alle vier Schritte erledigt. Ergänzt: Andocken nur nahe am
+Umriss (DOCK_MARGIN), Pfeiltext im Screenshot in einem Kasten in der Leistenfarbe, im Whiteboard
+in der Hintergrundfarbe
 
 Ziel: Linien und Pfeile, deren Enden an Formen andocken. Verschiebt, dreht oder vergrößert
 man die Form, folgt das Ende. Zum Schluss Text an Pfeilen. Baut auf den Beschriftungen auf

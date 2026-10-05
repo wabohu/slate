@@ -52,9 +52,13 @@ def without_selection_highlight(option):
 
 # Labels (text in shapes, roadmap 15): only these shapes get one. Distance of the text from
 # the outline, and the share of the width an ellipse leaves for the text (its rounding)
-LABEL_TOOLS = (Tool.RECT, Tool.ELLIPSE)
+LABEL_TOOLS = (Tool.RECT, Tool.ELLIPSE, Tool.LINE, Tool.ARROW)
 LABEL_PADDING = 8
 ELLIPSE_LABEL_SHARE = 0.7
+# Text on lines/arrows: in the middle of the line, upright, in a small box (padding, corner radius)
+LINE_LABEL_TOOLS = (Tool.LINE, Tool.ARROW)
+LABEL_BOX_PADDING = 4
+LABEL_BOX_RADIUS = 4
 
 
 class PoseMixin:
@@ -73,6 +77,8 @@ class PoseMixin:
         pos, angle = state
         self.setRotation(angle)
         self.setPos(pos)
+        if getattr(self, "label", None) is not None:  # text on a line stays upright
+            self.layout_label()
 
 
 def scale_factor(new, fixed, old):
@@ -223,6 +229,7 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         if self.label is not None and self.label is not label:
             old = self.label
             scene = old.scene()
+            old.prepareGeometryChange()  # its box (boundingRect) goes away with the owner
             old.owner = None
             old.setParentItem(None)
             if scene is not None:  # without a parent it would otherwise stay in the scene on its own
@@ -230,6 +237,7 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         self.label = label
         if label is None:
             return
+        label.prepareGeometryChange()  # on a line it gets a box: boundingRect grows
         label.owner = self  # see is_label
         label.setFlag(QGraphicsTextItem.ItemIsSelectable, False)
         label.document().setDefaultTextOption(QTextOption(Qt.AlignHCenter))  # lines centered
@@ -238,16 +246,29 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         self.layout_label()
 
     def layout_label(self):
-        """Wrap the label at the width of the shape and put it in the middle.
-        Called after resizing (rebuild), font size changes and while typing."""
+        """Rectangle/ellipse: wrap the label at the width of the shape and put it in the middle.
+        Line/arrow: no wrapping (Enter = new line), in the middle of the line, upright even if
+        the line is rotated. Called after resizing (rebuild), font size changes, rotating
+        (set_pose) and while typing."""
         label = self.label
         if label is None:
             return
-        box = self.box(self.points)
-        share = ELLIPSE_LABEL_SHARE if self.tool == Tool.ELLIPSE else 1.0
-        label.setTextWidth(max(label.font_size, box.width() * share - 2 * LABEL_PADDING))
-        size = label.boundingRect().size()
-        label.setPos(box.center() - QPointF(size.width() / 2, size.height() / 2))
+        if self.tool in LINE_LABEL_TOOLS:
+            # No wrapping (lines only break at Enter), but a fixed width of exactly the widest
+            # line, so Qt can center the shorter lines in it (idealWidth: width without wrapping)
+            label.setTextWidth(-1)
+            label.setTextWidth(label.document().idealWidth())
+            center = (self.points[0] + self.points[1]) / 2
+            # Qt concept: the child turns with its parent; turning it back by the same angle
+            # around its own middle keeps the text horizontal
+            label.setTransformOriginPoint(label.boundingRect().center())
+            label.setRotation(-self.rotation())
+        else:
+            box = self.box(self.points)
+            share = ELLIPSE_LABEL_SHARE if self.tool == Tool.ELLIPSE else 1.0
+            label.setTextWidth(max(label.font_size, box.width() * share - 2 * LABEL_PADDING))
+            center = box.center()
+        label.setPos(center - label.boundingRect().center())
 
     # --- Change values ---
     def set_ends(self, ends):
@@ -508,6 +529,17 @@ class TextElement(PoseMixin, QGraphicsTextItem):
         if self.owner is not None:
             self.owner.layout_label()
 
+    def has_box(self):
+        """Text on a line/arrow sits in a small box that interrupts the line."""
+        return self.owner is not None and self.owner.tool in LINE_LABEL_TOOLS
+
+    def boundingRect(self):
+        rect = super().boundingRect()
+        if self.has_box():  # Qt only repaints inside boundingRect: include the box
+            p = LABEL_BOX_PADDING
+            rect = rect.adjusted(-p, -p, p, p)
+        return rect
+
     # color = base color (gets saved), what is shown is the variant adapted to the
     # background (see shown_color); text and shape have the same interface
     @property
@@ -537,6 +569,14 @@ class TextElement(PoseMixin, QGraphicsTextItem):
             self.relayout()
 
     def paint(self, painter, option, widget=None):
+        if self.has_box():
+            # The scene says which color the box has (Canvas.label_box_color): the whiteboard
+            # color (the line just seems interrupted) or, on a screenshot, the bar background
+            box_color = getattr(self.scene(), "label_box_color", None)
+            if box_color is not None:
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(box_color())
+                painter.drawRoundedRect(self.boundingRect(), LABEL_BOX_RADIUS, LABEL_BOX_RADIUS)
         super().paint(painter, without_selection_highlight(option), widget)
 
     # --- Handles: dragging a corner scales the font ---
