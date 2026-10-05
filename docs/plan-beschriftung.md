@@ -1,6 +1,8 @@
 # Plan: Text in Formen (Roadmap 15, Teil 1)
 
-Status: **Entwurf** (2026-10-05), Bedienung entschieden, Umsetzung in drei Schritten
+Status: **umgesetzt** (2026-10-05), alle drei Schritte erledigt. Abweichung vom Entwurf: Farbtasten
+wirken beim Tippen wie bei losem Text nicht (sie tippen Buchstaben); eine Farbe aus der Leiste färbt
+Form und Beschriftung. Entdeckt: PySide6-Falle mit `parentItem()`, darum `label.owner` (siehe CLAUDE.md)
 
 Ziel: Ein Rechteck oder eine Ellipse bekommt eine Beschriftung, die zur Form gehört:
 Sie steht mittig, bricht an der Breite der Form um, hat die Farbe der Form und wandert beim

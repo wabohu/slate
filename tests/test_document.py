@@ -531,6 +531,32 @@ def main():
     check("double click outside of shapes: loose text as before",
           lc.editing_text is not None and not is_label(lc.editing_text))
     QTest.keyClick(lc, Qt.Key_Escape)
+    # Copy/paste/duplicate (Qt clipboard, never the real one) and into the whiteboard:
+    # the label comes along as an independent copy
+    import export as _exp
+    _exp.shutil.which = lambda name: None
+    lc.scene_.clearSelection()
+    rect.setSelected(True)
+    QTest.keyClick(lc, Qt.Key_C, Qt.ControlModifier)
+    QTest.keyClick(lc, Qt.Key_V, Qt.ControlModifier)
+    QTest.keyClick(lc, Qt.Key_D, Qt.ControlModifier)
+    copies = [e for e in lc.elements() if e not in (rect, oval)]
+    edited_copy = copies[0].label if copies and copies[0].label else None
+    if edited_copy:
+        edited_copy.setPlainText("changed")
+    check("label: comes along when pasting and duplicating, as an independent copy",
+          len(copies) == 2 and all(c.label is not None for c in copies)
+          and copies[1].label.toPlainText() == "Server 1" and rect.label.toPlainText() == "Server 1")
+    board_l = Canvas(QGuiApplication.primaryScreen(), None, board=True)
+    board_l.resize(900, 500)
+    board_l.show_window()
+    QApplication.processEvents()
+    board_l.paste_elements()
+    pasted_l = board_l.elements()
+    check("label: pasted into the whiteboard with its shape",
+          len(pasted_l) == 1 and pasted_l[0].label is not None and pasted_l[0].label.toPlainText() == "Server 1")
+    board_l.undo_stack.setClean()  # otherwise the whiteboard asks on close (dialog without a screen)
+    board_l.close()
     lc.close()
 
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
