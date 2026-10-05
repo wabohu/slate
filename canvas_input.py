@@ -15,8 +15,9 @@ pan_by(), pan_by_wheel(), zoom_by_wheel().
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF, QTransform
+from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPathStroker, QPen, QPolygonF, QTransform
 
+import connectors
 from colors import contrast
 from commands import (AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand,
                       ReorderCommand, SetLabelCommand, property_command)
@@ -24,6 +25,9 @@ from elements import LABEL_TOOLS, ShapeElement, TextElement, is_label
 from settings import (HANDLE_GRAB, HANDLE_SIZE, ROTATE_HANDLE_OFFSET, STROKE_WIDTH_RANGE,
                       TEXT_SIZE_RANGE, WHEEL_STROKE_STEP, WHEEL_TEXT_STEP, clamp)
 from tools import Tool
+
+# Width of the highlight band around a docking target (screen pixels)
+DOCK_HINT_WIDTH = 10
 
 # handle_at() returns this instead of a corner number when the mouse is on the rotate handle
 ROTATE_HANDLE = "rotate"
@@ -121,6 +125,9 @@ class InputMixin:
             self.current_item.marker_kind = self.marker_kind
             self.current_item.marker_order = self.next_marker_order()
         self.scene_.addItem(self.current_item)
+        if connectors.is_connector(self.current_item):  # line/arrow starting at a shape: dock its start
+            target = self.dock_target(pos, self.current_item)
+            self.current_item.ends[0] = target.id if target is not None else None
 
     def mouseDoubleClickEvent(self, event):
         # On the second click Qt sends a DoubleClick event instead of mousePressEvent
@@ -176,6 +183,7 @@ class InputMixin:
             item, center, start_mouse, start = self.rotating
             # Follows the mouse freely, no snapping (Shift is kept free for later, e.g. aligning)
             item.set_pose(turned(center, start, angle_to(center, pos) - start_mouse))
+            self.update_connectors()  # docked lines/arrows follow live
             self.viewport().update()
             return
         if self.resizing:
@@ -184,12 +192,17 @@ class InputMixin:
                 item.drag_handle(handle, pos, start, TEXT_SIZE_RANGE)
             else:
                 item.drag_handle(handle, pos, start)
+            if connectors.is_connector(item):  # end handle of a line/arrow: dock or undock it
+                self.dock_end(item, handle, pos)
+            else:
+                self.update_connectors()  # docked lines/arrows follow live
             self.viewport().update()
             return
         if self.dragging:
             delta = pos - self.drag_origin
             for item, start in zip(self.dragging, self.drag_starts):
                 item.setPos(start + delta)
+            self.update_connectors()  # docked lines/arrows follow live
             self.viewport().update()  # handles move along
             return
         if self.rubber is not None:
@@ -205,6 +218,8 @@ class InputMixin:
             self.current_item.add_point(pos)
         else:
             self.current_item.set_end(pos)
+            if connectors.is_connector(self.current_item):
+                self.dock_end(self.current_item, 1, pos)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MiddleButton and self.panning is not None:
@@ -230,6 +245,9 @@ class InputMixin:
         if self.resizing:
             item, _, start = self.resizing
             self.resizing = None
+            if self.dock_hint is not None:
+                self.dock_hint = None
+                self.viewport().update()
             if item.geometry() != start:  # only a real change is an undo step
                 self.undo_stack.push(PropertyCommand(item.set_geometry, start, item.geometry(), "Resize"))
             return
@@ -277,6 +295,43 @@ class InputMixin:
             self.undo_stack.push(AddItemCommand(self.scene_, self.current_item))
         self.current_item = None
         self.start_pos = None
+        if self.dock_hint is not None:
+            self.dock_hint = None
+            self.viewport().update()
+
+    # --- Connectors: dock line/arrow ends onto elements (connectors.py) ---
+    def dock_target(self, pos, exclude):
+        """Docking target near pos (close to its outline, DOCK_MARGIN screen pixels) or None."""
+        return connectors.target_at(self.scene_, pos, connectors.DOCK_MARGIN / self.zoom(), exclude)
+
+    def dock_end(self, line, index, pos):
+        """End index of line was drawn/dragged to pos: dock it onto the target there (not the
+        one the other end is docked to), otherwise free; show the target, lay the line out."""
+        target = self.dock_target(pos, line)
+        if target is not None and target.id == line.ends[1 - index]:
+            target = None  # both ends on the same shape: the second one stays free
+        line.ends[index] = target.id if target is not None else None
+        if target is not self.dock_hint:
+            # Qt only repaints the area that changed (here: the line); the frame drawn in
+            # drawForeground around the target lies elsewhere, so repaint everything
+            self.dock_hint = target
+            self.viewport().update()
+        connectors.layout(line, {e.id: e for e in self.elements()})
+
+    def paint_dock_hint(self, painter):
+        """Glowing band along the outline of the docking target under the line/arrow end being
+        drawn (never in the export): a translucent band in the accent color, DOCK_HINT_WIDTH
+        screen pixels wide, so it stays visible on top of the shape's own outline."""
+        if self.dock_hint is None or self.dock_hint.scene() is None:
+            return
+        stroker = QPainterPathStroker()
+        stroker.setWidth(DOCK_HINT_WIDTH / self.zoom())
+        band = stroker.createStroke(connectors.outline(self.dock_hint))
+        glow = QColor(self.settings.theme.accent)
+        glow.setAlpha(150)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(glow)
+        painter.drawPath(band)
 
     # --- Text ---
     def start_text(self, pos):
@@ -417,6 +472,7 @@ class InputMixin:
         Qt concept: drawForeground belongs to the view, not the scene. Whatever is
         drawn here therefore never ends up in the exported image (scene.render).
         """
+        self.paint_dock_hint(painter)
         self.paint_selection(painter)
         self.paint_crop(painter)     # crop: darken outside (canvas_crop.py)
         self.paint_pointer(painter)  # spotlight/magnifier on top of everything (canvas_pointer.py)

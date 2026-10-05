@@ -12,8 +12,8 @@ Plan: docs/plan-verbinder.md.
 """
 import math
 
-from PySide6.QtCore import QPointF
-from PySide6.QtGui import QPainterPath
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QPainterPath, QPainterPathStroker
 
 from elements import ImageElement, ShapeElement, TextElement, is_label
 from tools import Tool
@@ -25,6 +25,9 @@ TARGET_TOOLS = (Tool.RECT, Tool.ELLIPSE)
 GAP = 6
 # Steps of the bisection along the line (2^-20 of its length: far below a pixel)
 CLIP_STEPS = 20
+# Drawing/dragging an end docks it if it lands this close to an outline (screen pixels, inside or
+# outside). Deep inside a shape it stays free, so one can still point at things inside a frame
+DOCK_MARGIN = 16
 
 
 def is_connector(item):
@@ -111,6 +114,21 @@ def layout(line, lookup):
     line.points = local
     line.rebuild()
     return True
+
+
+def target_at(scene, pos, margin, exclude=None):
+    """Topmost docking target whose outline is at most margin (scene units) away from pos,
+    or None. Qt concept: QPainterPathStroker turns the outline into a band of the given
+    width; contains() on that band answers "close to the outline", inside or outside."""
+    stroker = QPainterPathStroker()
+    stroker.setWidth(2 * margin)
+    area = QRectF(pos.x() - margin, pos.y() - margin, 2 * margin, 2 * margin)
+    for item in scene.items(area, Qt.IntersectsItemBoundingRect):  # top to bottom
+        if item is exclude or not is_target(item):
+            continue
+        if stroker.createStroke(outline(item)).contains(pos):
+            return item
+    return None
 
 
 def update_all(elements):

@@ -640,6 +640,68 @@ def main():
     creloaded.close()
     cn.close()
 
+    # Connectors, step 2 (mouse): drawing on/near an outline docks, deep inside stays free,
+    # the target is highlighted while drawing, dragging a shape moves docked arrows live,
+    # an end handle re-docks/undocks (one undo step)
+    cm = make_canvas(plain_bg)
+    cmv = cm.viewport()
+
+    def cpress(x, y):
+        QTest.mousePress(cmv, Qt.LeftButton, Qt.NoModifier, cm.mapFromScene(QPointF(x, y)))
+
+    def cmove(x, y):
+        QTest.mouseMove(cmv, cm.mapFromScene(QPointF(x, y)))
+
+    def crelease(x, y):
+        QTest.mouseRelease(cmv, Qt.LeftButton, Qt.NoModifier, cm.mapFromScene(QPointF(x, y)))
+
+    def cdraw(tool, x1, y1, x2, y2):
+        cm.set_tool(tool)
+        cpress(x1, y1)
+        cmove((x1 + x2) / 2, (y1 + y2) / 2)
+        cmove(x2, y2)
+        crelease(x2, y2)
+        return cm.elements()[-1]
+    left = cdraw(Tool.RECT, 100, 100, 300, 220)
+    right = cdraw(Tool.ELLIPSE, 500, 100, 700, 220)
+    cm.set_tool(Tool.ARROW)
+    cpress(305, 160)  # just outside the right edge of the rectangle
+    cmove(400, 160)
+    cmove(495, 165)  # near the left of the ellipse
+    hint_while_drawing = cm.dock_hint is right
+    crelease(495, 165)
+    docked_arrow = cm.elements()[-1]
+    check("drawing near both outlines docks both ends, the target is highlighted meanwhile",
+          docked_arrow.ends == [left.id, right.id] and hint_while_drawing and cm.dock_hint is None)
+    deep = cdraw(Tool.ARROW, 200, 160, 400, 330)  # starts deep inside the rectangle
+    same = cdraw(Tool.LINE, 150, 100, 250, 102)   # both ends on the top edge of the rectangle
+    check("deep inside stays free; both ends on the same shape: the second stays free",
+          deep.ends == [None, None] and same.ends == [left.id, None])
+    cm.set_tool(Tool.SELECT)
+    start_before = docked_arrow.mapToScene(docked_arrow.points[0]).y()
+    cpress(100, 160)  # left edge of the rectangle: drag it down
+    cmove(100, 210)
+    start_live = docked_arrow.mapToScene(docked_arrow.points[0]).y()  # mouse still pressed
+    cmove(100, 260)
+    crelease(100, 260)
+    start_after = docked_arrow.mapToScene(docked_arrow.points[0]).y()
+    check(f"dragging a shape: the docked arrow follows live and after releasing "
+          f"({start_before:.0f} -> {start_live:.0f} -> {start_after:.0f})",
+          start_before < start_live < start_after and docked_arrow.ends == [left.id, right.id])
+    cm.scene_.clearSelection()
+    docked_arrow.setSelected(True)
+    end_handle = docked_arrow.mapToScene(docked_arrow.points[1])
+    steps = cm.undo_stack.index()
+    cpress(end_handle.x(), end_handle.y())
+    cmove(450, 350)
+    crelease(450, 350)
+    undocked = docked_arrow.ends == [left.id, None] and near(docked_arrow.mapToScene(docked_arrow.points[1]),
+                                                              QPointF(450, 350), 1)
+    cm.undo_stack.undo()
+    check("end handle into the empty: undocked; one undo docks it again",
+          undocked and cm.undo_stack.index() == steps and docked_arrow.ends == [left.id, right.id])
+    cm.close()
+
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
     zo = make_canvas(QPixmap(800, 400))
     zv = zo.viewport()

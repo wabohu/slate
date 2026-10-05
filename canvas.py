@@ -115,6 +115,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.wheel_rest = 0       # partial mouse wheel notch (touchpads send small steps)
         self.resizing = None      # (element, handle number, geometry at drag start) while dragging a handle
         self.rotating = None      # (element, center, mouse angle at start, pose at start) while dragging the rotate handle
+        self.dock_hint = None     # docking target under a line/arrow end being drawn or dragged (highlighted)
         self.panning = None       # last mouse position while panning with the middle button
         self.zoom_rest = 0        # partial notch while zooming
         self.overview_return = None  # (view before, view in the overview) for Ctrl+W back

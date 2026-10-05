@@ -23,8 +23,11 @@ man die Form, folgt das Ende. Zum Schluss Text an Pfeilen. Baut auf den Beschrif
 
 ## Vorgeschlagen (ohne Rückfrage, bei Bedarf ändern)
 
-- **Andocken beim Zeichnen:** Beginnt oder endet ein Pfeil/eine Linie auf der Fläche eines
-  Ziels, dockt dieses Ende an. Liegen mehrere übereinander, das oberste. Während des Ziehens
+- **Andocken beim Zeichnen (entschieden 2026-10-05):** Beginnt oder endet ein Pfeil/eine Linie
+  auf oder nahe am Umriss eines Ziels (etwa 16 Bildschirmpixel innen oder außen), dockt dieses
+  Ende an. Tief im Inneren bleibt es frei, damit man im Screenshot weiter auf Dinge innerhalb
+  eines Rahmens zeigen kann. Bei kleinen Formen füllt der Randbereich die ganze Fläche.
+  Beginnen und enden beide auf derselben Form, bleibt das zweite Ende frei. Liegen mehrere übereinander, das oberste. Während des Ziehens
   wird das Ziel unter dem Mauszeiger hervorgehoben (feiner Rahmen, nur auf dem Bildschirm).
 - **Umhängen:** Endpunkt-Griff (Auswahl-Werkzeug) auf ein anderes Ziel ziehen = dort andocken,
   ins Leere ziehen = lösen. Ein Undo-Schritt.
