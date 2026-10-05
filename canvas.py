@@ -328,7 +328,12 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         """Color for new objects, the text being typed and the selection."""
         self.color_index = index % len(self.settings.colors)
         self.pen_color = self.settings.colors[self.color_index]
-        if self.editing_text:  # a color change while typing applies to this text
+        if self.editing_text and is_label(self.editing_text):  # a label has the color of its shape
+            shape = self.editing_text.owner
+            if shape.color != self.pen_color:
+                self.undo_stack.push(property_command([(shape.set_color, QColor(shape.color), QColor(self.pen_color))],
+                                                      "Change color"))
+        elif self.editing_text:  # a color change while typing applies to this text
             self.editing_text.set_color(self.pen_color)
         # Copies of QColor, so later changes do not alter the remembered values
         changes = [(item.set_color, QColor(item.color), QColor(self.pen_color))

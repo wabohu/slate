@@ -19,8 +19,8 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF, QTransform
 
 from colors import contrast
 from commands import (AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand,
-                      ReorderCommand, property_command)
-from elements import ShapeElement, TextElement
+                      ReorderCommand, SetLabelCommand, property_command)
+from elements import LABEL_TOOLS, ShapeElement, TextElement, is_label
 from settings import (HANDLE_GRAB, HANDLE_SIZE, ROTATE_HANDLE_OFFSET, STROKE_WIDTH_RANGE,
                       TEXT_SIZE_RANGE, WHEEL_STROKE_STEP, WHEEL_TEXT_STEP, clamp)
 from tools import Tool
@@ -134,10 +134,18 @@ class InputMixin:
             return
         item = self.text_at(pos) if self.tool in (Tool.TEXT, Tool.SELECT) else None
         left = event.button() == Qt.LeftButton
+        hit = self.element_at(pos) if left and self.tool == Tool.SELECT and not item else None
+        # Rectangle/ellipse: hit on the outline or the label, or a double click into its empty inside
+        shape = hit if isinstance(hit, ShapeElement) and hit.tool in LABEL_TOOLS else None
+        if shape is None and hit is None and left and self.tool == Tool.SELECT and not item:
+            shape = self.shape_at(pos)
         if item and left:
             self.dragging = None
             self.edit_text(item, old=(item.toPlainText(), item.color, item.font_size))
-        elif left and self.tool == Tool.SELECT and self.element_at(pos) is None:
+        elif shape is not None:  # select tool, double click into a shape: label it / edit the label
+            self.dragging = None
+            self.start_label(shape)
+        elif left and self.tool == Tool.SELECT and hit is None:
             # Select tool, double click on an empty spot: new text (like Excalidraw).
             # Only here, in drawing tools the first click would already have drawn something
             self.dragging = None
@@ -279,6 +287,27 @@ class InputMixin:
         self.scene_.addItem(item)
         self.edit_text(item, old=None)
 
+    def start_label(self, shape):
+        """Open the label of shape for typing; without one, create an empty one first
+        (it becomes an undo step only when the input ends with text, see finish_text)."""
+        label = shape.label
+        if label is None:
+            label = TextElement(QPointF(0, 0), shape.color, self.text_size)
+            shape.set_label(label)
+            self.edit_text(label, old=None)
+        else:
+            self.edit_text(label, old=(label.toPlainText(), label.color, label.font_size))
+
+    def shape_at(self, pos):
+        """Topmost rectangle/ellipse whose area (not only the outline, D2) contains pos, or None.
+        Qt concept: items(…, IntersectsItemBoundingRect) finds candidates by their bounding
+        rectangle; path().contains() then checks the actual area of the shape."""
+        for item in self.scene_.items(pos, Qt.IntersectsItemBoundingRect):  # top to bottom
+            if (isinstance(item, ShapeElement) and item.tool in LABEL_TOOLS
+                    and item.path().contains(item.mapFromScene(pos))):
+                return item
+        return None
+
     def edit_text(self, item, old):
         """Open item for typing. old = (text, color, size) before, None for new text."""
         self.scene_.clearSelection()  # do not show a selection frame while typing
@@ -293,6 +322,22 @@ class InputMixin:
         item.stop_editing()
         new = (item.toPlainText(), item.color, item.font_size)
         empty = not new[0].strip()
+
+        if is_label(item):  # label of a rectangle/ellipse: attached to it, not an element of its own
+            shape = item.owner
+            if old is None:  # new label: empty = discard it again
+                if empty:
+                    shape.set_label(None)
+                else:
+                    self.undo_stack.push(SetLabelCommand(shape, None, item, "Add label"))
+            elif empty:  # emptied: remove the label (undo brings it back with its text)
+                self.undo_stack.beginMacro("Delete label")
+                self.undo_stack.push(EditTextCommand(item, old, new))
+                self.undo_stack.push(SetLabelCommand(shape, item, None))
+                self.undo_stack.endMacro()
+            elif new != old:
+                self.undo_stack.push(EditTextCommand(item, old, new, "Edit label"))
+            return
 
         if old is None:  # new text
             if empty:
@@ -309,9 +354,11 @@ class InputMixin:
             self.undo_stack.push(EditTextCommand(item, old, new))
 
     def text_at(self, pos):
-        """Topmost text object at scene position pos or None."""
+        """Topmost loose text object at scene position pos or None. Labels of shapes do not
+        count: they are reached via the shape (double click), and the text tool must not
+        drag them out of their shape."""
         for item in self.scene_.items(pos):  # sorted top to bottom
-            if isinstance(item, TextElement):
+            if isinstance(item, TextElement) and not is_label(item):
                 return item
         return None
 

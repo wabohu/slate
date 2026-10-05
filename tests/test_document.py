@@ -414,7 +414,7 @@ def main():
 
     # Labels (text in shapes, step 1: data model): child of the shape, wraps at its width,
     # centered, color of the shape, moves/resizes/rotates along, saved with the shape
-    from elements import LABEL_PADDING, ShapeElement as _Shape
+    from elements import LABEL_PADDING, ShapeElement as _Shape, is_label
     lb = make_canvas(plain_bg)
     lv = lb.viewport()
     lb.set_tool(Tool.RECT)
@@ -465,6 +465,73 @@ def main():
           broken_rejected and _Shape.from_dict(plain).label is None)
     lreloaded.close()
     lb.close()
+
+    # Labels, step 2: double click into a rectangle/ellipse (select tool) labels it; undo,
+    # emptying removes it, color keys while typing recolor the shape, the text tool leaves it alone
+    lc = make_canvas(plain_bg)
+    lcv = lc.viewport()
+
+    def at_scene(x, y):
+        return lc.mapFromScene(QPointF(x, y))
+
+    def ldrag(tool, x1, y1, x2, y2):
+        lc.set_tool(tool)
+        QTest.mousePress(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(x1, y1))
+        QTest.mouseMove(lcv, at_scene(x2, y2))
+        QTest.mouseRelease(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(x2, y2))
+    ldrag(Tool.RECT, 100, 100, 300, 220)
+    ldrag(Tool.ELLIPSE, 400, 100, 600, 220)
+    rect, oval = lc.elements()
+    lc.set_tool(Tool.SELECT)
+    steps = lc.undo_stack.count()
+    QTest.mouseDClick(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(200, 160))  # empty inside
+    opened = lc.editing_text is rect.label and rect.label is not None and lc.undo_stack.count() == steps
+    QTest.keyClicks(lc, "Server")
+    QTest.keyClick(lc, Qt.Key_Escape)
+    check("double click inside a rectangle: type a label, Esc = one undo step",
+          opened and rect.label.toPlainText() == "Server" and lc.undo_stack.count() == steps + 1
+          and lc.elements() == [rect, oval])
+    lc.undo_stack.undo()
+    undone = rect.label is None
+    lc.undo_stack.redo()
+    check("label: undo removes it, redo brings it back", undone and rect.label.toPlainText() == "Server")
+    QTest.mouseDClick(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(200, 160))  # on the label itself
+    QTest.keyClick(lc, Qt.Key_End)
+    QTest.keyClicks(lc, " 1")
+    other = (lc.color_index + 2) % len(lc.settings.colors)
+    lc.set_color(other)  # like a click on the color bar while typing: recolors the shape
+    QTest.keyClick(lc, Qt.Key_Escape)
+    check("label: edited again, a color chosen while typing recolors shape and label together",
+          rect.label.toPlainText() == "Server 1" and rect.color == lc.settings.colors[other]
+          and rect.label.color == rect.color)
+    QTest.mouseDClick(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(200, 160))
+    QTest.keyClick(lc, Qt.Key_A, Qt.ControlModifier)  # in the editor: select all text
+    QTest.keyClick(lc, Qt.Key_Backspace)
+    QTest.keyClick(lc, Qt.Key_Escape)
+    emptied = rect.label is None
+    lc.undo_stack.undo()
+    check("label: emptied = removed, one undo brings back the text",
+          emptied and rect.label is not None and rect.label.toPlainText() == "Server 1")
+    steps = lc.undo_stack.index()  # position, not count: after an undo a new step drops the redo
+    QTest.mouseDClick(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(500, 160))
+    QTest.keyClick(lc, Qt.Key_Escape)  # nothing typed
+    QTest.mouseDClick(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(500, 160))
+    QTest.keyClicks(lc, "DB")
+    QTest.keyClick(lc, Qt.Key_Escape)
+    check("ellipse: labeled too; opening and leaving without text leaves nothing",
+          oval.label is not None and oval.label.toPlainText() == "DB" and lc.undo_stack.index() == steps + 1)
+    lc.set_tool(Tool.TEXT)
+    QTest.mouseClick(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(200, 160))  # T on the label
+    loose = lc.editing_text
+    check("text tool on a label: starts a loose text, the label stays in its shape",
+          loose is not None and not is_label(loose) and rect.label.toPlainText() == "Server 1")
+    QTest.keyClick(lc, Qt.Key_Escape)
+    lc.set_tool(Tool.SELECT)
+    QTest.mouseDClick(lcv, Qt.LeftButton, Qt.NoModifier, at_scene(200, 300))  # empty spot outside
+    check("double click outside of shapes: loose text as before",
+          lc.editing_text is not None and not is_label(lc.editing_text))
+    QTest.keyClick(lc, Qt.Key_Escape)
+    lc.close()
 
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
     zo = make_canvas(QPixmap(800, 400))

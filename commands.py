@@ -142,7 +142,8 @@ class EditTextCommand(QUndoCommand):
     def apply(self, state):
         text, color, size = state
         self.item.setPlainText(text)
-        self.item.set_color(color)
+        if not is_label(self.item):  # a label always has the color of its shape
+            self.item.set_color(color)
         self.item.set_font_size(size)
 
     def redo(self):
@@ -150,6 +151,22 @@ class EditTextCommand(QUndoCommand):
 
     def undo(self):
         self.apply(self.old)
+
+
+class SetLabelCommand(QUndoCommand):
+    """Label of a rectangle/ellipse attached, replaced or removed (old/new: TextElement or None)."""
+
+    def __init__(self, shape, old, new, text="Label"):
+        super().__init__(text)
+        self.shape = shape
+        self.old = old
+        self.new = new
+
+    def redo(self):
+        self.shape.set_label(self.new)
+
+    def undo(self):
+        self.shape.set_label(self.old)
 
 
 class PropertyCommand(QUndoCommand):

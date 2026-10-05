@@ -50,7 +50,7 @@ dir = "{tmp}/output"
 """
 
 failures = []
-_app = None  # QGuiApplication for load_elements
+_app = None  # QApplication for load_elements
 
 
 def check(name, condition):
@@ -236,9 +236,10 @@ def _qt():
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     if str(REPO) not in sys.path:
         sys.path.insert(0, str(REPO))
-    from PySide6.QtGui import QGuiApplication
+    # QApplication, not only QGuiApplication: text elements (QGraphicsTextItem) need widgets
+    from PySide6.QtWidgets import QApplication
     global _app
-    _app = QGuiApplication.instance() or QGuiApplication([])
+    _app = QApplication.instance() or QApplication([])
 
 
 def _qt_image(path):
