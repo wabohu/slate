@@ -17,6 +17,7 @@ from canvas_output import OutputMixin
 from canvas_pointer import PointerMixin
 from commands import property_command
 from config import load_config
+from connectors import update_all
 from elements import ImageElement, ShapeElement, TextElement, is_label
 from settings import BOARD_EXTENT, HIT_TOLERANCE, ROTATE_STEP, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
@@ -267,6 +268,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         return None
 
     def on_undo_index_changed(self, _index):
+        self.update_connectors()  # docked lines/arrows follow every change (also undo/redo)
         self.update_bars()
         self.scene_.update()  # markers renumber when one is added or removed
 
@@ -491,6 +493,10 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             self.help_panel.center()
         if not self.board:
             self.fit_overlay()
+
+    def update_connectors(self):
+        """Recompute docked lines/arrows from their targets (connectors.py)."""
+        update_all(self.elements())
 
     def elements(self):
         """All elements bottom to top (order when saving). Labels are part of their shape

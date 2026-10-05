@@ -7,6 +7,7 @@ plus the whiteboard (save, load as whiteboard, export of the used area).
 Uses the scene and the isolated environment from regress.py (empty HOME,
 offscreen platform). Exit code 0 = all ok, 1 = failures.
 """
+import math
 import sys
 from pathlib import Path
 
@@ -558,6 +559,86 @@ def main():
     board_l.undo_stack.setClean()  # otherwise the whiteboard asks on close (dialog without a screen)
     board_l.close()
     lc.close()
+
+    # Connectors, step 1 (data model, no mouse yet): a docked arrow aims at the middle of its
+    # targets and ends at their outline; it follows moving/rotating/resizing, a deleted target
+    # leaves the end free, undo docks it again; saved with the arrow
+    import connectors
+    from commands import AddItemCommand as _Add, MoveItemCommand, RemoveItemCommand as _Remove
+    cn = make_canvas(plain_bg)
+
+    def new_shape(tool, a, b):
+        item = _Shape(tool, QPointF(*a), QColor("#7aa2f7"), 4)
+        item.points[1] = QPointF(b[0] - a[0], b[1] - a[1])
+        item.rebuild()
+        cn.undo_stack.push(_Add(cn.scene_, item))
+        return item
+    box_a = new_shape(Tool.RECT, (100, 100), (200, 180))
+    oval_b = new_shape(Tool.ELLIPSE, (450, 250), (570, 330))
+    arrow = _Shape(Tool.ARROW, QPointF(0, 0), QColor("white"), 4)
+    arrow.ends = [box_a.id, oval_b.id]
+    cn.undo_stack.push(_Add(cn.scene_, arrow))
+
+    def ends_ok():
+        """Both ends just outside the outline of their target (within the gap), and the
+        line runs through both middles."""
+        start, end = (arrow.mapToScene(p) for p in arrow.points)
+        gap = connectors.GAP + arrow.width / 2
+        result = True
+        for point, target, other in ((start, box_a, end), (end, oval_b, start)):
+            area = connectors.outline(target)
+            inward = connectors.middle(target) - point
+            step = inward / math.hypot(inward.x(), inward.y())
+            result &= not area.contains(point) and area.contains(point + step * (gap + 0.5))
+        a_mid, b_mid = connectors.middle(box_a), connectors.middle(oval_b)
+        cross = (b_mid - a_mid).x() * (start - a_mid).y() - (b_mid - a_mid).y() * (start - a_mid).x()
+        return bool(result) and abs(cross) / math.hypot((b_mid - a_mid).x(), (b_mid - a_mid).y()) < 0.5
+    check("connector: aims at both middles, ends at both outlines", ends_ok())
+    cn.undo_stack.push(MoveItemCommand([box_a], [QPointF(box_a.pos())], [box_a.pos() + QPointF(60, 120)]))
+    moved_ok = ends_ok()
+    cn.scene_.clearSelection()
+    oval_b.setSelected(True)
+    cn.rotate_selected(45)
+    rotated_ok = ends_ok()
+    cn.undo_stack.push(PropertyCommand(box_a.set_geometry, box_a.geometry(),
+                                       (QPointF(box_a.pos()), [QPointF(0, 0), QPointF(40, 200)], (None, None))))
+    check("connector: follows moving, rotating and resizing its targets (also hjkl/undo: same path)",
+          moved_ok and rotated_ok and ends_ok())
+    before_delete = [QPointF(arrow.mapToScene(p)) for p in arrow.points]
+    cn.undo_stack.push(_Remove(cn.scene_, box_a))
+    after_delete = [arrow.mapToScene(p) for p in arrow.points]
+    cn.undo_stack.undo()
+    cn.undo_stack.push(MoveItemCommand([box_a], [QPointF(box_a.pos())], [box_a.pos() + QPointF(-50, 0)]))
+    check("connector: deleted target leaves the end free in place, undo docks it again",
+          near(after_delete[0], before_delete[0]) and arrow.ends[0] == box_a.id and ends_ok())
+    note = TextElement(QPointF(600, 60), QColor("white"), 20, text="note")
+    cn.undo_stack.push(_Add(cn.scene_, note))
+    arrow.ends = [arrow.ends[0], note.id]
+    cn.update_connectors()
+    note_area = connectors.outline(note)
+    end = arrow.mapToScene(arrow.points[1])
+    check("connector: docks onto loose text too (its box)",
+          not note_area.contains(end) and note_area.contains(end + (connectors.middle(note) - end) * 0.5))
+    arrow.ends = [box_a.id, oval_b.id]
+    cn.update_connectors()
+    docked = cn.render_image()
+    QTest.keyClick(cn, Qt.Key_S, Qt.ControlModifier)
+    cbg, celems, _, _ = load_document(cn.document_path)
+    creloaded = make_canvas(QPixmap.fromImage(cbg), celems, cn.document_path)
+    loaded_arrow = next(e for e in celems if getattr(e, "tool", None) == Tool.ARROW)
+    check("connector: saved and loaded docked (pixel identical)",
+          loaded_arrow.ends == [box_a.id, oval_b.id] and creloaded.render_image() == docked)
+    old_style = dict(arrow.to_dict())
+    old_style.pop("ends")
+    try:
+        _Shape.from_dict(dict(arrow.to_dict(), ends=[1, 2]))
+        rejected = False
+    except ValueError:
+        rejected = True
+    check("connector: older files without ends = free, broken ends are rejected",
+          _Shape.from_dict(old_style).ends == [None, None] and rejected)
+    creloaded.close()
+    cn.close()
 
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
     zo = make_canvas(QPixmap(800, 400))

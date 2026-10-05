@@ -148,6 +148,8 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         self.marker_kind = "number"
         self.marker_order = 0
         self.label = None  # rectangle/ellipse: TextElement as a child item, see set_label
+        # Line/arrow: IDs of the elements its start and end are docked to (connectors.py)
+        self.ends = [None, None]
         self.setPos(origin)  # start point = origin of the element
         start = QPointF(0, 0)
         self.points = [start] if tool == Tool.FREEHAND else [start, start]
@@ -170,6 +172,7 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
             **({"kind": self.marker_kind, "order": self.marker_order} if self.tool == Tool.MARKER else {}),
             **({"label": {"text": self.label.toPlainText(), "font_size": self.label.font_size}}
                if self.label is not None else {}),
+            **({"ends": list(self.ends)} if any(self.ends) else {}),
         }
 
     @classmethod
@@ -177,6 +180,10 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         """Counterpart to to_dict. Broken data raises KeyError/ValueError/TypeError."""
         tool = Tool[data["tool"].upper()]
         label = data.get("label")  # optional; older files have none
+        ends = data.get("ends", [None, None])  # line/arrow docked to elements; older files: free
+        if (not isinstance(ends, list) or len(ends) != 2
+                or not all(e is None or isinstance(e, str) for e in ends)):
+            raise ValueError(f"ends {ends!r} invalid")
         # Older files without "radius": the previous default, so it looks like it did back then
         radius = data.get("radius", RECT_RADIUS)
         if isinstance(radius, bool) or not isinstance(radius, (int, float)) or radius < 0:
@@ -194,6 +201,8 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         if not item.points or (expected and len(item.points) != expected):
             raise ValueError(f"{tool.name}: wrong number of points")
         item.setRotation(data.get("rotation", 0))
+        if tool in (Tool.LINE, Tool.ARROW):
+            item.ends = list(ends)
         item.rebuild()
         if label is not None and tool in LABEL_TOOLS:
             text, size = label["text"], label["font_size"]
@@ -418,13 +427,15 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         return QRectF(points[0], points[1]).normalized()
 
     def geometry(self):
-        """Everything that can change when resizing, for undo (copied)."""
-        return (QPointF(self.pos()), [QPointF(p) for p in self.points])
+        """Everything that can change when resizing, for undo (copied). For lines/arrows
+        that includes where their ends are docked (re-docking via a handle is one undo step)."""
+        return (QPointF(self.pos()), [QPointF(p) for p in self.points], tuple(self.ends))
 
     def set_geometry(self, state):
-        pos, points = state
+        pos, points, ends = state
         self.setPos(pos)
         self.points = [QPointF(p) for p in points]
+        self.ends = list(ends)
         self.rebuild()
 
     def drag_handle(self, index, scene_pos, start):
