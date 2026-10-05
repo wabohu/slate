@@ -9,7 +9,7 @@ e.g. setting the cursor in the text editor).
 Manages (created in Canvas.__init__): current_item, start_pos, editing_text,
 editing_old, dragging, drag_offset, drag_start, passthrough, wheel_rest, resizing, rotating, panning.
 Reads from the Canvas: tool, board, board_color, pen_color, pen_width, text_size, scene_,
-settings, toast, undo_stack, selected_element(), element_at(), zoom(), update_bars(),
+settings, toast, undo_stack, selected_element(), element_at(), zoom(), screen_px(), ui_scale, update_bars(),
 pan_by(), pan_by_wheel(), zoom_by_wheel().
 """
 import math
@@ -328,7 +328,7 @@ class InputMixin:
     # --- Connectors: dock line/arrow ends onto elements (connectors.py) ---
     def dock_target(self, pos, exclude):
         """Docking target near pos (close to its outline, DOCK_MARGIN screen pixels) or None."""
-        return connectors.target_at(self.scene_, pos, connectors.DOCK_MARGIN / self.zoom(), exclude)
+        return connectors.target_at(self.scene_, pos, self.screen_px(connectors.DOCK_MARGIN), exclude)
 
     def dock_end(self, line, index, pos):
         """End index of line was drawn/dragged to pos: dock it onto the target there (not the
@@ -351,7 +351,7 @@ class InputMixin:
         if self.dock_hint is None or self.dock_hint.scene() is None:
             return
         stroker = QPainterPathStroker()
-        stroker.setWidth(DOCK_HINT_WIDTH / self.zoom())
+        stroker.setWidth(self.screen_px(DOCK_HINT_WIDTH))
         band = stroker.createStroke(connectors.outline(self.dock_hint))
         glow = QColor(self.settings.theme.accent)
         glow.setAlpha(150)
@@ -449,7 +449,7 @@ class InputMixin:
         item = self.selected_element()
         if item is None or self.tool != Tool.SELECT or self.editing_text:
             return None
-        grab = HANDLE_GRAB / self.zoom()  # grab radius in scene units
+        grab = self.screen_px(HANDLE_GRAB)  # grab radius in scene units
         for i, local in enumerate(item.handle_points()):
             point = item.mapToScene(local)
             if abs(point.x() - pos.x()) <= grab and abs(point.y() - pos.y()) <= grab:
@@ -471,7 +471,7 @@ class InputMixin:
         length = math.hypot(up.x(), up.y())
         if length < 1e-6:  # flat element (e.g. a horizontal stroke): straight up, turned along
             up, length = item.mapToScene(QPointF(0, -1)) - item.mapToScene(QPointF(0, 0)), 1.0
-        return top + up * (ROTATE_HANDLE_OFFSET / self.zoom() / length), top
+        return top + up * (self.screen_px(ROTATE_HANDLE_OFFSET) / length), top
 
     def update_cursor(self, pos):
         """Mouse cursor in the select tool: own arrow, a resize arrow over handles."""
@@ -511,22 +511,17 @@ class InputMixin:
         line, fill = self.selection_colors()
         if self.rubber is not None:  # selection rectangle while dragging
             start, end, _ = self.rubber
-            band = QPen(line, 1, Qt.DashLine)
-            band.setCosmetic(True)
-            painter.setPen(band)
+            band = QRectF(start, end).normalized()
             tint = QColor(line)
             tint.setAlpha(30)
-            painter.setBrush(tint)
-            painter.drawRect(QRectF(start, end).normalized())
+            painter.fillRect(band, tint)
+            self.paint_frame(painter, lambda: painter.drawRect(band))
         items = self.selected_elements()
         if len(items) > 1:
-            frame = QPen(line, 1, Qt.DashLine)
-            frame.setCosmetic(True)
-            painter.setPen(frame)
-            painter.setBrush(Qt.NoBrush)
-            pad = 4 / self.zoom()
+            pad = self.screen_px(4)
             for item in items:
-                painter.drawRect(item.sceneBoundingRect().adjusted(-pad, -pad, pad, pad))
+                rect = item.sceneBoundingRect().adjusted(-pad, -pad, pad, pad)
+                self.paint_frame(painter, lambda: painter.drawRect(rect))
             return
         item = self.selected_element()
         if item is None:
@@ -534,23 +529,41 @@ class InputMixin:
         points = [item.mapToScene(p) for p in item.handle_points()]
         painter.setRenderHint(QPainter.Antialiasing)
         if len(points) == 4:  # frame through the corners (for lines only the end points)
-            frame = QPen(line, 1, Qt.DashLine)
-            frame.setCosmetic(True)  # always 1 pixel, regardless of zoom/transformation
-            painter.setPen(frame)
-            painter.setBrush(Qt.NoBrush)
-            painter.drawPolygon(QPolygonF(points))
-        outline = QPen(line, 1.5)
-        outline.setCosmetic(True)
-        painter.setPen(outline)
-        painter.setBrush(QBrush(fill))
-        size = HANDLE_SIZE / self.zoom()  # always the same size on screen
+            self.paint_frame(painter, lambda: painter.drawPolygon(QPolygonF(points)))
+        size = self.screen_px(HANDLE_SIZE)  # always the same size on screen
         rotate = self.rotate_handle(item) if len(points) == 4 else None
         if rotate is not None:  # rotate handle: a short stem from the top edge, a round knob
             handle, top = rotate
-            painter.drawLine(top, handle)
-            painter.drawEllipse(handle, size * 0.6, size * 0.6)
+            self.paint_frame(painter, lambda: painter.drawLine(top, handle), width=1.5)
+        painter.setPen(self.selection_pen(line, 1.5))
+        painter.setBrush(QBrush(fill))
+        if rotate is not None:
+            painter.drawEllipse(rotate[0], size * 0.6, size * 0.6)
         for p in points:
             painter.drawRect(QRectF(p.x() - size / 2, p.y() - size / 2, size, size))
+
+    def selection_pen(self, color, width, style=Qt.SolidLine):
+        """Cosmetic pen (same width on screen at any zoom), width for 1080 px screen height."""
+        pen = QPen(color, width * self.ui_scale, style)
+        pen.setCosmetic(True)
+        return pen
+
+    def paint_frame(self, painter, draw, width=1):
+        """Draw a selection line as "marching ants": dashes alternating in the handle fill and
+        the line color, on the same thin line. One of the two always stands out, on a white
+        web page as on a black terminal, and the shape's own outline stays visible beside it.
+        draw() does the actual drawing."""
+        line, fill = self.selection_colors()
+        painter.save()
+        # Without antialiasing: a smoothed 1 px line spreads over two pixel rows at half
+        # strength, and dark and light dashes both turn into the same gray
+        painter.setRenderHint(QPainter.Antialiasing, False)
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(self.selection_pen(fill, width))
+        draw()
+        painter.setPen(self.selection_pen(line, width, Qt.DashLine))
+        draw()
+        painter.restore()
 
     def selection_colors(self):
         """(line, fill) for selection frame and handles: the bar color with more

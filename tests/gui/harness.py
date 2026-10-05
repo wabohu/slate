@@ -218,6 +218,14 @@ class Session:
         """Color of a screen point as "#rrggbb" (via a screenshot)."""
         return _qt_image(self.screenshot(name)).pixelColor(x, y).name()
 
+    def set_background(self, color):
+        """Paint the desktop (root window) in one color, e.g. "white" like a web page."""
+        self.run(["xsetroot", "-solid", color])
+
+    def image(self, name):
+        """Screenshot as a QImage (to compare pixels)."""
+        return _qt_image(self.screenshot(name))
+
     def history_entries(self):
         directory = Path(self.env["XDG_DATA_HOME"]) / "slate" / "history"
         return sorted(directory.glob("slate_*.png")) if directory.exists() else []
