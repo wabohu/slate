@@ -64,6 +64,7 @@ FIXED = [
     ("Mouse", "Drag", "draw with the tool", BOTH),
     ("Mouse", "Click (select)", "select, drag = move", BOTH),
     ("Mouse", "Drag handles", "resize", BOTH),
+    ("Mouse", "Drag round handle", "rotate", BOTH),
     ("Mouse", "Double-click (select)", "edit text / new text", BOTH),
     ("Mouse", "Alt+wheel", "fine size", BOTH),
     ("Mouse", "Wheel, middle button", "pan the view", (BOARD,)),

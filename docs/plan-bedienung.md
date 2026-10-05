@@ -39,7 +39,7 @@ später Tasten umbelegen oder Leisten umbauen müssen.
 | Taste | Aktion | Roadmap |
 |---|---|---|
 | W | Auswahl-Werkzeug | 12 |
-| Q / Shift+Q | Auswahl drehen −5° / +5° (umgesetzt; Unschärfe und Marker drehen nicht mit). Später Dreh-Griff mit der Maus | 12 |
+| Q / Shift+Q | Auswahl drehen −5° / +5° (umgesetzt; Unschärfe und Marker drehen nicht mit). Dazu Dreh-Griff mit der Maus (umgesetzt, folgt der Maus frei; Shift am Griff bewusst frei gelassen, evtl. später für Ausrichten an anderen Elementen) | 12 |
 | E / Shift+E | Zeigen: Spotlight / Lupe an/aus (umgesetzt) | – |
 | Y | Ausschnitt aufziehen (Esc dabei: aufheben) | 9 |
 | Entf / Backspace | Auswahl löschen | 12 |

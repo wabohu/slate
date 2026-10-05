@@ -7,11 +7,13 @@ super().mousePressEvent(event) etc. ends up in QGraphicsView (Qt's default behav
 e.g. setting the cursor in the text editor).
 
 Manages (created in Canvas.__init__): current_item, start_pos, editing_text,
-editing_old, dragging, drag_offset, drag_start, passthrough, wheel_rest, resizing, panning.
+editing_old, dragging, drag_offset, drag_start, passthrough, wheel_rest, resizing, rotating, panning.
 Reads from the Canvas: tool, board, board_color, pen_color, pen_width, text_size, scene_,
 settings, toast, undo_stack, selected_element(), element_at(), zoom(), update_bars(),
 pan_by(), pan_by_wheel(), zoom_by_wheel().
 """
+import math
+
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF, QTransform
 
@@ -19,9 +21,25 @@ from colors import contrast
 from commands import (AddItemCommand, EditTextCommand, MoveItemCommand, PropertyCommand, RemoveItemCommand,
                       ReorderCommand, property_command)
 from elements import ShapeElement, TextElement
-from settings import (HANDLE_GRAB, HANDLE_SIZE, STROKE_WIDTH_RANGE, TEXT_SIZE_RANGE, WHEEL_STROKE_STEP,
-                      WHEEL_TEXT_STEP, clamp)
+from settings import (HANDLE_GRAB, HANDLE_SIZE, ROTATE_HANDLE_OFFSET, STROKE_WIDTH_RANGE,
+                      TEXT_SIZE_RANGE, WHEEL_STROKE_STEP, WHEEL_TEXT_STEP, clamp)
 from tools import Tool
+
+# handle_at() returns this instead of a corner number when the mouse is on the rotate handle
+ROTATE_HANDLE = "rotate"
+# Not rotatable: lines/arrows turn via their end points, blur and markers do not rotate at all
+NOT_ROTATABLE = (Tool.LINE, Tool.ARROW, Tool.MARKER, Tool.BLUR)
+
+
+def angle_to(center, pos):
+    """Direction from center to pos in degrees (Qt: y points down, so clockwise is positive)."""
+    return math.degrees(math.atan2(pos.y() - center.y(), pos.x() - center.x()))
+
+
+def turned(center, start, delta):
+    """Pose of an element after turning rigidly by delta degrees around center (start = pose before)."""
+    start_pos, start_angle = start
+    return (center + QTransform().rotate(delta).map(start_pos - center), (start_angle + delta) % 360)
 
 
 class InputMixin:
@@ -58,6 +76,12 @@ class InputMixin:
 
         if self.tool == Tool.SELECT:
             handle = self.handle_at(pos)
+            if handle == ROTATE_HANDLE:  # rotate handle: turn around the middle of the element
+                item = self.selected_element()
+                center = item.mapToScene(item.boundingRect().center())
+                self.rotating = (item, center, angle_to(center, pos), item.pose())
+                self.viewport().setCursor(Qt.ClosedHandCursor)
+                return
             if handle is not None:  # grabbing a handle = resize
                 item = self.selected_element()
                 self.resizing = (item, handle, item.geometry())
@@ -140,6 +164,12 @@ class InputMixin:
             super().mouseMoveEvent(event)
             return
         pos = self.mapToScene(event.position().toPoint())
+        if self.rotating:
+            item, center, start_mouse, start = self.rotating
+            # Follows the mouse freely, no snapping (Shift is kept free for later, e.g. aligning)
+            item.set_pose(turned(center, start, angle_to(center, pos) - start_mouse))
+            self.viewport().update()
+            return
         if self.resizing:
             item, handle, start = self.resizing
             if isinstance(item, TextElement):
@@ -181,6 +211,13 @@ class InputMixin:
         if self.passthrough:
             self.passthrough = False
             super().mouseReleaseEvent(event)
+            return
+        if self.rotating:
+            item, _, _, start = self.rotating
+            self.rotating = None
+            if item.pose() != start:  # only a real change is an undo step
+                self.undo_stack.push(PropertyCommand(item.set_pose, start, item.pose(), "Rotate"))
+            self.update_cursor(self.mapToScene(event.position().toPoint()))
             return
         if self.resizing:
             item, _, start = self.resizing
@@ -289,7 +326,24 @@ class InputMixin:
             point = item.mapToScene(local)
             if abs(point.x() - pos.x()) <= grab and abs(point.y() - pos.y()) <= grab:
                 return i
+        rotate = self.rotate_handle(item)
+        if rotate is not None and abs(rotate[0].x() - pos.x()) <= grab and abs(rotate[0].y() - pos.y()) <= grab:
+            return ROTATE_HANDLE
         return None
+
+    def rotate_handle(self, item):
+        """(rotate handle, point on the frame it hangs on) in scene coordinates, or None if
+        item cannot be rotated with the mouse. The handle sits above the middle of the top edge
+        and turns with the element; its distance stays the same on screen at any zoom."""
+        if isinstance(item, ShapeElement) and item.tool in NOT_ROTATABLE:
+            return None
+        corner = [item.mapToScene(p) for p in item.handle_points()]
+        top, center = (corner[0] + corner[1]) / 2, (corner[0] + corner[2]) / 2
+        up = top - center
+        length = math.hypot(up.x(), up.y())
+        if length < 1e-6:  # flat element (e.g. a horizontal stroke): straight up, turned along
+            up, length = item.mapToScene(QPointF(0, -1)) - item.mapToScene(QPointF(0, 0)), 1.0
+        return top + up * (ROTATE_HANDLE_OFFSET / self.zoom() / length), top
 
     def update_cursor(self, pos):
         """Mouse cursor in the select tool: own arrow, a resize arrow over handles."""
@@ -299,10 +353,15 @@ class InputMixin:
         item = self.selected_element()
         if handle is None:
             cursor = self.tool_cursor()
-        elif isinstance(item, ShapeElement) and item.tool in (Tool.LINE, Tool.ARROW):
+        elif handle == ROTATE_HANDLE:
+            cursor = Qt.OpenHandCursor
+        elif isinstance(item, ShapeElement) and item.tool in (Tool.LINE, Tool.ARROW, Tool.MARKER):
             cursor = Qt.SizeAllCursor
-        else:  # corners 0/2 diagonal ↖↘, 1/3 diagonal ↗↙
-            cursor = Qt.SizeFDiagCursor if handle in (0, 2) else Qt.SizeBDiagCursor
+        else:  # resize arrow along the diagonal through this corner (also when rotated)
+            center = item.mapToScene(item.boundingRect().center())
+            direction = angle_to(center, item.mapToScene(item.handle_points()[handle])) % 180
+            cursors = (Qt.SizeHorCursor, Qt.SizeFDiagCursor, Qt.SizeVerCursor, Qt.SizeBDiagCursor)
+            cursor = cursors[int((direction + 22.5) // 45) % 4]  # 45° sectors: ↔ ↘ ↕ ↙
         self.viewport().setCursor(cursor)
 
     def drawForeground(self, painter, rect):
@@ -356,6 +415,11 @@ class InputMixin:
         painter.setPen(outline)
         painter.setBrush(QBrush(fill))
         size = HANDLE_SIZE / self.zoom()  # always the same size on screen
+        rotate = self.rotate_handle(item) if len(points) == 4 else None
+        if rotate is not None:  # rotate handle: a short stem from the top edge, a round knob
+            handle, top = rotate
+            painter.drawLine(top, handle)
+            painter.drawEllipse(handle, size * 0.6, size * 0.6)
         for p in points:
             painter.drawRect(QRectF(p.x() - size / 2, p.y() - size / 2, size, size))
 
@@ -449,10 +513,7 @@ class InputMixin:
             return
         centers = [i.mapToScene(i.boundingRect().center()) for i in items]
         center = QPointF(sum(c.x() for c in centers) / len(centers), sum(c.y() for c in centers) / len(centers))
-        turn = QTransform().rotate(step)
-        changes = [(item.set_pose, item.pose(),
-                    (center + turn.map(item.pos() - center), (item.rotation() + step) % 360))
-                   for item in items]
+        changes = [(item.set_pose, item.pose(), turned(center, item.pose(), step)) for item in items]
         self.undo_stack.push(property_command(changes, "Rotate", mergeable=True))
         self.update_bars()  # move the handles along; when merging, the stack reports nothing
 

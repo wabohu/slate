@@ -113,6 +113,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.passthrough = False  # mouse events go to the text editor (set cursor, select text)
         self.wheel_rest = 0       # partial mouse wheel notch (touchpads send small steps)
         self.resizing = None      # (element, handle number, geometry at drag start) while dragging a handle
+        self.rotating = None      # (element, center, mouse angle at start, pose at start) while dragging the rotate handle
         self.panning = None       # last mouse position while panning with the middle button
         self.zoom_rest = 0        # partial notch while zooming
         self.overview_return = None  # (view before, view in the overview) for Ctrl+W back
@@ -376,7 +377,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         Undo starts over; Ctrl+S creates a new file again."""
         if self.editing_text:
             self.finish_text()
-        self.current_item = self.dragging = self.resizing = self.rubber = None
+        self.current_item = self.dragging = self.resizing = self.rotating = self.rubber = None
         self.undo_stack.clear()  # before scene_.clear(): commands refer to elements
         self.scene_.clear()      # deletes all items, including the old background
         self.set_background(pixmap)

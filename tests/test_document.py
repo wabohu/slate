@@ -383,6 +383,35 @@ def main():
     reloaded.close()
     ro.close()
 
+    # Rotate handle: drag it a quarter turn around the middle, one undo step; lines have none
+    rh = make_canvas(plain_bg)
+    hv = rh.viewport()
+    rh.set_tool(Tool.RECT)
+    QTest.mousePress(hv, Qt.LeftButton, Qt.NoModifier, rh.mapFromScene(QPointF(100, 100)))
+    QTest.mouseMove(hv, rh.mapFromScene(QPointF(300, 200)))
+    QTest.mouseRelease(hv, Qt.LeftButton, Qt.NoModifier, rh.mapFromScene(QPointF(300, 200)))
+    box = rh.elements()[0]
+    rh.set_tool(Tool.SELECT)
+    box.setSelected(True)
+    knob = rh.rotate_handle(box)[0]
+    middle, steps = mid(box), rh.undo_stack.count()
+    QTest.mousePress(hv, Qt.LeftButton, Qt.NoModifier, rh.mapFromScene(knob))
+    QTest.mouseMove(hv, rh.mapFromScene(middle + QPointF(100, -100)))
+    QTest.mouseMove(hv, rh.mapFromScene(middle + QPointF(150, 0)))  # from above to the right: +90°
+    QTest.mouseRelease(hv, Qt.LeftButton, Qt.NoModifier, rh.mapFromScene(middle + QPointF(150, 0)))
+    turned_by_mouse = box.rotation()
+    check(f"rotate handle: dragged to the right = 90° around the middle, one undo step ({turned_by_mouse})",
+          abs(turned_by_mouse - 90) < 1 and near(mid(box), middle) and rh.undo_stack.count() == steps + 1)
+    rh.undo_stack.undo()
+    check("rotate handle: undo back to 0°", box.rotation() == 0 and near(mid(box), middle))
+    rh.set_tool(Tool.LINE)
+    QTest.mousePress(hv, Qt.LeftButton, Qt.NoModifier, rh.mapFromScene(QPointF(400, 300)))
+    QTest.mouseMove(hv, rh.mapFromScene(QPointF(600, 350)))
+    QTest.mouseRelease(hv, Qt.LeftButton, Qt.NoModifier, rh.mapFromScene(QPointF(600, 350)))
+    check("rotate handle: none for lines (they turn via their end points)",
+          rh.rotate_handle(rh.elements()[-1]) is None and rh.rotate_handle(box) is not None)
+    rh.close()
+
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place
     zo = make_canvas(QPixmap(800, 400))
     zv = zo.viewport()

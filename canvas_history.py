@@ -53,7 +53,7 @@ class HistoryMixin:
 
     def busy(self):
         """Is an action in progress (typing, drawing, dragging)? Then do not save."""
-        return bool(self.editing_text or self.current_item or self.dragging or self.resizing)
+        return bool(self.editing_text or self.current_item or self.dragging or self.resizing or self.rotating)
 
     def save_history(self):
         """Write the current state into the history entry (called by the timer)."""

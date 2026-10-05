@@ -48,6 +48,8 @@ MOVE_STEP_RANGE = (1, 500)
 
 # Rotate the selection with Q / Shift+Q: degrees per key press
 ROTATE_STEP = 5
+# Rotate handle above the frame: distance from the top edge (screen pixels)
+ROTATE_HANDLE_OFFSET = 24
 
 # Corner radius of new rectangles ([rect] in the config): screenshot and whiteboard
 DEFAULT_RECT_RADIUS_BOARD = 20

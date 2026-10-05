@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GUI test multi-selection: three rectangles, Ctrl+A, rubber band, Shift+click, move
 and delete them together; the history entry contains the result. Plus stacking order and
-rotating with Q / Shift+Q.
+rotating with Q / Shift+Q and with the rotate handle (follows the mouse freely).
 
     python tests/gui/test_select.py
 
@@ -85,6 +85,32 @@ def main():
         rects = [e for e in load_elements(entries[-1]) if e.tool.name == "RECT"] if entries else []
         check(f"Shift+Q ×6, Q ×1: rectangle rotated by 25° ({[r.rotation() for r in rects]})",
               len(rects) == 1 and abs(rects[0].rotation() - 25) < 1e-6)
+
+        # Rotate handle: 24 px above the top edge, straight above the middle (900, 400); drag it
+        # to (1137, 409): from -90° (up) to atan2(9, 237) = 2.17°, so 92.17° without snapping
+        s.key("alt+Escape")
+        wait(lambda: s.slate_pids(), 10)
+        wait(lambda: s.windows_of(s.slate_pids()[0]), 10)
+        time.sleep(0.4)
+        s.key("f")
+        s.drag(700, 300, 1100, 500)              # middle (900, 400)
+        s.key("w")
+        s.move(900, 300)
+        s.run(["xdotool", "click", "1"])
+        time.sleep(0.2)
+        s.move(900, 276)
+        time.sleep(0.2)
+        s.screenshot("06-rotate-handle")
+        s.run(["xdotool", "mousedown", "1", "mousemove", "1000", "300",
+               "mousemove", "1137", "409", "mouseup", "1"])
+        time.sleep(0.3)
+        s.screenshot("07-rotated-by-handle")
+        s.key("Return")
+        wait(lambda: not s.slate_pids(), 10)
+        entries = s.history_entries()
+        rects = [e for e in load_elements(entries[-1]) if e.tool.name == "RECT"] if entries else []
+        check(f"rotate handle: follows the mouse freely, about 92.17° ({[r.rotation() for r in rects]})",
+              len(rects) == 1 and abs(rects[0].rotation() - 92.17) < 0.1)
     return summary()
 
 
