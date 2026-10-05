@@ -119,8 +119,14 @@ class OutputMixin:
     def insert_copies(self, dicts, target=None, offset=None):
         """Create elements from dicts anew (new IDs, markers keep counting), either with their
         center at target or shifted by offset; one undo step, selected afterwards."""
-        dicts = [dict(d, id=new_id()) for d in dicts
+        dicts = [d for d in dicts
                  if not (self.board and d.get("tool") == "blur")]  # nothing to pixelate on the whiteboard
+        # New IDs; lines/arrows stay docked to the copies of their shapes if those are copied
+        # along, otherwise the end becomes free (it must not jump back to the original)
+        fresh = {d.get("id"): new_id() for d in dicts if d.get("id") is not None}
+        dicts = [dict(d, id=fresh.get(d.get("id")) or new_id(),
+                      **({"ends": [fresh.get(e) for e in d["ends"]]} if "ends" in d else {}))
+                 for d in dicts]
         items = elements_from_dicts(dicts)
         if not items:
             self.report("Nothing to paste (copy elements or an image)")

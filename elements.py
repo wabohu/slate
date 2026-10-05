@@ -250,6 +250,11 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
         label.setPos(box.center() - QPointF(size.width() / 2, size.height() / 2))
 
     # --- Change values ---
+    def set_ends(self, ends):
+        """Line/arrow: dock the ends onto these element IDs (None = free). Setter for undo;
+        the Canvas lays the line out again after every undo change (connectors.py)."""
+        self.ends = list(ends)
+
     def set_color(self, color):
         self.color = QColor(color)
         self.update_pen()

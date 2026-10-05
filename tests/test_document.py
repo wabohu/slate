@@ -700,6 +700,53 @@ def main():
     cm.undo_stack.undo()
     check("end handle into the empty: undocked; one undo docks it again",
           undocked and cm.undo_stack.index() == steps and docked_arrow.ends == [left.id, right.id])
+
+    # Connectors, step 3: moving/rotating the arrow itself undocks it (unless its shapes move
+    # along); copying keeps copies docked to each other, a copied arrow alone is free
+    def select_only(*items):
+        cm.scene_.clearSelection()
+        for item in items:
+            item.setSelected(True)
+    cm.set_tool(Tool.SELECT)
+    middle_of_arrow = (docked_arrow.mapToScene(docked_arrow.points[0])
+                       + docked_arrow.mapToScene(docked_arrow.points[1])) / 2
+    select_only(docked_arrow)
+    steps = cm.undo_stack.index()
+    cpress(middle_of_arrow.x(), middle_of_arrow.y())
+    cmove(middle_of_arrow.x(), middle_of_arrow.y() + 40)
+    cmove(middle_of_arrow.x(), middle_of_arrow.y() + 80)
+    crelease(middle_of_arrow.x(), middle_of_arrow.y() + 80)
+    dragged_free = docked_arrow.ends == [None, None] and cm.undo_stack.index() == steps + 1
+    cm.undo_stack.undo()
+    check("dragging the arrow itself undocks both ends; one undo docks it again",
+          dragged_free and docked_arrow.ends == [left.id, right.id])
+    select_only(left, docked_arrow)
+    QTest.keyClick(cm, Qt.Key_L)
+    check("hjkl with the rectangle selected too: that end stays docked, the other lets go",
+          docked_arrow.ends == [left.id, None])
+    cm.undo_stack.undo()
+    select_only(docked_arrow)
+    QTest.keyClick(cm, Qt.Key_Q)
+    rotated_free = docked_arrow.ends == [None, None]
+    cm.undo_stack.undo()
+    check("Q on the arrow alone undocks it; undo docks it again",
+          rotated_free and docked_arrow.ends == [left.id, right.id])
+    import export as _exp2
+    _exp2.shutil.which = lambda name: None  # never the real clipboard
+    select_only(left, right, docked_arrow)
+    before = set(cm.elements())
+    QTest.keyClick(cm, Qt.Key_D, Qt.ControlModifier)
+    copies = {e.tool: e for e in cm.elements() if e not in before}
+    copy_arrow = copies.get(Tool.ARROW)
+    check("duplicating shapes with their arrow: the copy is docked to the copies",
+          copy_arrow is not None and copy_arrow.ends == [copies[Tool.RECT].id, copies[Tool.ELLIPSE].id])
+    select_only(docked_arrow)
+    before = set(cm.elements())
+    QTest.keyClick(cm, Qt.Key_C, Qt.ControlModifier)
+    QTest.keyClick(cm, Qt.Key_V, Qt.ControlModifier)
+    lone = [e for e in cm.elements() if e not in before]
+    check("copying the arrow alone: the pasted arrow is free (does not jump to the originals)",
+          len(lone) == 1 and lone[0].ends == [None, None] and docked_arrow.ends == [left.id, right.id])
     cm.close()
 
     # Front/back: Ctrl+↑/↓ one step, Ctrl+Shift+↑/↓ all the way; undo; delete+undo keeps the place

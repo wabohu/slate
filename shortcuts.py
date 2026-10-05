@@ -65,6 +65,7 @@ FIXED = [
     ("Mouse", "Click (select)", "select, drag = move", BOTH),
     ("Mouse", "Drag handles", "resize", BOTH),
     ("Mouse", "Drag round handle", "rotate", BOTH),
+    ("Mouse", "Arrow end at a shape's edge", "dock it, it follows the shape", BOTH),
     ("Mouse", "Double-click (select)", "edit text / label shape / new text", BOTH),
     ("Mouse", "Alt+wheel", "fine size", BOTH),
     ("Mouse", "Wheel, middle button", "pan the view", (BOARD,)),

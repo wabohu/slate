@@ -109,6 +109,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.dragging = None      # elements currently being moved (list) or None
         self.drag_origin = None   # mouse point when grabbed (scene)
         self.drag_starts = None   # positions of the elements before moving
+        self.drag_undock = []     # (set_ends, old, new) of lines/arrows undocked by moving them
         self.rubber = None        # selection rectangle: (start, end, selection before) while dragging
         self.click_only = None    # clicked element of a multi-selection (without dragging: only it)
         self.passthrough = False  # mouse events go to the text editor (set cursor, select text)

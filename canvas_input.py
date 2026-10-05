@@ -252,14 +252,24 @@ class InputMixin:
                 self.undo_stack.push(PropertyCommand(item.set_geometry, start, item.geometry(), "Resize"))
             return
         if self.dragging:
-            items, starts, only = self.dragging, self.drag_starts, self.click_only
+            items, starts, only, undock = self.dragging, self.drag_starts, self.click_only, self.drag_undock
             self.dragging = self.drag_starts = self.drag_origin = self.click_only = None
-            if any(item.pos() != start for item, start in zip(items, starts)):  # only real moving
+            self.drag_undock = []
+            moved = any(item.pos() != start for item, start in zip(items, starts))
+            if moved and undock:  # moving lines/arrows away from their shapes: one undo step
+                self.undo_stack.beginMacro("Move")
+                self.undo_stack.push(property_command(undock, "Undock"))
                 self.undo_stack.push(MoveItemCommand(items, starts, [i.pos() for i in items]))
-            elif only is not None and len(items) > 1:  # a plain click into a multi-selection
-                self.scene_.clearSelection()
-                only.setSelected(True)
-                self.update_bars()
+                self.undo_stack.endMacro()
+            elif moved:
+                self.undo_stack.push(MoveItemCommand(items, starts, [i.pos() for i in items]))
+            else:
+                for setter, old, _ in undock:  # only a click: stay docked
+                    setter(old)
+                if only is not None and len(items) > 1:  # a plain click into a multi-selection
+                    self.scene_.clearSelection()
+                    only.setSelected(True)
+                    self.update_bars()
             return
         if self.rubber is not None:
             self.rubber = None
@@ -270,10 +280,26 @@ class InputMixin:
         self.finish_shape(self.mapToScene(event.position().toPoint()))
 
     def start_drag(self, items, pos):
-        """Grab elements for moving (one undo step on release)."""
+        """Grab elements for moving (one undo step on release). Lines/arrows among them let go
+        of shapes that are not moved along (otherwise they would snap back to them)."""
         self.dragging = list(items)
         self.drag_origin = QPointF(pos)
         self.drag_starts = [QPointF(i.pos()) for i in items]
+        self.drag_undock = self.undock_changes(items)
+        for setter, _, new in self.drag_undock:
+            setter(new)
+
+    def undock_changes(self, items):
+        """Moving/rotating items: lines/arrows among them undock the ends whose element is not
+        part of items. Returns [(set_ends, old, new)] for an undo step (empty: nothing to undock)."""
+        moved = {i.id for i in items}
+        changes = []
+        for item in items:
+            if connectors.is_connector(item):
+                new = [e if e in moved else None for e in item.ends]
+                if new != item.ends:
+                    changes.append((item.set_ends, list(item.ends), new))
+        return changes
 
     def select_in_rubber(self):
         """Selection = whatever lies completely inside the rectangle (plus the previous selection with Shift)."""
@@ -591,7 +617,13 @@ class InputMixin:
         step = self.settings.move_steps[fine] / self.zoom()
         olds = [QPointF(i.pos()) for i in items]
         news = [p + QPointF(dx * step, dy * step) for p in olds]
-        self.undo_stack.push(MoveItemCommand(items, olds, news, "Move", mergeable=True))
+        undock = self.undock_changes(items)
+        if undock:  # lines/arrows moved away from their shapes let go of them (one undo step)
+            self.undo_stack.beginMacro("Move")
+            self.undo_stack.push(property_command(undock, "Undock"))
+        self.undo_stack.push(MoveItemCommand(items, olds, news, "Move", mergeable=not undock))
+        if undock:
+            self.undo_stack.endMacro()
         self.update_bars()  # move the handles along; when merging, the stack reports nothing
 
     def rotate_selected(self, step):
@@ -616,7 +648,8 @@ class InputMixin:
             return
         centers = [i.mapToScene(i.boundingRect().center()) for i in items]
         center = QPointF(sum(c.x() for c in centers) / len(centers), sum(c.y() for c in centers) / len(centers))
-        changes = [(item.set_pose, item.pose(), turned(center, item.pose(), step)) for item in items]
+        changes = self.undock_changes(items)  # rotated lines/arrows let go of shapes not rotated along
+        changes += [(item.set_pose, item.pose(), turned(center, item.pose(), step)) for item in items]
         self.undo_stack.push(property_command(changes, "Rotate", mergeable=True))
         self.update_bars()  # move the handles along; when merging, the stack reports nothing
 
