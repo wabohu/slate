@@ -19,7 +19,7 @@ crop_rect (QRectF in scene coordinates or None), cropping (selection in progress
 crop_drag (start point while dragging or None), crop_drag_end, crop_edit (while dragging:
 ("resize", handle), ("move", None) or None = draw a new one), crop_selected.
 Reads from the Canvas: board, export_rect, export_size, scene_, undo_stack, ui_scale,
-zoom(), refresh_cursor(), report().
+zoom(), screen_px(), refresh_cursor(), report().
 """
 from collections import Counter
 
@@ -108,7 +108,7 @@ class CropMixin:
         """What is under pos? ("resize", handle), ("move", None) or None (outside: draw a new one)."""
         if self.crop_rect is None:
             return None
-        grab = HANDLE_GRAB / self.zoom()  # grab radius always the same on screen
+        grab = self.screen_px(HANDLE_GRAB)  # grab radius always the same on screen
         for index, point in enumerate(self.crop_handle_points(self.crop_rect)):
             if abs(point.x() - pos.x()) <= grab and abs(point.y() - pos.y()) <= grab:
                 return ("resize", index)
@@ -138,7 +138,7 @@ class CropMixin:
             hit = self.crop_hit(pos)
             if hit is not None and hit[0] == "resize":
                 return hit
-        grab = HANDLE_GRAB / self.zoom()  # same tolerance on screen as for handles
+        grab = self.screen_px(HANDLE_GRAB)  # same tolerance on screen as for handles
         rect = self.crop_rect
         near = rect.adjusted(-grab, -grab, grab, grab).contains(pos)
         inside = rect.adjusted(grab, grab, -grab, -grab).contains(pos)
@@ -249,11 +249,11 @@ class CropMixin:
         if (self.cropping or self.crop_selected) and self.crop_rect is not None \
                 and (self.crop_drag is None or self.crop_edit is not None):
             line, fill = self.selection_colors()  # like the handles of the selection
-            handle_pen = QPen(line, 1.5)
+            handle_pen = QPen(line, 1.5 * s)
             handle_pen.setCosmetic(True)
             painter.setPen(handle_pen)
             painter.setBrush(fill)
-            size = HANDLE_SIZE / self.zoom()
+            size = self.screen_px(HANDLE_SIZE)
             for p in self.crop_handle_points(rect):
                 painter.drawRect(QRectF(p.x() - size / 2, p.y() - size / 2, size, size))
         # Size in image pixels at the bottom right of the frame, in screen coordinates

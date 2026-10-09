@@ -259,13 +259,18 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         """Current zoom factor of the view (1.0 = 100 %)."""
         return self.transform().m11()
 
+    def screen_px(self, size):
+        """Scene units for size screen pixels (meant for 1080 px screen height): the same size
+        on screen at any zoom, larger on larger screens like everything else (ui_scale)."""
+        return size * self.ui_scale / self.zoom()
+
     def element_at(self, pos):
         """Topmost element at scene position pos or None.
 
         Searches a small square around pos whose size in screen pixels is fixed
         (HIT_TOLERANCE). Qt checks shape() for this: for shapes only the outline (D2).
         """
-        r = HIT_TOLERANCE / self.zoom()
+        r = self.screen_px(HIT_TOLERANCE)
         area = QRectF(pos.x() - r, pos.y() - r, 2 * r, 2 * r)
         for item in self.scene_.items(area, Qt.IntersectsItemShape):  # top to bottom
             if isinstance(item, ELEMENT_CLASSES):

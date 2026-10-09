@@ -24,7 +24,7 @@ DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
 
 # Handles on the selection frame: edge length when drawing and grab radius when clicking.
-# All three values in screen pixels, independent of the zoom
+# All three values in screen pixels for 1080 px screen height, independent of the zoom (Canvas.screen_px)
 HANDLE_SIZE = 8
 HANDLE_GRAB = 7
 HIT_TOLERANCE = 6  # a click this far next to a stroke still counts as a hit (D2)
@@ -48,7 +48,7 @@ MOVE_STEP_RANGE = (1, 500)
 
 # Rotate the selection with Q / Shift+Q: degrees per key press
 ROTATE_STEP = 5
-# Rotate handle above the frame: distance from the top edge (screen pixels)
+# Rotate handle above the frame: distance from the top edge (screen pixels for 1080 px, Canvas.screen_px)
 ROTATE_HANDLE_OFFSET = 24
 
 # Corner radius of new rectangles ([rect] in the config): screenshot and whiteboard
