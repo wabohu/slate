@@ -145,7 +145,7 @@ rotate_right = "shift+q"           # rotate the selection 5° clockwise
 raise_top = "ctrl+shift+up"        # bring the selection to the front
 lower_bottom = "ctrl+shift+down"   # send the selection to the back
 tool_marker = "c"          # marker (numbered circles); press again: 1 2 3 / A B C
-crop = "y"                 # draw a crop; Esc meanwhile: remove the crop (screenshot mode only)
+crop = "x"                 # draw a crop; Esc meanwhile: remove the crop (screenshot mode only)
 spotlight = "e"            # pointing: spotlight on/off (everything darkened except around the mouse)
 magnifier = "shift+e"      # pointing: magnifier on/off
 # Tool slots: tool_i picks the tool at position i of [tools] order (tool_7-9 without a default)

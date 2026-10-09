@@ -146,7 +146,8 @@ def main():
     check("overview: only what applies in the mode", "History" in shot and "History" not in board
           and "View" in board and "View" not in shot)
     check("overview: all keys of an action, lower case, own names",
-          ("?", "this overview") in flat(shot) and ("del, backspace", "delete") in flat(shot)
+          ("?", "this overview") in flat(shot) and ("del, backspace", "delete (nothing selected: clear the crop area)") in flat(shot)
+          and ("del, backspace", "delete") in flat(board)
           and ("enter", "copy image and quit") in flat(shot) and ("ctrl+s", "save editable") in flat(shot)
           and ("←", "older screenshot") in flat(shot) and ("ctrl+shift+b", "previous background") in flat(board))
     ov = shortcuts.overview(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=False)
@@ -154,6 +155,16 @@ def main():
           ov["tools"] == [(Tool.SELECT, "w"), (Tool.RECT, "a"), (Tool.TEXT, "s"), (Tool.MARKER, "c"), (Tool.BLUR, "z")]
           and ov["colors"] == list("asdfgzxcv") and ov["sizes"] == list("asdf")
           and ov["color_hint"] == "shift + …, tab / shift+tab cycles" and ov["size_hint"].startswith("alt + …"))
+    keys = ov["keyboard"]
+    listed = {k for _, entries in ov["lists"] for k, _ in entries}
+    check("panel data: keyboard picture with tools, single keys and Shift, not repeated in the lists",
+          keys["w"]["plain"] == (Tool.SELECT, "Select") and keys["a"]["plain"][0] == Tool.RECT
+          and keys["q"]["plain"][1].startswith("rotate") and keys["q"]["shift"][1].startswith("rotate")
+          and keys["x"]["plain"] == (None, "crop") and keys["tab"]["shift"] == (None, "color ←")
+          and "u" not in keys and not {"q", "shift+q", "x", "b", "e", "w"} & listed and "?" in listed)
+    board_keys = shortcuts.overview(keymap, [Tool.RECT, Tool.TEXT], 9, 4, board=True)["keyboard"]
+    check("panel data: keyboard picture only with what applies (no crop, no blur on the whiteboard)",
+          "x" not in board_keys and "z" not in board_keys and "e" in board_keys)
     names = [name for name, _ in ov["lists"]]
     check("panel data: picture groups not repeated in the lists",
           not {"Tools", "Color and size", "Mouse"} & set(names) and ov["mouse"] and "Output" in names)

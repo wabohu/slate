@@ -91,6 +91,11 @@ class InputMixin:
                 self.resizing = (item, handle, item.geometry())
                 return
             item = self.element_at(pos)
+            crop = self.crop_select_hit(pos)
+            if crop is not None and (crop[0] == "resize" or item is None):
+                self.grab_crop(pos, crop)  # crop edge or its handles (canvas_crop.py)
+                return
+            self.deselect_crop()
             shift = bool(event.modifiers() & Qt.ShiftModifier)
             if item and shift:  # Shift+click: add element to the selection or remove it
                 item.setSelected(not item.isSelected())
@@ -483,7 +488,10 @@ class InputMixin:
             return
         handle = self.handle_at(pos)
         item = self.selected_element()
-        if handle is None:
+        crop = self.crop_select_hit(pos) if handle is None else None
+        if crop is not None and (crop[0] == "resize" or self.element_at(pos) is None):
+            cursor = self.crop_cursor(crop)
+        elif handle is None:
             cursor = self.tool_cursor()
         elif handle == ROTATE_HANDLE:
             cursor = Qt.OpenHandCursor
@@ -681,7 +689,8 @@ class InputMixin:
 
     def delete_selected(self):
         items = self.selected_elements()
-        if not items:
+        if not items or self.cropping:
+            self.clear_crop_area()  # nothing selected: Del clears the crop area (canvas_crop.py)
             return
         self.undo_stack.beginMacro("Delete")  # several commands = one undo step
         for item in items:

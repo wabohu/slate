@@ -6,7 +6,7 @@ canvas_board.py (whiteboard), canvas_output.py (copy, save, messages),
 canvas_history.py (history). Fixed values from the config: settings.py. See docs/plan-aufteilung.md.
 """
 from PySide6.QtCore import QEvent, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QCursor, QPainter, QUndoStack
+from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap, QUndoStack
 from PySide6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView
 
 from canvas_board import BoardMixin
@@ -125,6 +125,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.crop_drag = None     # start point while drawing
         self.crop_drag_end = None
         self.crop_edit = None     # while dragging: change handle, move or new
+        self.crop_selected = False  # select tool: crop clicked on its edge, shows handles
         self.marker_kind = "number"  # new markers: "number" (1 2 3) or "letter" (A B C)
         self.pointer_mode = None  # pointing: None, "spotlight" or "lens" (canvas_pointer.py)
         self.cursor_cache = {}    # finished mouse cursors per tool/color/width
@@ -230,6 +231,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.tool_bar.set_active(self.bar_tools.index(tool) if tool in self.bar_tools else -1)
         self.pointer_mode = None  # changing the tool ends spotlight/magnifier
         self.cropping = False     # and a crop selection in progress
+        self.crop_selected = False
         self.viewport().update()
         self.refresh_cursor()
         self.update_bars()
@@ -370,7 +372,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
 
     def set_background(self, pixmap):
         """Screenshot mode: put pixmap into the scene as background."""
-        background = self.scene_.addPixmap(pixmap)
+        background = self.background_item = self.scene_.addPixmap(pixmap)
         # For the export: area of the screenshot in the scene and its size in pixels
         self.export_rect = background.boundingRect()
         self.export_size = pixmap.size()
@@ -381,6 +383,14 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         # Blur elements pixelate this raw image (elements.ShapeElement.blur_image)
         self.scene_.blur_source = self.background_image
         self.scene_.blur_scale = self.background_image.width() / max(1.0, self.export_rect.width())
+
+    def set_background_image(self, image):
+        """Setter for PropertyCommand (clearing an area, canvas_crop.py): new raw screenshot,
+        same size; shown, saved and used by blur from now on."""
+        self.background_image = image
+        self.background_item.setPixmap(QPixmap.fromImage(image))
+        self.scene_.blur_source = image
+        self.scene_.update()
 
     def replace_content(self, pixmap, elements):
         """History: load another screenshot including its elements into the same canvas.
@@ -396,6 +406,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.document_path = None
         self.crop_rect = None
         self.cropping = False
+        self.crop_selected = False
         self.history_timer.stop()  # undo_stack.clear() scheduled a save, not needed
         self.fit_overlay()
         self.update_bars()
@@ -542,6 +553,8 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             if self.pointer_mode:  # end spotlight/magnifier first
                 self.stop_pointer()
             elif self.cropping:  # while selecting a crop: remove the crop
+                self.cancel_crop()
+            elif self.crop_selected:  # selected crop (select tool): remove the crop
                 self.cancel_crop()
             elif self.selected_element():  # clear the selection first, then quit
                 self.scene_.clearSelection()

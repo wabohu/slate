@@ -1,7 +1,8 @@
 """Content of the key overview (?): which key does what, by group.
 
 sections() returns everything as lists (group -> keys, description); overview() arranges it
-for the panel (ui.HelpPanel): tools, colors and sizes as a picture row, the rest as lists.
+for the panel (ui.HelpPanel): the left half of the keyboard as a picture (tools and the other
+single keys with and without Shift), colors and sizes as picture rows, the rest as lists.
 Keys are written in lower case (a s d, ctrl+s), modifiers and names as in the docs.
 
 The keys come from the KeyMap, so with your own bindings from [keys] and the
@@ -65,7 +66,8 @@ FIXED = [
     ("Mouse", "Click (select)", "select, drag = move", BOTH),
     ("Mouse", "Drag handles", "resize", BOTH),
     ("Mouse", "Drag round handle", "rotate", BOTH),
-    ("Mouse", "Arrow end at a shape's edge", "dock it, it follows the shape", BOTH),
+    ("Mouse", "Click crop edge (select)", "adjust the crop, esc removes it", (SCREENSHOT,)),
+    ("Mouse", "Arrow end at a shape's edge", "dock it, it follows the shape", (BOARD,)),
     ("Mouse", "Double-click (select)", "edit text / label shape or arrow / new text", BOTH),
     ("Mouse", "Alt+wheel", "fine size", BOTH),
     ("Mouse", "Wheel, middle button", "pan the view", (BOARD,)),
@@ -73,6 +75,23 @@ FIXED = [
 ]
 
 # Key names as in docs/usage.md (differing from Qt's names)
+# Differing descriptions in screenshot mode (crop only exists there)
+SCREENSHOT_TEXTS = {"delete": "delete (nothing selected: clear the crop area)"}
+
+# Short labels on the keys of the keyboard picture (the lists use DESCRIPTIONS)
+SHORT = {
+    "undo": "undo", "redo": "redo",
+    "rotate_left": "rotate ↺", "rotate_right": "rotate ↻",
+    "spotlight": "spotlight", "magnifier": "magnifier",
+    "toggle_bar": "bar", "crop": "crop",
+    "color_next": "color →", "color_prev": "color ←",
+}
+# Keys of the keyboard picture: left half, column by column from the outside (top to bottom),
+# like my keyboard in Vial. The stagger of the columns is drawn by ui.HelpPanel
+KEYBOARD_COLUMNS = (("tab", "=", "`"), ("q", "a", "z"), ("w", "s", "x"),
+                    ("e", "d", "c"), ("r", "f", "v"), ("t", "g", "b"))
+KEYBOARD_KEYS = {key for column in KEYBOARD_COLUMNS for key in column}
+
 KEY_NAMES = {"Return": "Enter", "Left": "←", "Right": "→",
              "Up": "↑", "Down": "↓", "Shift+?": "?", "Meta": "Super"}
 
@@ -110,8 +129,9 @@ def combine(labels):
     return ", ".join(labels)
 
 
-def sections(keymap, tools, color_count, size_count, board):
-    """[(group, [(keys, description), …]), …] for the current mode."""
+def sections(keymap, tools, color_count, size_count, board, omit=frozenset()):
+    """[(group, [(keys, description), …]), …] for the current mode.
+    omit: keys (as display() writes them) to leave out, e.g. those on the keyboard picture."""
     mode = BOARD if board else SCREENSHOT
     groups = {name: [] for name in GROUP_ORDER}
 
@@ -121,7 +141,7 @@ def sections(keymap, tools, color_count, size_count, board):
 
     def keys(action):
         """All keys of an action, e.g. 'Del, Backspace'."""
-        return ", ".join(display(label) for label in keymap.labels(action))
+        return ", ".join(key for key in map(display, keymap.labels(action)) if key not in omit)
 
     for i, tool in enumerate(tools, start=1):
         add("Tools", keys(f"tool_{i}"), tool.value)
@@ -135,7 +155,7 @@ def sections(keymap, tools, color_count, size_count, board):
 
     for action, (group, text, modes) in DESCRIPTIONS.items():
         if mode in modes:
-            add(group, keys(action), text)
+            add(group, keys(action), SCREENSHOT_TEXTS.get(action, text) if mode == SCREENSHOT else text)
     for action in keymap.texts:  # never hide actions without a description
         if action not in DESCRIPTIONS and not GROUPED.match(action):
             add("General", keys(action), action)
@@ -151,11 +171,34 @@ def sections(keymap, tools, color_count, size_count, board):
 PICTURE_GROUPS = ("Tools", "Color and size", "Mouse")
 
 
+def keyboard(keymap, tools, board):
+    """What the keys of the keyboard picture do in the current mode:
+    {key: {"plain" / "shift": (Tool or None, short label)}}. Tools by their slot, the other
+    actions by their keys from DESCRIPTIONS; colors, sizes and hjkl have their own places."""
+    from tools import Tool  # here, so the module stays importable without Qt
+    mode = BOARD if board else SCREENSHOT
+    actions = [("tool_select", Tool.SELECT), ("tool_marker", Tool.MARKER)]
+    actions += [(f"tool_{i}", tool) for i, tool in enumerate(tools, start=1)]
+    if not board:
+        actions.append(("tool_blur", Tool.BLUR))
+    actions += [(action, None) for action, (group, _, modes) in DESCRIPTIONS.items()
+                if mode in modes and group != "Tools"]
+    keys = {}
+    for action, tool in actions:
+        label = tool.value if tool else SHORT.get(action, DESCRIPTIONS[action][1])
+        for key in map(display, keymap.labels(action)):
+            layer, _, base = key.rpartition("+")
+            if base in KEYBOARD_KEYS and layer in ("", "shift"):
+                keys.setdefault(base, {})["shift" if layer else "plain"] = (tool, label)
+    return keys
+
+
 def overview(keymap, tools, color_count, size_count, board):
     """Data for the panel (draft D):
     tools: [(Tool, keys)] with Select first; colors / sizes: keys per field or level;
     color_hint / size_hint: addition to the heading (common modifier, cycling, wheel);
-    mouse: [(mouse, description)]; lists: [(group, [(keys, description)])] for the right."""
+    keyboard: see keyboard(); mouse: [(mouse, description)];
+    lists: [(group, [(keys, description)])] without the keys on the keyboard picture."""
     from tools import Tool  # here, so the module stays importable without Qt
 
     def keys(action):
@@ -172,8 +215,11 @@ def overview(keymap, tools, color_count, size_count, board):
     color_hint = ", ".join(x for x in (f"{color_prefix} + …" if color_prefix else "",
                                        f"{browse} cycles" if browse else "") if x)
     size_hint = ", ".join(x for x in (f"{size_prefix} + …" if size_prefix else "", "alt+wheel fine") if x)
-    groups = sections(keymap, tools, color_count, size_count, board)
+    on_keys = keyboard(keymap, tools, board)
+    omit = {key if layer == "plain" else f"shift+{key}" for key, layers in on_keys.items() for layer in layers}
+    groups = sections(keymap, tools, color_count, size_count, board, omit)
     return {
+        "keyboard": on_keys,
         "tools": tool_keys,
         "colors": colors, "color_hint": color_hint,
         "sizes": sizes, "size_hint": size_hint,

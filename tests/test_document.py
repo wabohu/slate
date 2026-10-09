@@ -14,8 +14,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import regress  # noqa: E402  (sets HOME, config and QT_QPA_PLATFORM)
 
-from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
-from PySide6.QtGui import QColor, QFontMetricsF, QGuiApplication, QImage, QPixmap  # noqa: E402
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt  # noqa: E402
+from PySide6.QtGui import QColor, QFontMetricsF, QGuiApplication, QImage, QPainter, QPixmap  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -201,13 +201,15 @@ def main():
     reload_canvas.close()
     mk.close()
 
-    # Crop (y): only the crop is output, everything + frame is saved
-    cr = make_canvas(QPixmap(800, 400))
+    # Crop (x): only the crop is output, everything + frame is saved
+    gray = QPixmap(800, 400)
+    gray.fill(QColor("#808080"))  # not white: clearing (Del) must be visible
+    cr = make_canvas(gray)
     cview = cr.viewport()
 
     def at(x, y):  # image pixels -> mouse position (the image is centered in the larger window)
         return cr.mapFromScene(QPointF(x, y))
-    QTest.keyClick(cr, Qt.Key_Y)
+    QTest.keyClick(cr, Qt.Key_X)
     QTest.mousePress(cview, Qt.LeftButton, pos=at(100, 50))
     QTest.mouseMove(cview, at(400, 250))
     QTest.mouseRelease(cview, Qt.LeftButton, pos=at(400, 250))
@@ -219,20 +221,20 @@ def main():
     check("crop: file shows the crop, contains the whole screenshot and the frame",
           saved_png.size().toTuple() == (300, 200) and bg_full.size().toTuple() == (800, 400)
           and saved_crop is not None and saved_crop.size().toTuple() == (300.0, 200.0))
-    QTest.keyClick(cr, Qt.Key_Y)
+    QTest.keyClick(cr, Qt.Key_X)
     QTest.keyClick(cr, Qt.Key_Escape)  # Esc during the selection: remove the crop
     removed = cr.crop_rect is None and cr.render_image().size().toTuple() == (800, 400)
     cr.undo_stack.undo()
     check("crop: Esc in the selection removes it, undo restores it",
           removed and cr.crop_rect is not None)
-    QTest.keyClick(cr, Qt.Key_Y)
+    QTest.keyClick(cr, Qt.Key_X)
     QTest.mousePress(cview, Qt.LeftButton, pos=at(10, 10))
     QTest.mouseRelease(cview, Qt.LeftButton, pos=at(12, 11))  # tiny: counts as a click
     check("crop: tiny frame changes nothing",
           cr.crop_rect is not None and cr.crop_rect.width() == 300 and not cr.cropping)
 
-    def crop_drag(x1, y1, x2, y2):  # y, then drag in image pixels
-        QTest.keyClick(cr, Qt.Key_Y)
+    def crop_drag(x1, y1, x2, y2):  # x, then drag in image pixels
+        QTest.keyClick(cr, Qt.Key_X)
         QTest.mousePress(cview, Qt.LeftButton, pos=at(x1, y1))
         QTest.mouseMove(cview, at(x2, y2))
         QTest.mouseRelease(cview, Qt.LeftButton, pos=at(x2, y2))
@@ -249,6 +251,58 @@ def main():
     cr.undo_stack.undo()
     check("adjust crop: undo goes back step by step",
           (round(cr.crop_rect.x()), round(cr.crop_rect.width())) == (170, 350))
+
+    # Select tool: a click on the edge selects the crop, then adjust it as often as needed
+    def select_drag(x1, y1, x2, y2):
+        QTest.mousePress(cview, Qt.LeftButton, pos=at(x1, y1))
+        QTest.mouseMove(cview, at(x2, y2))
+        QTest.mouseRelease(cview, Qt.LeftButton, pos=at(x2, y2))
+        r = cr.crop_rect
+        return (round(r.x()), round(r.y()), round(r.width()), round(r.height()))
+    QTest.keyClick(cr, Qt.Key_W)  # crop is (170, 70, 350, 250)
+    by_edge = select_drag(170, 200, 190, 210)        # left edge: move
+    first = select_drag(540, 330, 560, 340)          # bottom right handle
+    second = select_drag(560, 340, 580, 350)         # and once more
+    check(f"select tool: edge selects and moves the crop, handles adjust it repeatedly "
+          f"({by_edge} {first} {second})",
+          by_edge == (190, 80, 350, 250) and first == (190, 80, 370, 260) and second == (190, 80, 390, 270)
+          and cr.crop_selected)
+    select_drag(300, 200, 301, 200)  # click inside: belongs to the elements, deselects the crop
+    inside_free = not cr.crop_selected and cr.crop_rect.width() == 390
+    select_drag(190, 200, 190, 200)
+    QTest.keyClick(cr, Qt.Key_Escape)  # Esc on the selected crop: remove it, do not quit
+    esc_ok = cr.crop_rect is None and not cr.crop_selected and cr.isVisible()
+    cr.undo_stack.undo()
+    inside, outside = QPointF(300, 200), QPointF(50, 30)  # image pixels (no scaling here)
+    before = (cr.background_image.pixel(inside.toPoint()), cr.background_image.pixel(outside.toPoint()))
+    # Del clears in the color around the area: gray page, some "text" inside, a stripe of
+    # another color on the edge must not win
+    painter = QPainter(cr.background_image)
+    painter.fillRect(QRectF(250, 150, 100, 20), QColor("black"))   # content inside
+    painter.fillRect(QRectF(185, 100, 10, 60), QColor("#2040c0"))  # crosses the left edge
+    painter.end()
+    cr.set_background_image(cr.background_image)
+    before = (cr.background_image.pixel(inside.toPoint()), cr.background_image.pixel(outside.toPoint()))
+    select_drag(190, 200, 190, 200)
+    QTest.keyClick(cr, Qt.Key_Delete)  # Del: clear the area, crop gone, one undo step
+    saved = cr.background_to_save()
+    gray_fill = QColor(saved.pixel(inside.toPoint())) == QColor("#808080") \
+        and QColor(saved.pixel(QPoint(260, 160))) == QColor("#808080")
+    cleared = cr.crop_rect is None and gray_fill and saved.pixel(outside.toPoint()) == before[1]
+    cr.undo_stack.undo()
+    restored = cr.crop_rect is not None and cr.background_image.pixel(inside.toPoint()) == before[0]
+    QTest.keyClick(cr, Qt.Key_X)  # x shows the same handles: Del clears there too
+    QTest.keyClick(cr, Qt.Key_Delete)
+    cleared_in_x = cr.crop_rect is None and not cr.cropping \
+        and QColor(cr.background_image.pixel(QPoint(260, 160))) == QColor("#808080")
+    cr.undo_stack.undo()
+    cr.set_tool(Tool.FREEHAND)  # another tool, crop not selected, nothing selected: Del clears too
+    QTest.keyClick(cr, Qt.Key_Backspace)
+    cleared_unselected = cr.crop_rect is None \
+        and QColor(cr.background_image.pixel(QPoint(260, 160))) == QColor("#808080")
+    check("select tool: inside stays free, Esc removes the crop, Del clears the area "
+          "(also with x and without selecting the crop; one undo step restores both)",
+          inside_free and esc_ok and cleared and restored and cleared_in_x and cleared_unselected)
     cr.close()
 
     # Multi-selection: Ctrl+A, Shift+click, rubber band; color, size, move, delete
@@ -886,7 +940,7 @@ def main():
     cp.close()
 
     # Image elements: crop with markings editable into the whiteboard, paste foreign images
-    from PySide6.QtCore import QByteArray, QMimeData, QRectF
+    from PySide6.QtCore import QByteArray, QMimeData
     from elements import ImageElement
     from export import png_bytes
     shot = make_canvas(QPixmap(800, 400))

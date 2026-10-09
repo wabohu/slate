@@ -8,6 +8,7 @@ from PySide6.QtCore import QPointF, QRectF, QSize, QSizeF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPen
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
+from shortcuts import KEYBOARD_COLUMNS
 from tools import tool_icon
 
 
@@ -325,10 +326,41 @@ class Toast(QLabel):
         self.timer.start(self.DURATION_MS)
 
 
+# Keyboard picture of the overview: column stagger of shortcuts.KEYBOARD_COLUMNS in key heights
+# (how far each column sits lower than the highest one, the E column), like my keyboard in Vial
+KEYBOARD_STAGGER = (0.78, 0.78, 0.26, 0.0, 0.26, 0.38)
+# Letter rows, for the color fields (one row per keyboard row of their keys)
+KEY_ROWS = ("1234567890", "qwertyuiop", "asdfghjkl;", "zxcvbnm,./")
+
+
+def key_row(keys):
+    """Keyboard row of the first key in keys (e.g. "w", "shift+a, x"); None outside the four
+    letter/number rows (F1, Space ...)."""
+    base = keys.split(",")[0].strip().lower().rsplit("+", 1)[-1]
+    return next((row for row, letters in enumerate(KEY_ROWS) if len(base) == 1 and base in letters), None)
+
+
+def keyboard_rows(key_list, wrap=10):
+    """Indexes of key_list grouped by keyboard row of their key (rows in keyboard order, each
+    in list order); entries without such a key at the end, wrap per row."""
+    rows = {}
+    rest = []
+    for i, keys in enumerate(key_list):
+        row = key_row(keys) if keys else None
+        if row is None:
+            rest.append(i)
+        else:
+            rows.setdefault(row, []).append(i)
+    return [rows[r] for r in sorted(rows)] + [rest[i:i + wrap] for i in range(0, len(rest), wrap)]
+
+
 class HelpPanel(QWidget):
-    """Key overview (?), draft D: top left the tool icons as in the bar,
-    below them color fields and size dots, each with its key; below that the mouse; on the
-    right the other groups as lists. Content from shortcuts.overview().
+    """Key overview (?), draft D: top left the left half of the keyboard (column stagger as
+    on my keyboard) with tools and single keys, below it color fields (one row per keyboard
+    row of their keys) and next to them size dots, each with its key; the pictures spread
+    over the full height. The lists (mouse first, then the groups) flow in reading order over three
+    columns: one below the pictures, two to their right from the top, split so the columns
+    end about evenly. Content from shortcuts.overview().
 
     All sizes are given for 1080 pixel screen height and scale with the height of the
     screen (4K = twice as large); if the panel does not fit into the window, it gets
@@ -339,7 +371,8 @@ class HelpPanel(QWidget):
     SIZE = 0.9  # overall size (1.0 = sizes as below, for 1080 px screen height)
     MARGIN, COLUMN_GAP, SECTION_GAP = 40, 70, 44
     LIST_GAP = 22  # gap between the groups on the right
-    TOOL_CELL, SWATCH, KEY_GAP = 46, 46, 24  # tool icons as large as the color fields
+    SWATCH, KEY_GAP = 46, 24
+    KEY_CAP = (96, 78)  # width, height of a key in the keyboard picture
 
     def __init__(self, theme, parent):
         super().__init__(parent)
@@ -347,16 +380,24 @@ class HelpPanel(QWidget):
         self.data = None
         self.colors = []
         self.scale = 1.0
+        self.spread = 0.0  # extra gap between the picture rows on the left (set_content)
+        self.slack = 0.0   # room left below the pictures, measured by arrange
         self.hide()
 
     def set_content(self, data, colors):
         """data from shortcuts.overview(); colors: color fields as the color bar shows them."""
         self.data, self.colors = data, [QColor(c) for c in colors]
         self.scale = self.SIZE * ui_scale(self.window().screen())
+        self.spread = 0.0
         size = self.arrange(None)
         parent = self.parent()
         fit = min(1.0, parent.width() * 0.96 / size.width(), parent.height() * 0.96 / size.height())
         self.scale *= fit
+        # Spread the pictures on the left over the height of the lists (the gap between
+        # keyboard and colors)
+        self.spread = 0.0
+        self.arrange(None)
+        self.spread = self.slack
         self.resize(self.arrange(None).toSize())
 
     # --- fonts and colors ---
@@ -403,59 +444,57 @@ class HelpPanel(QWidget):
 
         # --- left column: picture rows ---
         x, y = m, top
-        heading(x, y, "Tools")
-        cell = self.TOOL_CELL * s
-        # Each tool as wide as its icon or name, so the names do not run into each other
-        names = [tool.value for tool, _ in d["tools"]]
-        slots = [max(cell, QFontMetricsF(small_f).horizontalAdvance(n)) + 12 * s for n in names]
-        for i, (tool, keys) in enumerate(d["tools"]):
-            slot_x = x + sum(slots[:i])
-            r = QRectF(slot_x + (slots[i] - 12 * s - cell) / 2, y + 14 * s, cell, cell)
-            if p:
-                p.setPen(Qt.NoPen)
-                p.setBrush(th.fg(22))
-                p.drawRoundedRect(r, 7 * s, 7 * s)
-                p.save()
-                icon = cell * 0.8  # icons are built for a 30 field
-                p.translate(r.left() + (cell - icon) / 2, r.top() + (cell - icon) / 2)
-                p.scale(icon / 30, icon / 30)
-                pen = QPen(fg, 2)
-                pen.setCapStyle(Qt.RoundCap)
-                pen.setJoinStyle(Qt.RoundJoin)
-                p.setPen(pen)
-                p.setBrush(Qt.NoBrush)
-                p.drawPath(tool_icon(tool))
-                p.restore()
-            text(r.left(), r.bottom() + 24 * s, keys, key_f, accent, "center", cell)
-            text(slot_x, r.bottom() + 43 * s, names[i], small_f, dim, "center", slots[i] - 12 * s)
-        left_w = sum(slots)
-        y += 14 * s + cell + 43 * s + self.SECTION_GAP * s
+        section_gap = (self.SECTION_GAP * s + self.spread)  # spread: fill the height (set_content)
+        heading(x, y, "Keys")
+        # Left half of the keyboard with its column stagger (KEYBOARD_STAGGER): on each key
+        # the tool icon or a short word, below it what the key does with Shift
+        cap_w, cap_h, cap_gap = self.KEY_CAP[0] * s, self.KEY_CAP[1] * s, 6 * s
+        label_f = self.make_font(13)
+        keys_top = y + 14 * s
+        for column, (caps, stagger) in enumerate(zip(KEYBOARD_COLUMNS, KEYBOARD_STAGGER)):
+            for row, cap in enumerate(caps):
+                r = QRectF(x + column * (cap_w + cap_gap), keys_top + (stagger + row) * (cap_h + cap_gap),
+                           cap_w, cap_h)
+                if p:
+                    self.paint_key(p, r, cap, d["keyboard"].get(cap, {}), key_f, label_f, small_f)
+        left_w = len(KEYBOARD_COLUMNS) * (cap_w + cap_gap) - cap_gap
+        y = keys_top + (max(KEYBOARD_STAGGER) + 3) * (cap_h + cap_gap) - cap_gap + 10 * s + section_gap
 
         heading(x, y, "Colors", d["color_hint"])
-        sw = self.SWATCH * s
-        for i, color in enumerate(self.colors):
-            r = QRectF(x + i * (sw + 10 * s), y + 14 * s, sw, sw)
-            if p:
-                p.setPen(QPen(th.fg(70), max(1.0, s)))
-                p.setBrush(color)
-                p.drawRoundedRect(r, 7 * s, 7 * s)
-            if i < len(d["colors"]):
-                text(r.left(), r.bottom() + 24 * s, d["colors"][i], key_f, accent, "center", sw)
-        left_w = max(left_w, len(self.colors) * (sw + 10 * s),
-                     QFontMetricsF(head_f).horizontalAdvance("COLORS " + d["color_hint"]) + 12 * s)
-        y += 14 * s + sw + 24 * s + self.SECTION_GAP * s
+        # One row per keyboard row of the keys (a s d f g / z x c v b), fields without a key
+        # (only reachable by cycling) in rows of their own at the end
+        sw, gap = self.SWATCH * s, 10 * s
+        color_keys = [d["colors"][i] if i < len(d["colors"]) else "" for i in range(len(self.colors))]
+        color_rows = keyboard_rows(color_keys)
+        row_h = sw + 24 * s + 10 * s  # field, key below it, gap to the next row
+        for row, indexes in enumerate(color_rows):
+            for col, i in enumerate(indexes):
+                r = QRectF(x + col * (sw + gap), y + 14 * s + row * row_h, sw, sw)
+                if p:
+                    p.setPen(QPen(th.fg(70), max(1.0, s)))
+                    p.setBrush(self.colors[i])
+                    p.drawRoundedRect(r, 7 * s, 7 * s)
+                text(r.left(), r.bottom() + 24 * s, color_keys[i], key_f, accent, "center", sw)
+        colors_w = max(max((len(r) for r in color_rows), default=0) * (sw + gap),
+                       QFontMetricsF(head_f).horizontalAdvance("COLORS " + d["color_hint"]) + 12 * s)
+        colors_bottom = y + 14 * s + max(1, len(color_rows)) * row_h - 10 * s
 
-        heading(x, y, "Size", d["size_hint"])
+        # Size to the right of the colors: keeps the left column short
+        sx = x + colors_w + self.COLUMN_GAP * s
+        size_w = heading(sx, y, "Size", d["size_hint"])
         step = 64 * s
         for i, keys in enumerate(d["sizes"]):
-            cx = x + 20 * s + i * step
+            cx = sx + 20 * s + i * step
             if p:
                 p.setPen(Qt.NoPen)
                 p.setBrush(fg)
                 radius = 3 * s * (i + 1)
                 p.drawEllipse(QPointF(cx, y + 34 * s), radius, radius)
             text(cx - step / 2, y + 74 * s, keys, key_f, accent, "center", step)
-        y += 74 * s + self.SECTION_GAP * s
+        size_w = max(size_w, len(d["sizes"]) * step)
+        left_w = max(left_w, sx + size_w - x)
+        pictures_bottom = max(colors_bottom, y + 74 * s)  # baseline of the last keys
+        y = pictures_bottom + self.SECTION_GAP * s
 
         def entry_list(x, y, entries, key_w):
             for keys, desc in entries:
@@ -470,25 +509,84 @@ class HelpPanel(QWidget):
         def list_width(entries):
             return key_width(entries) + max((QFontMetricsF(text_f).horizontalAdvance(t) for _, t in entries), default=0)
 
-        if d["mouse"]:
-            heading(x, y, "Mouse")
-            y = entry_list(x, y + 32 * s, d["mouse"], key_width(d["mouse"]))
-            left_w = max(left_w, list_width(d["mouse"]))
-        left_bottom = y
+        # --- lists (mouse first), in reading order over three columns: the first below the
+        # pictures, the other two to the right of them from the top. Split where the columns
+        # end as evenly as possible, so no column leaves a large empty area ---
+        groups = ([("Mouse", d["mouse"])] if d["mouse"] else []) + list(d["lists"])
+        starts = (y, top, top)
 
-        # --- right column: lists ---
-        rx = m + left_w + self.COLUMN_GAP * s
-        all_entries = [e for _, entries in d["lists"] for e in entries]
-        key_w = key_width(all_entries)
-        y = top
-        for name, entries in d["lists"]:
-            heading(rx, y, name)
-            y = entry_list(rx, y + 30 * s, entries, key_w) + self.LIST_GAP * s
-        right_w = key_w + max((QFontMetricsF(text_f).horizontalAdvance(t) for _, t in all_entries), default=0)
+        def group_height(entries):
+            return 30 * s + len(entries) * line_h + self.LIST_GAP * s
+
+        def parts(i, j):
+            return groups[:i], groups[i:j], groups[j:]
+
+        def bottoms(i, j):
+            """Column bottoms, lowest first: compared as a whole, so with the same lowest
+            column the others are evened out too."""
+            return sorted((start + sum(group_height(e) for _, e in part)
+                           for start, part in zip(starts, parts(i, j))), reverse=True)
+        i, j = min(((i, j) for i in range(len(groups) + 1) for j in range(i, len(groups) + 1)),
+                   key=lambda split: bottoms(*split))
+        columns = parts(i, j)
+
+        def column_width(part):
+            return list_width([e for _, entries in part for e in entries])
+        left_w = max(left_w, column_width(columns[0]))
+        xs = [m, m + left_w + self.COLUMN_GAP * s]
+        xs.append(xs[1] + (column_width(columns[1]) + self.COLUMN_GAP * s if columns[1] else 0))
+        bottom = y
+        for cx, cy, part in zip(xs, starts, columns):
+            key_w = key_width([e for _, entries in part for e in entries])  # aligned per column
+            for name, entries in part:
+                heading(cx, cy, name)
+                cy = entry_list(cx, cy + 30 * s, entries, key_w) + self.LIST_GAP * s
+            bottom = max(bottom, cy)
+        rx, right_w = xs[2], column_width(columns[2])
+        # Room left below the pictures (nothing below them in the left column): set_content
+        # spreads it over the gaps between the picture rows, so they use the full height
+        last_line = bottom - self.LIST_GAP * s - line_h
+        self.slack = max(0.0, last_line - pictures_bottom) if not columns[0] else 0.0
 
         width = max(rx + right_w, m + w_title) + m
-        height = max(left_bottom, y) + m - line_h / 2
+        height = bottom - self.LIST_GAP * s + m - line_h / 2
         return QSizeF(width, height)
+
+    def paint_key(self, p, r, cap, layers, key_f, label_f, small_f):
+        """One key of the keyboard picture in rect r: key name at the top left, in the middle
+        the tool icon or the short word, at the bottom what Shift does ("⇧ …") or the tool name.
+        Keys without a function only as a faint outline."""
+        th, s = self.theme, self.scale
+        p.setPen(Qt.NoPen if layers else QPen(th.fg(40), max(1.0, s)))
+        p.setBrush(th.fg(22) if layers else Qt.NoBrush)
+        p.drawRoundedRect(r, 7 * s, 7 * s)
+        p.setFont(key_f)
+        p.setPen(th.accent if layers else th.fg(90))
+        p.drawText(r.adjusted(7 * s, 4 * s, 0, 0), Qt.AlignLeft | Qt.AlignTop, cap)
+        tool, label = layers.get("plain", (None, ""))
+        middle = QRectF(r.left(), r.top() + r.height() * 0.28, r.width(), r.height() * 0.42)
+        if tool is not None:
+            icon = r.height() * 0.42  # icons are built for a 30 field
+            p.save()
+            p.translate(middle.center().x() - icon / 2, middle.center().y() - icon / 2)
+            p.scale(icon / 30, icon / 30)
+            pen = QPen(th.foreground, 2)
+            pen.setCapStyle(Qt.RoundCap)
+            pen.setJoinStyle(Qt.RoundJoin)
+            p.setPen(pen)
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(tool_icon(tool))
+            p.restore()
+        elif label:
+            p.setFont(label_f)
+            p.setPen(th.foreground)
+            p.drawText(middle, Qt.AlignCenter, label)
+        bottom = QRectF(r.left(), r.bottom() - r.height() * 0.3, r.width(), r.height() * 0.26)
+        shift = layers.get("shift")
+        if shift or tool is not None:
+            p.setFont(small_f)
+            p.setPen(th.fg(150))
+            p.drawText(bottom, Qt.AlignCenter, f"⇧ {shift[1]}" if shift else label)
 
     def paintEvent(self, event):
         if not self.data:

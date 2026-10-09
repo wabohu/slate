@@ -74,7 +74,7 @@ def main():
         s.key("c")
         s.move(400, 500)
         s.run(["xdotool", "click", "1"])
-        s.key("y")
+        s.key("x")
         s.drag(100, 400, 700, 650)          # crop around text and marker
         s.key("Return")
         check("screenshot copied and quit", wait(lambda: not s.slate_pids(), 10))

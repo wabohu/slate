@@ -46,7 +46,7 @@ DEFAULT_KEYS = {
     "lower_bottom": "ctrl+shift+down",  # selection all the way to the back
     "tool_blur": "z",          # blur (pixelate), screenshot mode only
     "tool_marker": "c",        # marker; c again: toggle 1 2 3 / A B C
-    "crop": "y",               # draw a crop (Esc meanwhile: remove it), screenshot mode only
+    "crop": "x",               # draw a crop (Esc meanwhile: remove it), screenshot mode only
     "delete": ("delete", "backspace"),  # delete the selected element
     "undo": "r",
     "redo": "shift+r",
