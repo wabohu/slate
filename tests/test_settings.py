@@ -63,11 +63,16 @@ def main():
           own.spotlight_radius == 140 and own.lens_radius == 100 and "lens_radius" in hints
           and wrong.spotlight_radius == 90)
     check("screenshot: corner radius, no whiteboard background",
-          s.rect_radius == RECT_RADIUS and s.board_background is None and s.board_backgrounds is None)
+          s.rect_radius == st.DEFAULT_RECT_RADIUS and s.board_background is None and s.board_backgrounds is None)
 
     # Whiteboard: own radius, backgrounds from the default list
     b, _ = quiet(st.Settings, {}, True)
     check("whiteboard: corner radius", b.rect_radius == st.DEFAULT_RECT_RADIUS_BOARD)
+    check("whiteboard: own stroke widths", b.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS_BOARD))
+    own_s, _ = quiet(st.Settings, {"size": {"stroke": [1, 2, 3, 4], "stroke_board": [5, 6, 7, 8]}}, False)
+    own_b, _ = quiet(st.Settings, {"size": {"stroke": [1, 2, 3, 4], "stroke_board": [5, 6, 7, 8]}}, True)
+    check("stroke widths: stroke in screenshot mode, stroke_board in the whiteboard",
+          own_s.stroke_widths == [1, 2, 3, 4] and own_b.stroke_widths == [5, 6, 7, 8])
     check("whiteboard: bar on", b.show_bar is True)
     flipped, _ = quiet(st.Settings, {"ui": {"show_bar": True, "show_bar_board": False}}, False)
     flipped_b, _ = quiet(st.Settings, {"ui": {"show_bar": True, "show_bar_board": False}}, True)
@@ -90,7 +95,7 @@ def main():
         "history": {"enabled": "yes", "keep": 0, "dir": 42},
     }
     s, hints = quiet(st.Settings, bad, True)
-    check("broken: size levels", s.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS)
+    check("broken: size levels", s.stroke_widths == list(st.DEFAULT_STROKE_WIDTHS_BOARD)
           and s.text_sizes == list(st.DEFAULT_TEXT_SIZES) and s.default_size_level == st.DEFAULT_SIZE_LEVEL - 1)
     check("broken: tools", s.default_tool == st.DEFAULT_TOOL and Tool.FREEHAND in s.tools)
     check("broken: color bar not empty", len(s.swatches) > 0 and 0 <= s.default_color_index < len(s.swatches))

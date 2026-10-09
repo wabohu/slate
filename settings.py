@@ -24,7 +24,7 @@ DEFAULT_TOOL = Tool.FREEHAND
 DEFAULT_COLOR = "red"
 
 # Handles on the selection frame: edge length when drawing and grab radius when clicking.
-# All three values in screen pixels for 1080 px screen height, independent of the zoom (Canvas.screen_px)
+# All three values in screen pixels, independent of the zoom
 HANDLE_SIZE = 8
 HANDLE_GRAB = 7
 HIT_TOLERANCE = 6  # a click this far next to a stroke still counts as a hit (D2)
@@ -48,10 +48,11 @@ MOVE_STEP_RANGE = (1, 500)
 
 # Rotate the selection with Q / Shift+Q: degrees per key press
 ROTATE_STEP = 5
-# Rotate handle above the frame: distance from the top edge (screen pixels for 1080 px, Canvas.screen_px)
+# Rotate handle above the frame: distance from the top edge (screen pixels)
 ROTATE_HANDLE_OFFSET = 24
 
 # Corner radius of new rectangles ([rect] in the config): screenshot and whiteboard
+DEFAULT_RECT_RADIUS = 4
 DEFAULT_RECT_RADIUS_BOARD = 20
 RECT_RADIUS_RANGE = (0, 200)
 
@@ -70,7 +71,8 @@ DEFAULT_BAR_OPACITY = 0.9
 # for shapes and as font size for text (values in pixels)
 SIZE_LEVELS = 4
 DEFAULT_SIZE_LEVEL = 2  # 1-based as in the config
-DEFAULT_STROKE_WIDTHS = (2, 4, 8, 12)
+DEFAULT_STROKE_WIDTHS = (2, 3, 5, 8)  # screenshot mode: thinner, marks on a dense picture
+DEFAULT_STROKE_WIDTHS_BOARD = (2, 4, 8, 12)
 DEFAULT_TEXT_SIZES = (16, 28, 40, 64)
 STROKE_WIDTH_RANGE = (1, 100)
 TEXT_SIZE_RANGE = (6, 300)
@@ -115,8 +117,11 @@ class Settings:
         self.keymap = KeyMap(config)
 
         # Size levels from [size]; stroke width and font size follow from the level
+        # Stroke widths: separate levels in the whiteboard ([size] stroke_board)
+        stroke_key, stroke_default = ("stroke_board", DEFAULT_STROKE_WIDTHS_BOARD) if board \
+            else ("stroke", DEFAULT_STROKE_WIDTHS)
         self.stroke_widths = size_values(
-            get_int_list(config, "size", "stroke"), DEFAULT_STROKE_WIDTHS, STROKE_WIDTH_RANGE, "stroke")
+            get_int_list(config, "size", stroke_key), stroke_default, STROKE_WIDTH_RANGE, stroke_key)
         self.text_sizes = size_values(
             get_int_list(config, "size", "text"), DEFAULT_TEXT_SIZES, TEXT_SIZE_RANGE, "text")
         level = get_int(config, "size", "default") or DEFAULT_SIZE_LEVEL
@@ -154,7 +159,7 @@ class Settings:
 
         # Corner radius of new rectangles from [rect], separate value in the whiteboard
         self.rect_radius = self.config_radius(config, "radius_board", DEFAULT_RECT_RADIUS_BOARD) \
-            if board else self.config_radius(config, "radius", RECT_RADIUS)
+            if board else self.config_radius(config, "radius", DEFAULT_RECT_RADIUS)
 
         # Step sizes for hjkl from [move]
         self.move_steps = {

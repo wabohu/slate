@@ -642,8 +642,23 @@ def main():
 
     # Connectors, step 2 (mouse): drawing on/near an outline docks, deep inside stays free,
     # the target is highlighted while drawing, dragging a shape moves docked arrows live,
-    # an end handle re-docks/undocks (one undo step)
-    cm = make_canvas(plain_bg)
+    # an end handle re-docks/undocks (one undo step). Whiteboard only: on a screenshot nothing docks
+    cs = make_canvas(plain_bg)
+    cs.set_tool(Tool.RECT)
+    for event, at in ((QTest.mousePress, QPointF(100, 100)), (QTest.mouseRelease, QPointF(300, 220))):
+        event(cs.viewport(), Qt.LeftButton, Qt.NoModifier, cs.mapFromScene(at))
+    cs.set_tool(Tool.ARROW)
+    for event, at in ((QTest.mousePress, QPointF(305, 160)), (QTest.mouseRelease, QPointF(495, 165))):
+        event(cs.viewport(), Qt.LeftButton, Qt.NoModifier, cs.mapFromScene(at))
+    check("screenshot mode: an arrow drawn from a rectangle's outline stays free",
+          cs.elements()[-1].ends == [None, None] and cs.dock_hint is None)
+    cs.close()
+    from canvas import Canvas
+    cm = Canvas(QGuiApplication.primaryScreen(), None, board=True)
+    cm.resize(1100, 500)
+    cm.show_window()
+    QApplication.processEvents()
+    cm.centerOn(400, 250)
     cmv = cm.viewport()
 
     def cpress(x, y):

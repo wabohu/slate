@@ -14,7 +14,7 @@ crop_rect (QRectF in scene coordinates or None), cropping (selection in progress
 crop_drag (start point while dragging or None), crop_drag_end, crop_edit (while dragging:
 ("resize", handle), ("move", None) or None = draw a new one).
 Reads from the Canvas: board, export_rect, export_size, scene_, undo_stack, ui_scale,
-zoom(), screen_px(), refresh_cursor(), report(), selection_colors()/selection_pen() (InputMixin).
+zoom(), refresh_cursor(), report().
 """
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
@@ -76,7 +76,7 @@ class CropMixin:
         """What is under pos? ("resize", handle), ("move", None) or None (outside: draw a new one)."""
         if self.crop_rect is None:
             return None
-        grab = self.screen_px(HANDLE_GRAB)  # grab radius always the same on screen
+        grab = HANDLE_GRAB / self.zoom()  # grab radius always the same on screen
         for index, point in enumerate(self.crop_handle_points(self.crop_rect)):
             if abs(point.x() - pos.x()) <= grab and abs(point.y() - pos.y()) <= grab:
                 return ("resize", index)
@@ -165,9 +165,11 @@ class CropMixin:
             painter.drawRect(rect)
         if self.cropping and self.crop_rect is not None and (self.crop_drag is None or self.crop_edit is not None):
             line, fill = self.selection_colors()  # like the handles of the selection
-            painter.setPen(self.selection_pen(line, 1.5))
+            handle_pen = QPen(line, 1.5)
+            handle_pen.setCosmetic(True)
+            painter.setPen(handle_pen)
             painter.setBrush(fill)
-            size = self.screen_px(HANDLE_SIZE)
+            size = HANDLE_SIZE / self.zoom()
             for p in self.crop_handle_points(rect):
                 painter.drawRect(QRectF(p.x() - size / 2, p.y() - size / 2, size, size))
         # Size in image pixels at the bottom right of the frame, in screen coordinates

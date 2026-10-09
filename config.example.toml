@@ -32,7 +32,8 @@ default = "yellow"
 # Size in 4 levels, Alt+A S D F picks level 1-4 (also by clicking the bar).
 # Used as stroke width for shapes and as font size for text, values in pixels.
 default = 2                  # level at startup
-stroke = [2, 4, 8, 12]       # stroke width, each 1-100
+stroke = [2, 3, 5, 8]        # stroke width in screenshot mode, each 1-100
+stroke_board = [2, 4, 8, 12] # stroke width in the whiteboard
 text = [16, 28, 40, 64]      # font size, each 6-300
 
 [ui]
@@ -67,7 +68,7 @@ backgrounds = ["background", "#f8f6f0"]   # Alacritty (dark), paper white (light
 # Corner radius of new rectangles in pixels (0 = sharp corners, at most 200).
 # For small rectangles the rounding shrinks by itself. Every rectangle
 # stores its radius; a change here only applies to newly drawn ones.
-radius = 8          # screenshot mode
+radius = 4          # screenshot mode
 radius_board = 20   # whiteboard
 
 [move]
