@@ -129,6 +129,31 @@ def main():
           and s.light_overrides == {s.palette.lookup("red"): "#112233"}
           and not s.history_enabled and s.history_keep == 5 and s.history_dir == Path.home() / "my-history")
 
+    # Monospace font: [text] mono_font, otherwise the terminal font from Alacritty
+    import tempfile
+
+    import colors
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        both = base / "both.toml"
+        both.write_text('[font.normal]\nfamily = "Plain Mono"\n[font.bold]\nfamily = "Bold Mono"\n')
+        normal_only = base / "normal.toml"
+        normal_only.write_text('[font.normal]\nfamily = "Plain Mono"\n')
+        imported = base / "main.toml"
+        imported.write_text('[general]\nimport = ["normal.toml"]\n[colors.primary]\nbackground = "#000000"\n')
+        none = base / "none.toml"
+        none.write_text('[font]\nsize = 12\n')
+        broken = base / "broken.toml"
+        broken.write_text('[font.normal\nfamily = ')
+        fonts = [colors.load_terminal_font(p) for p in (both, normal_only, imported, none)]
+        broken_font, _ = quiet(colors.load_terminal_font, broken)
+    check(f"terminal font: bold first, else normal, via import, none -> None ({fonts})",
+          fonts == ["Bold Mono", "Plain Mono", "Plain Mono", None] and broken_font is None)
+    own_font = st.Settings({"text": {"mono_font": "My Mono"}}, False)
+    check("monospace: [text] mono_font, empty = terminal font (none in the test: system font)",
+          own_font.mono_family == "My Mono" and st.Settings({"text": {"mono_font": ""}}, False).mono_family is None
+          and s.mono_family is None)
+
     # Key overview (?): every action described, content per mode
     import shortcuts
     from keymap import DEFAULT_KEYS, KeyMap

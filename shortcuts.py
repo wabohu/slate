@@ -42,6 +42,7 @@ DESCRIPTIONS = {
     "duplicate": ("Selection", "duplicate", BOTH),
     "save": ("Output", "save editable", BOTH),
     "export_png": ("Output", "export clean PNG", BOTH),
+    "text_font": ("Selection", "monospace text on/off (also while typing)", BOTH),
     "crop": ("Output", "set crop (Esc meanwhile: remove)", (SCREENSHOT,)),
     "quit": ("General", "quit", BOTH),
     "help": ("General", "this overview", BOTH),

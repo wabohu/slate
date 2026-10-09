@@ -1132,6 +1132,64 @@ def main():
     light.undo_stack.undo()
     check("undo: darkened again", rect.pen().color().name() == shown)
 
+
+    # Monospace text (Roadmap 16): saved as kind ("font": "mono"), older files = normal
+    from PySide6.QtGui import QFontInfo
+    from elements import ShapeElement
+    mono = TextElement(QPointF(10, 10), QColor("white"), 20, text="ls -la", kind="mono")
+    plain = TextElement(QPointF(10, 60), QColor("white"), 20, text="hello")
+    data = mono.to_dict()
+    back = TextElement.from_dict(data)
+    old = dict(plain.to_dict())
+    check("monospace: to_dict only for mono, round trip, older and unknown values = normal",
+          data.get("font") == "mono" and "font" not in old and back.font_kind == "mono"
+          and TextElement.from_dict(old).font_kind == "normal"
+          and TextElement.from_dict(dict(data, font="comic")).font_kind == "normal")
+    check("monospace: fixed pitch, bold, same size; normal is not monospace",
+          QFontInfo(back.font()).fixedPitch() and back.font().bold() and back.font().pixelSize() == 20
+          and not QFontInfo(plain.font()).fixedPitch())
+    box = ShapeElement(Tool.RECT, QPointF(100, 100), QColor("white"), 3)
+    box.points = [QPointF(0, 0), QPointF(200, 100)]
+    box.rebuild()
+    box.set_label(TextElement(QPointF(0, 0), box.color, 20, text="SELECT *", kind="mono"))
+    box_back = ShapeElement.from_dict(box.to_dict())
+    check("monospace: labels too (in the label dict of the shape)",
+          box.to_dict()["label"].get("font") == "mono" and box_back.label.font_kind == "mono")
+    fc = make_canvas(QPixmap(400, 200), [mono, plain, box])
+    QTest.keyClick(fc, Qt.Key_S, Qt.ControlModifier)
+    _, felems, _, _ = load_document(fc.document_path)
+    kinds = [getattr(e, "font_kind", None) for e in felems]
+    check(f"monospace: saved and loaded in the file ({kinds})",
+          kinds == ["mono", "normal", None] and felems[2].label.font_kind == "mono")
+    # Alt+V: for the next text, while typing (part of the edit's undo step), on the selection
+    tv = fc.viewport()
+    fc.scene_.clear()  # fresh scene; undo stack too, so old commands do not touch removed items
+    fc.undo_stack.clear()
+
+    def alt_v():
+        QTest.keyClick(fc, Qt.Key_V, Qt.AltModifier)
+    alt_v()
+    next_mono = fc.text_font == "mono"
+    fc.set_tool(Tool.TEXT)
+    QTest.mouseClick(tv, Qt.LeftButton, Qt.NoModifier, fc.mapFromScene(QPointF(50, 50)))
+    QTest.keyClicks(fc, "cd /tmp")
+    typed = fc.editing_text
+    alt_v()  # while typing: back to normal, no "v" in the text
+    while_typing = typed.font_kind == "normal" and typed.toPlainText() == "cd /tmp"
+    alt_v()
+    QTest.keyClick(fc, Qt.Key_Escape)
+    check("Alt+V: next text monospace, while typing toggles it without typing a 'v'",
+          next_mono and while_typing and typed.font_kind == "mono" and fc.undo_stack.count() == 1)
+    fc.set_tool(Tool.SELECT)
+    typed.setSelected(True)
+    steps = fc.undo_stack.index()
+    alt_v()  # selection all mono -> normal, one undo step
+    selected = typed.font_kind == "normal" and fc.undo_stack.index() == steps + 1
+    fc.undo_stack.undo()
+    check("Alt+V on the selection: one undo step, undo brings monospace back",
+          selected and typed.font_kind == "mono")
+    fc.close()
+
     print("\nAll OK." if not failures else f"\n{len(failures)} failed.")
     return 1 if failures else 0
 

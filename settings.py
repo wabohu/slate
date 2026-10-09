@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PySide6.QtGui import QColor
 
-from colors import load_palette
+from colors import load_palette, load_terminal_font
 from config import get_float, get_int, get_int_list, get_list, get_str
 from export import default_output_dir
 from history import default_history_dir
@@ -139,6 +139,8 @@ class Settings:
         # Color values from the Alacritty config (fallback: default palette),
         # choice, order and start color from your own config
         self.palette = load_palette()
+        # Monospace text ([text] mono_font, empty = the terminal font from Alacritty, None = system)
+        self.mono_family = get_str(config, "text", "mono_font") or load_terminal_font()
         self.swatches = self.palette.swatches(get_list(config, "colors", "order"))
         self.colors = [QColor(c) for c in self.swatches]
         default_color = get_str(config, "colors", "default") or DEFAULT_COLOR

@@ -64,6 +64,12 @@ background = "background"
 # Names as above. If the start background is not in the list, cycling starts with the first one.
 backgrounds = ["background", "#f8f6f0"]   # Alacritty (dark), paper white (light)
 
+[text]
+# Font for monospace text (Alt+V, for code, commands, paths). Empty = the font of the
+# terminal from the Alacritty config ([font.bold], otherwise [font.normal]); if that is
+# missing too, the system monospace font.
+mono_font = ""
+
 [rect]
 # Corner radius of new rectangles in pixels (0 = sharp corners, at most 200).
 # For small rectangles the rounding shrinks by itself. Every rectangle
@@ -145,6 +151,7 @@ rotate_right = "shift+q"           # rotate the selection 5° clockwise
 raise_top = "ctrl+shift+up"        # bring the selection to the front
 lower_bottom = "ctrl+shift+down"   # send the selection to the back
 tool_marker = "c"          # marker (numbered circles); press again: 1 2 3 / A B C
+text_font = "alt+v"        # text: monospace on/off (while typing, selected texts, next text)
 crop = "x"                 # draw a crop; Esc meanwhile: remove the crop (screenshot mode only)
 spotlight = "e"            # pointing: spotlight on/off (everything darkened except around the mouse)
 magnifier = "shift+e"      # pointing: magnifier on/off

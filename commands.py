@@ -131,20 +131,21 @@ class MoveItemCommand(QUndoCommand):
 
 
 class EditTextCommand(QUndoCommand):
-    """Content, color and font size of a text object changed."""
+    """Content, color, font size and font kind of a text object changed."""
 
     def __init__(self, item, old, new, text="Edit text"):
         super().__init__(text)
         self.item = item
-        self.old = old  # (text, QColor, font size)
+        self.old = old  # TextElement.edit_state(): (text, QColor, font size, font kind)
         self.new = new
 
     def apply(self, state):
-        text, color, size = state
+        text, color, size, kind = state
         self.item.setPlainText(text)
         if not is_label(self.item):  # a label always has the color of its shape
             self.item.set_color(color)
-        self.item.set_font_size(size)
+        self.item.font_kind = kind
+        self.item.set_font_size(size)  # builds the font of the kind anew
 
     def redo(self):
         self.apply(self.new)

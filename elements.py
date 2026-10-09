@@ -10,7 +10,7 @@ import math
 import uuid
 
 from PySide6.QtCore import QBuffer, QIODevice, QPointF, QRectF, QSizeF, Qt
-from PySide6.QtGui import QColor, QFont, QImage, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QTextOption
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QImage, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QTextOption
 from PySide6.QtWidgets import (QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem, QStyle,
                                QStyleOptionGraphicsItem)
 
@@ -29,6 +29,38 @@ def is_label(item):
     their shape through their own attribute owner.
     """
     return getattr(item, "owner", None) is not None
+
+
+# Fonts of text: "normal" (the default font) or "mono" (monospace, for code and paths).
+# Files store the kind, not the family, so they look right with another terminal font too
+FONT_KINDS = ("normal", "mono")
+_mono_family = None  # family for "mono", set by the Canvas (Settings.mono_family); None = system
+
+
+def set_mono_family(family):
+    """Family for monospace text (e.g. from the Alacritty config); None = system monospace."""
+    global _mono_family
+    _mono_family = family or None
+
+
+def font_kind(value):
+    """Font kind from saved data: unknown or missing values = "normal" (never a crash)."""
+    return value if value in FONT_KINDS else "normal"
+
+
+def text_font(kind, size):
+    """Bold QFont of the kind in size pixels. Monospace: the configured family; if it is not
+    installed, Qt picks another monospace font thanks to the style hint."""
+    if kind == "mono" and _mono_family:
+        font = QFont(_mono_family)
+        font.setStyleHint(QFont.Monospace)
+    elif kind == "mono":
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+    else:
+        font = QFont()
+    font.setPixelSize(size)
+    font.setBold(True)
+    return font
 
 
 def new_id():
@@ -176,7 +208,8 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
             "width": self.width,
             **({"radius": self.radius} if self.tool == Tool.RECT else {}),
             **({"kind": self.marker_kind, "order": self.marker_order} if self.tool == Tool.MARKER else {}),
-            **({"label": {"text": self.label.toPlainText(), "font_size": self.label.font_size}}
+            **({"label": {"text": self.label.toPlainText(), "font_size": self.label.font_size,
+                          **self.label.font_dict()}}
                if self.label is not None else {}),
             **({"ends": list(self.ends)} if any(self.ends) else {}),
         }
@@ -214,7 +247,8 @@ class ShapeElement(PoseMixin, QGraphicsPathItem):
             text, size = label["text"], label["font_size"]
             if not isinstance(text, str) or isinstance(size, bool) or not isinstance(size, (int, float)) or size <= 0:
                 raise ValueError(f"label {label!r} invalid")
-            item.set_label(TextElement(QPointF(0, 0), item.color, size, text))
+            item.set_label(TextElement(QPointF(0, 0), item.color, size, text,
+                                       kind=font_kind(label.get("font"))))
         return item
 
     # --- Label (text in the shape) ---
@@ -512,11 +546,12 @@ class TextElement(PoseMixin, QGraphicsTextItem):
     (ShapeElement.set_label) and the shape lays it out.
     """
 
-    def __init__(self, origin, color, font_size, text="", element_id=None):
+    def __init__(self, origin, color, font_size, text="", element_id=None, kind="normal"):
         super().__init__()
         self.setFlag(QGraphicsTextItem.ItemIsSelectable)
         self.id = element_id or new_id()
         self.owner = None  # as a label: the shape it belongs to (ShapeElement.set_label)
+        self.font_kind = kind  # "normal" or "mono" (FONT_KINDS)
         self.set_font_size(font_size)
         self.set_color(color)
         self.setPlainText(text)
@@ -561,12 +596,22 @@ class TextElement(PoseMixin, QGraphicsTextItem):
 
     def set_font_size(self, size):
         self.font_size = size
-        font = QFont()
-        font.setPixelSize(size)
-        font.setBold(True)
-        self.setFont(font)
+        self.setFont(text_font(self.font_kind, size))
         if getattr(self, "owner", None) is not None:  # as a label: center it again
             self.relayout()
+
+    def set_font_kind(self, kind):
+        """Setter for PropertyCommand: "normal" or "mono"."""
+        self.font_kind = kind
+        self.set_font_size(self.font_size)  # builds the font anew (and re-centers a label)
+
+    def edit_state(self):
+        """(text, color, font size, font kind): what EditTextCommand restores."""
+        return self.toPlainText(), self.color, self.font_size, self.font_kind
+
+    def font_dict(self):
+        """Font entry for to_dict: only for monospace, missing = normal (older files)."""
+        return {"font": self.font_kind} if self.font_kind != "normal" else {}
 
     def paint(self, painter, option, widget=None):
         if self.has_box():
@@ -616,12 +661,13 @@ class TextElement(PoseMixin, QGraphicsTextItem):
             "text": self.toPlainText(),
             "color": self.color.name(),
             "font_size": self.font_size,
+            **self.font_dict(),
         }
 
     @classmethod
     def from_dict(cls, data):
         item = cls(QPointF(*data["pos"]), data["color"], data["font_size"],
-                   text=data["text"], element_id=data.get("id"))
+                   text=data["text"], element_id=data.get("id"), kind=font_kind(data.get("font")))
         item.setRotation(data.get("rotation", 0))
         return item
 

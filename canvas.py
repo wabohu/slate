@@ -5,8 +5,10 @@ More methods come from the mixins: canvas_input.py (mouse, text, handles, mouse 
 canvas_board.py (whiteboard), canvas_output.py (copy, save, messages),
 canvas_history.py (history). Fixed values from the config: settings.py. See docs/plan-aufteilung.md.
 """
+import sys
+
 from PySide6.QtCore import QEvent, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap, QUndoStack
+from PySide6.QtGui import QColor, QCursor, QFontDatabase, QPainter, QPixmap, QUndoStack
 from PySide6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView
 
 from canvas_board import BoardMixin
@@ -18,7 +20,7 @@ from canvas_pointer import PointerMixin
 from commands import property_command
 from config import load_config
 from connectors import update_all
-from elements import ImageElement, ShapeElement, TextElement, is_label
+from elements import ImageElement, ShapeElement, TextElement, is_label, set_mono_family
 from settings import BOARD_EXTENT, HIT_TOLERANCE, ROTATE_STEP, SIZE_LEVELS, Settings
 from tools import Tool, tool_icon
 from shortcuts import overview
@@ -34,7 +36,7 @@ FOCUS_RETRY_MS = 50
 
 # Actions that also work as keys while typing text (prefixes of the action names).
 # Only keys that should not produce a character while typing, otherwise letters go missing
-ACTIONS_WHILE_TYPING = ("size_",)
+ACTIONS_WHILE_TYPING = ("size_", "text_font")
 
 
 class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, CropMixin, QGraphicsView):
@@ -84,6 +86,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
 
         # Values from the config (do not change during the session), see settings.py
         self.settings = Settings(load_config(), board)
+        self.use_mono_family(self.settings.mono_family, elements)
         if not board:
             # Border around an image that does not fill the whole screen (fit_overlay): bar
             # background, opaque. Belongs to the view, not the scene, so never in the export
@@ -92,6 +95,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             self.setBackgroundBrush(edge)
         self.tool = self.settings.default_tool
         self.size_level = self.settings.default_size_level
+        self.text_font = "normal"  # font kind for new text ("normal"/"mono", Alt+V)
         self.color_index = self.settings.default_color_index
         self.pen_color = self.settings.colors[self.color_index]
         if board:
@@ -105,7 +109,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.current_item = None  # ShapeElement currently being drawn
         self.start_pos = None
         self.editing_text = None  # TextElement while typing
-        self.editing_old = None   # (text, color, size) before editing; None = new text
+        self.editing_old = None   # TextElement.edit_state() before editing; None = new text
         self.dragging = None      # elements currently being moved (list) or None
         self.drag_origin = None   # mouse point when grabbed (scene)
         self.drag_starts = None   # positions of the elements before moving
@@ -188,6 +192,7 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
             "tool_blur": lambda: None if self.board else self.set_tool(Tool.BLUR),
             "tool_marker": self.marker_key,
             "crop": self.crop_key,
+            "text_font": self.toggle_text_font,
             "delete": self.delete_selected,
             "undo": self.undo_stack.undo,
             "redo": self.undo_stack.redo,
@@ -336,6 +341,23 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         self.refresh_cursor()  # circle or color in the mouse cursor
         self.update_bars()
 
+    def toggle_text_font(self):
+        """Alt+V: monospace on/off for the text being typed, otherwise for the selected texts
+        (also labels of selected shapes, one undo step), and for the next text."""
+        if self.editing_text:  # becomes part of the edit's undo step (finish_text)
+            kind = "normal" if self.editing_text.font_kind == "mono" else "mono"
+            self.editing_text.set_font_kind(kind)
+        else:
+            texts = [t for item in self.selected_elements()
+                     for t in (item, getattr(item, "label", None)) if isinstance(t, TextElement)]
+            if texts:  # all mono -> normal, otherwise all mono
+                kind = "normal" if all(t.font_kind == "mono" for t in texts) else "mono"
+                changes = [(t.set_font_kind, t.font_kind, kind) for t in texts if t.font_kind != kind]
+                self.undo_stack.push(property_command(changes, "Change font"))
+            else:
+                kind = "normal" if self.text_font == "mono" else "mono"
+        self.text_font = kind
+
     def set_color(self, index):
         """Color for new objects, the text being typed and the selection."""
         self.color_index = index % len(self.settings.colors)
@@ -374,6 +396,20 @@ class Canvas(InputMixin, BoardMixin, OutputMixin, HistoryMixin, PointerMixin, Cr
         # Normally the scene only becomes active once the window is active. Without an active
         # scene a text item gets no keyboard focus, so activate it by hand here
         QApplication.sendEvent(self.scene_, QEvent(QEvent.WindowActivate))
+
+    def use_mono_family(self, family, elements):
+        """Font for monospace text ([text] mono_font, otherwise from Alacritty). The elements
+        were loaded before it was known: monospace texts and labels build their font anew."""
+        # Qt may list a family with its foundry, e.g. "RobotoMono Nerd Font Mono [GOOG]"
+        installed = {name.split(" [")[0] for name in QFontDatabase.families()}
+        if family and family not in installed:
+            print(f"[text] Font {family!r} is not installed, using another monospace font",
+                  file=sys.stderr)
+        set_mono_family(family)
+        for item in elements:
+            for text in (item, getattr(item, "label", None)):
+                if isinstance(text, TextElement) and text.font_kind == "mono":
+                    text.set_font_kind("mono")
 
     def set_background(self, pixmap):
         """Screenshot mode: put pixmap into the scene as background."""

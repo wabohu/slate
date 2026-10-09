@@ -1,4 +1,4 @@
-"""Read the color palette from the Alacritty configuration.
+"""Read the color palette (and the font, load_terminal_font) from the Alacritty configuration.
 
 Deliberately without Qt, so the module can be tested directly in the console:
 
@@ -211,6 +211,18 @@ def _merge_colors(target, data):
                 target[key] = color
 
 
+def _merge_font(target, data):
+    """Take font families ([font.normal] / [font.bold] family) into target["font"]."""
+    font = data.get("font")
+    if not isinstance(font, dict):
+        return
+    for style in ("normal", "bold"):
+        values = font.get(style)
+        family = values.get("family") if isinstance(values, dict) else None
+        if isinstance(family, str) and family.strip():
+            target.setdefault("font", {})[style] = family.strip()
+
+
 def _load_file(path, target, depth, seen):
     """First all imports (in order), then the file itself -> the file wins."""
     path = path.resolve()
@@ -225,6 +237,7 @@ def _load_file(path, target, depth, seen):
         else:
             print(f"[colors] Import not found: {imported}", file=sys.stderr)
     _merge_colors(target, data)
+    _merge_font(target, data)
 
 
 def load_palette(config_path=None):
@@ -245,6 +258,22 @@ def load_palette(config_path=None):
         print(f"[colors] Error loading the palette: {e}", file=sys.stderr)
         return Palette()
     return palette
+
+
+def load_terminal_font(config_path=None):
+    """Font family of the terminal for monospace text: [font.bold] family (text in slate is
+    bold), otherwise [font.normal] family; None without a config or entry."""
+    try:
+        path = Path(config_path) if config_path else find_config()
+        if path is None or not path.is_file():
+            return None
+        target = {"normal": {}, "bright": {}}
+        _load_file(path, target, depth=0, seen=set())
+        fonts = target.get("font", {})
+        return fonts.get("bold") or fonts.get("normal")
+    except Exception as e:  # like the palette: the font is never a reason to crash
+        print(f"[colors] Error loading the font: {e}", file=sys.stderr)
+        return None
 
 
 if __name__ == "__main__":

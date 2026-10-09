@@ -153,7 +153,7 @@ class InputMixin:
             shape = self.shape_at(pos)
         if item and left:
             self.dragging = None
-            self.edit_text(item, old=(item.toPlainText(), item.color, item.font_size))
+            self.edit_text(item, old=item.edit_state())
         elif shape is not None:  # select tool, double click into a shape: label it / edit the label
             self.dragging = None
             self.start_label(shape)
@@ -371,7 +371,7 @@ class InputMixin:
     # --- Text ---
     def start_text(self, pos):
         """Create a new text object at pos and focus it right away for typing."""
-        item = TextElement(pos, self.pen_color, self.text_size)
+        item = TextElement(pos, self.pen_color, self.text_size, kind=self.text_font)
         # Click point roughly at the height of the middle of the line
         item.setPos(pos - QPointF(0, item.boundingRect().height() / 2))
         self.scene_.addItem(item)
@@ -382,11 +382,11 @@ class InputMixin:
         (it becomes an undo step only when the input ends with text, see finish_text)."""
         label = shape.label
         if label is None:
-            label = TextElement(QPointF(0, 0), shape.color, self.text_size)
+            label = TextElement(QPointF(0, 0), shape.color, self.text_size, kind=self.text_font)
             shape.set_label(label)
             self.edit_text(label, old=None)
         else:
-            self.edit_text(label, old=(label.toPlainText(), label.color, label.font_size))
+            self.edit_text(label, old=label.edit_state())
 
     def shape_at(self, pos):
         """Topmost rectangle/ellipse whose area (not only the outline, D2) contains pos, or None.
@@ -410,7 +410,7 @@ class InputMixin:
         item, old = self.editing_text, self.editing_old
         self.editing_text = self.editing_old = None
         item.stop_editing()
-        new = (item.toPlainText(), item.color, item.font_size)
+        new = item.edit_state()
         empty = not new[0].strip()
 
         if is_label(item):  # label of a rectangle/ellipse: attached to it, not an element of its own
